@@ -88,7 +88,7 @@ pub fn normalize_link(input: &str) -> Result<(String, String, String), String> {
 impl Spotify {
     pub fn new(directory: &Path) -> Result<Self, String> {
         let path = directory.join("library.json");
-        let library = match fs::read(&path) {
+        let mut library: Library = match fs::read(&path) {
             Ok(bytes) if bytes.len() <= 524288 => serde_json::from_slice(&bytes)
                 .map_err(|_| "Biblioteca inválida; o arquivo foi preservado.".to_string())?,
             Ok(_) => return Err("A biblioteca excede 512 KB e foi preservada.".into()),
@@ -98,6 +98,18 @@ impl Spotify {
             },
             Err(e) => return Err(e.to_string()),
         };
+        // Preserve memberships from profiles written before multi-playlist support.
+        for entry in &library.entries {
+            if let Some(collection) = library
+                .collections
+                .iter_mut()
+                .find(|collection| Some(collection.id) == entry.collection)
+            {
+                if !collection.uris.contains(&entry.uri) {
+                    collection.uris.push(entry.uri.clone());
+                }
+            }
+        }
         Ok(Self {
             path,
             library,
@@ -641,4 +653,28 @@ mod tests {
         assert_eq!(result["playback_available"], false);
         fs::remove_dir_all(dir).unwrap();
     }
+    #[test]
+    fn legacy_playlist_membership_survives_adding_another_playlist() {
+        let dir = std::env::temp_dir().join(format!(
+            "mare-playlist-migration-{}-{}",
+            std::process::id(),
+            crate::model::now_ms()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        let uri = "spotify:track:4uLU6hMCjMI75M1A2tKUQC";
+        let legacy = json!({"entries":[{"uri":uri,"url":"https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC","kind":"track","title":"Legacy fixture","thumbnail":"","favorite":true,"collection":1}],"collections":[{"id":1,"name":"Existing"},{"id":2,"name":"Second"}],"next_id":3});
+        fs::write(dir.join("library.json"), serde_json::to_vec(&legacy).unwrap()).unwrap();
+        let mut app = Spotify::new(&dir).unwrap();
+        app.handle("set_collection", &json!({"uri":uri,"collection":2}))
+            .unwrap();
+        drop(app);
+        let mut app = Spotify::new(&dir).unwrap();
+        let result = app.handle("list", &json!({})).unwrap();
+        assert_eq!(result["collections"][0]["uris"][0], uri);
+        assert_eq!(result["collections"][1]["uris"][0], uri);
+        assert_eq!(result["entries"][0]["favorite"], true);
+        drop(app);
+        fs::remove_dir_all(dir).unwrap();
+    }
+
 }

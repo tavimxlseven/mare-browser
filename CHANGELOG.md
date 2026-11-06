@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.4 — 2026-11-06
+
+- Preserve memberships in existing local playlists when adding a track to another playlist after upgrading from the legacy library format.
+
 ## 0.3.3 — 2026-11-06
 
 - Search music and artists inside the app without a Spotify account; show public YouTube results and add or download a selected recording.
