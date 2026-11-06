@@ -12,8 +12,8 @@ mod model;
 mod music;
 mod music_search;
 mod native_app;
-mod playlist;
 mod permissions;
+mod playlist;
 mod presence;
 mod protection;
 mod resource_control;
@@ -252,9 +252,17 @@ impl Browser {
             }
         }
         let mut app_state = self.apps.snapshot();
-        if let Some(tab)=self.state.tabs.iter().find(|t|t.app_id.as_deref()==Some("discord")) {
-            if let Some(catalog)=app_state["catalog"].as_array_mut() {
-                if let Some(app)=catalog.iter_mut().find(|a|a["id"]=="discord") {app["running"]=json!(true);app["web_tab_id"]=json!(tab.id);}
+        if let Some(tab) = self
+            .state
+            .tabs
+            .iter()
+            .find(|t| t.app_id.as_deref() == Some("discord"))
+        {
+            if let Some(catalog) = app_state["catalog"].as_array_mut() {
+                if let Some(app) = catalog.iter_mut().find(|a| a["id"] == "discord") {
+                    app["running"] = json!(true);
+                    app["web_tab_id"] = json!(tab.id);
+                }
             }
         }
         let app_title = app_state["catalog"]
@@ -491,7 +499,10 @@ impl Browser {
         }
         let blocked_proxy = self.proxy.clone();
         {
-            let proxy=self.proxy.clone();self.permissions.attach(&view,id,move |value|{let _=proxy.send_event(BrowserEvent::Permission(value));})?;
+            let proxy = self.proxy.clone();
+            self.permissions.attach(&view, id, move |value| {
+                let _ = proxy.send_event(BrowserEvent::Permission(value));
+            })?;
         }
         {
             use webview2_com::{
@@ -769,7 +780,14 @@ impl Browser {
             self.apps.deactivate();
         }
         match cmd {
-            "permission_answer"=>{self.permissions.answer(value["id"].as_u64().unwrap_or(0),value["allow"].as_bool().unwrap_or(false),value["remember"].as_bool().unwrap_or(false));return;}
+            "permission_answer" => {
+                self.permissions.answer(
+                    value["id"].as_u64().unwrap_or(0),
+                    value["allow"].as_bool().unwrap_or(false),
+                    value["remember"].as_bool().unwrap_or(false),
+                );
+                return;
+            }
             "extensions_list" => {
                 self.list_extensions();
                 return;
@@ -992,18 +1010,40 @@ impl Browser {
             }
             "apps_install" | "apps_uninstall" | "apps_open" => {
                 let app_id = value["id"].as_str().unwrap_or("");
-                if app_id=="discord" && cmd=="apps_open" {
+                if app_id == "discord" && cmd == "apps_open" {
                     self.apps.install("discord").ok();
                     self.apps.deactivate();
-                    if let Some(id)=self.state.tabs.iter().find(|t|t.app_id.as_deref()==Some("discord")).map(|t|t.id) {self.state.activate(id);}else{
-                        let id=self.state.new_tab("https://discord.com/app".into(),false);
-                        if let Some(tab)=self.state.tabs.iter_mut().find(|t|t.id==id) {tab.app_id=Some("discord".into());tab.title="Discord".into();}
+                    if let Some(id) = self
+                        .state
+                        .tabs
+                        .iter()
+                        .find(|t| t.app_id.as_deref() == Some("discord"))
+                        .map(|t| t.id)
+                    {
+                        self.state.activate(id);
+                    } else {
+                        let id = self.state.new_tab("https://discord.com/app".into(), false);
+                        if let Some(tab) = self.state.tabs.iter_mut().find(|t| t.id == id) {
+                            tab.app_id = Some("discord".into());
+                            tab.title = "Discord".into();
+                        }
                     }
-                    self.arrange();self.publish();self.save();return;
+                    self.arrange();
+                    self.publish();
+                    self.save();
+                    return;
                 }
-                if app_id=="discord" && cmd=="apps_uninstall" {
-                    let ids:Vec<_>=self.state.tabs.iter().filter(|t|t.app_id.as_deref()==Some("discord")).map(|t|t.id).collect();
-                    for id in ids {self.close_tab(id);}
+                if app_id == "discord" && cmd == "apps_uninstall" {
+                    let ids: Vec<_> = self
+                        .state
+                        .tabs
+                        .iter()
+                        .filter(|t| t.app_id.as_deref() == Some("discord"))
+                        .map(|t| t.id)
+                        .collect();
+                    for id in ids {
+                        self.close_tab(id);
+                    }
                 }
                 let result = match cmd {
                     "apps_install" => self.apps.install(app_id),
@@ -1397,7 +1437,12 @@ impl Browser {
             return;
         }
         match event {
-            BrowserEvent::Permission(value)=>{let _=self.chrome.evaluate_script(&format!("window.mare?.permissionRequest({value});"));return;}
+            BrowserEvent::Permission(value) => {
+                let _ = self
+                    .chrome
+                    .evaluate_script(&format!("window.mare?.permissionRequest({value});"));
+                return;
+            }
             BrowserEvent::ExtensionPrepared(result) => {
                 self.extension_busy = false;
                 match result {

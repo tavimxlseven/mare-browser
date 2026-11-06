@@ -74,8 +74,14 @@ impl Drop for Download {
         }
     }
 }
-fn source(input:&str)->Result<(String,String,String),String>{
-    if let Some(id)=crate::music_search::video_id(input){return Ok((input.into(),format!("https://www.youtube.com/watch?v={id}"),"track".into()));}
+fn source(input: &str) -> Result<(String, String, String), String> {
+    if let Some(id) = crate::music_search::video_id(input) {
+        return Ok((
+            input.into(),
+            format!("https://www.youtube.com/watch?v={id}"),
+            "track".into(),
+        ));
+    }
     crate::spotify::normalize_link(input)
 }
 impl Music {
@@ -337,8 +343,7 @@ impl Music {
                 self.save()?;
             }
             "download" => {
-                let (uri, _, _) =
-                    source(params["url"].as_str().unwrap_or(""))?;
+                let (uri, _, _) = source(params["url"].as_str().unwrap_or(""))?;
                 if let Some(download) = self.download.as_mut().filter(|d| d.source_uri == uri) {
                     download.play_after |= params["play_after"].as_bool().unwrap_or(false);
                     return Ok(());
@@ -358,12 +363,11 @@ impl Music {
                 if self.download.is_some() {
                     return Err("Já existe um download em andamento. Cancele ou aguarde.".into());
                 }
-                let (_, url, kind) =
-                    source(params["url"].as_str().unwrap_or(""))?;
+                let (_, url, kind) = source(params["url"].as_str().unwrap_or(""))?;
                 if !matches!(kind.as_str(), "track" | "album" | "playlist") {
                     return Err("Baixe uma faixa, álbum ou playlist.".into());
                 }
-                let youtube=crate::music_search::video_id(&uri).is_some();
+                let youtube = crate::music_search::video_id(&uri).is_some();
                 let runtime = self.directory.join("runtime");
                 let temp = runtime.join("tmp").join(format!(
                     "job-{}-{}",
@@ -371,27 +375,32 @@ impl Music {
                     crate::model::now_ms()
                 ));
                 fs::create_dir_all(&temp).map_err(|e| e.to_string())?;
-                let mut command = if youtube {crate::music_search::command(&self.directory)?} else {
-                    let executable=crate::components::executable("sunnify").ok_or("O componente Sunnify não acompanha este pacote.")?;
+                let mut command = if youtube {
+                    crate::music_search::command(&self.directory)?
+                } else {
+                    let executable = crate::components::executable("sunnify")
+                        .ok_or("O componente Sunnify não acompanha este pacote.")?;
                     Command::new(executable)
                 };
                 if youtube {
                     command.args(["--no-playlist","--no-simulate","--no-mtime","--no-progress","--format","bestaudio[ext=m4a]/bestaudio[ext=mp4]","--output"])
                         .arg(self.directory.join("audio").join("%(id)s.%(ext)s"))
                         .args(["--print",r#"after_move:{"event":"track_done","file":%(filepath)j,"title":%(title)j,"artists":%(uploader)j}"#,&url]);
-                } else { command
-                    .args(["download", &url, "--out"])
-                    .arg(self.directory.join("audio"))
-                    .args([
-                        "--format",
-                        "mp3",
-                        "--quality",
-                        "192",
-                        "--no-loose-match",
-                        "--json",
-                    ]);
+                } else {
+                    command
+                        .args(["download", &url, "--out"])
+                        .arg(self.directory.join("audio"))
+                        .args([
+                            "--format",
+                            "mp3",
+                            "--quality",
+                            "192",
+                            "--no-loose-match",
+                            "--json",
+                        ]);
                 }
-                command.env("APPDATA", &runtime)
+                command
+                    .env("APPDATA", &runtime)
                     .env("LOCALAPPDATA", &runtime)
                     .env("TEMP", &temp)
                     .env("TMP", &temp)
@@ -521,8 +530,9 @@ impl Music {
                         track.artwork = art.into();
                     }
                     if let Some(uri) = params["track_uri"].as_str().filter(|uri| {
-                        (crate::music_search::video_id(uri).is_some() || crate::spotify::normalize_link(uri)
-                            .is_ok_and(|(_, _, kind)| kind == "track"))
+                        (crate::music_search::video_id(uri).is_some()
+                            || crate::spotify::normalize_link(uri)
+                                .is_ok_and(|(_, _, kind)| kind == "track"))
                     }) {
                         track.track_uri = uri.into();
                     }
