@@ -22,7 +22,7 @@
   {
     "id": "spotify",
     "name": "Spotify",
-    "description": "Biblioteca Spotify, áudio local e downloads em segundo plano com Sunnify. Conta opcional.",
+    "description": "Biblioteca, busca de músicas, playlists e áudio local em um app independente.",
     "version": "0.2.0",
     "status": "available",
     "kind": "native",
@@ -32,10 +32,10 @@
   {
     "id": "discord",
     "name": "Discord",
-    "description": "larperCord integrado em uma aba. Cliente independente Zig/SDL com processo sob demanda.",
-    "version": "0.6.0",
+    "description": "Discord oficial em uma aba do Maré. Login normal e perfil persistente, sem cliente ou token separado.",
+    "version": "Web",
     "status": "available",
-    "kind": "external-native",
+    "kind": "web",
     "icon": "discord",
     "installable": true
   }

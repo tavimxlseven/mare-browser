@@ -18,6 +18,8 @@ struct Entry {
     url: String,
     kind: String,
     title: String,
+    #[serde(default)]
+    artists: String,
     thumbnail: String,
     favorite: bool,
     collection: Option<u64>,
@@ -34,6 +36,7 @@ pub struct Spotify {
     account: crate::spotify_account::Account,
     playlists: crate::playlist::Catalog,
     covers: crate::covers::Covers,
+    search: crate::music_search::Search,
 }
 
 pub fn normalize_link(input: &str) -> Result<(String, String, String), String> {
@@ -100,6 +103,7 @@ impl Spotify {
             account: crate::spotify_account::Account::new(),
             playlists: crate::playlist::Catalog::new(directory),
             covers: crate::covers::Covers::new(directory),
+            search: crate::music_search::Search::new(directory),
         })
     }
     fn merge_account(&mut self, items: Vec<Value>) -> Result<(), String> {
@@ -124,6 +128,7 @@ impl Spotify {
                 entry.favorite |= favorite;
             } else if next.entries.len() < 1000 {
                 next.entries.push(Entry {
+                    artists: String::new(),
                     uri,
                     url,
                     kind,
@@ -164,6 +169,7 @@ impl Spotify {
             result.extend(music.clone());
         }
         result["playlist"] = self.playlists.snapshot();
+        result["search"] = self.search.snapshot();
         if let Some(object) = result.as_object_mut() {
             object.extend(self.covers.snapshot().as_object().unwrap().clone());
         }
@@ -173,6 +179,20 @@ impl Spotify {
         result
     }
     pub fn handle(&mut self, method: &str, params: &Value) -> Result<Value, String> {
+        if method=="search" {self.search.request(params["query"].as_str().unwrap_or(""))?;return Ok(self.snapshot());}
+        if method=="import_search" {
+            let track=self.search.track(params["uri"].as_str().unwrap_or(""))?;
+            let mut next=self.library.clone();
+            if !next.entries.iter().any(|entry|entry.uri==track["uri"]) {
+                if next.entries.len()>=1000{return Err("Sua biblioteca atingiu o limite de itens.".into());}
+                next.entries.insert(0,Entry{uri:track["uri"].as_str().unwrap().into(),url:track["url"].as_str().unwrap().into(),title:track["title"].as_str().unwrap().into(),artists:track["artists"].as_str().unwrap_or("").into(),kind:"track".into(),thumbnail:track["thumbnail"].as_str().unwrap_or("").into(),favorite:false,collection:None});
+            }
+            let bytes=serde_json::to_vec_pretty(&next).map_err(|e|e.to_string())?;
+            if bytes.len()>512*1024{return Err("A biblioteca atingiu o limite de tamanho.".into());}
+            let temp=self.path.with_extension("tmp");fs::write(&temp,bytes).and_then(|()|fs::rename(temp,&self.path)).map_err(|e|e.to_string())?;self.library=next;
+            if params["download"].as_bool()==Some(true){self.music.handle("download",&json!({"url":track["uri"],"total_tracks":1}))?;}
+            return Ok(self.snapshot());
+        }
         if method == "open_playlist" {
             self.playlists.open(
                 params["uri"].as_str().unwrap_or(""),
@@ -192,6 +212,7 @@ impl Spotify {
                 return Ok(self.snapshot());
             }
             let mut result = self.music.snapshot_since(params["revision"].as_u64());
+            result["search"] = self.search.snapshot();
             result["playlist"] = self.playlists.snapshot();
             if params["artwork_revision"].as_u64() != Some(self.covers.revision()) {
                 if let Some(object) = result.as_object_mut() {
@@ -273,6 +294,7 @@ impl Spotify {
                     next.entries.insert(
                         0,
                         Entry {
+                            artists: String::new(),
                             uri,
                             url,
                             kind,
@@ -356,7 +378,7 @@ pub(crate) fn safe_artwork(input: &str) -> bool {
             && matches!(
                 u.host_str(),
                 Some(
-                    "i.scdn.co"
+                    "i.scdn.co" | "i.ytimg.com"
                         | "mosaic.scdn.co"
                         | "image-cdn-ak.spotifycdn.com"
                         | "image-cdn-fa.spotifycdn.com"

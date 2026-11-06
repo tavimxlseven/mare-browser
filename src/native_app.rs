@@ -25,7 +25,7 @@ pub fn run_if_requested() -> Option<Result<(), String>> {
         let app_id = arguments[1]
             .to_str()
             .ok_or("Identificador de app inválido.")?;
-        if !matches!(app_id, "notes" | "calculator" | "spotify" | "discord") {
+        if !matches!(app_id, "notes" | "calculator" | "spotify") {
             return Err("App nativo desconhecido.".into());
         }
         let directory = PathBuf::from(&arguments[3]);
@@ -124,7 +124,6 @@ struct NativeApp {
     directory: PathBuf,
     notebook: Notebook,
     spotify: Option<crate::spotify::Spotify>,
-    larper: Option<crate::larper::Larper>,
 }
 
 impl NativeApp {
@@ -167,11 +166,6 @@ impl NativeApp {
             } else {
                 None
             },
-            larper: if id == "discord" {
-                Some(crate::larper::Larper::new(directory)?)
-            } else {
-                None
-            },
         })
     }
 
@@ -183,8 +177,6 @@ impl NativeApp {
             Err("Mensagem de app inválida.".into())
         } else if let Some(spotify) = self.spotify.as_mut() {
             spotify.handle(method, &params)
-        } else if let Some(larper) = self.larper.as_mut() {
-            larper.handle(method, &params)
         } else if method == "hello" {
             Ok(
                 json!({"app_id":self.id,"protocol_version":1,"methods":if self.id=="notes" {vec!["list","create","update","delete"]} else {vec!["calculate"]}}),

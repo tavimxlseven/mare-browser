@@ -92,11 +92,6 @@ impl AppManager {
         for app in &mut catalog {
             let id = app["id"].as_str().unwrap_or("").to_string();
             let running = self.running.get(&id);
-            if id == "discord" && crate::components::executable("larpercord").is_none() {
-                app["installable"] = json!(false);
-                app["status"] = json!("component_missing");
-                app["description"]=json!("Esta edição não inclui o componente larperCord. Consulte a documentação de componentes.");
-            }
             app["installed"] = json!(self.installed.contains(&id));
             app["running"] = json!(running.is_some());
             app["pid"] = running
@@ -179,6 +174,7 @@ impl AppManager {
     }
 
     pub fn start(&mut self, id: &str) -> Result<(), String> {
+        if id == "discord" {return Err("Discord usa a aba web oficial do Maré.".into());}
         self.collect_reapers();
         if !available(id) || !self.installed.contains(id) {
             return Err("Instale um app disponível antes de abri-lo.".into());

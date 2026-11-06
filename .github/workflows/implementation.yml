@@ -1,0 +1,51 @@
+name: Implementation validation
+on:
+  push:
+    branches: [work/music-discord]
+permissions:
+  contents: write
+concurrency:
+  group: implementation-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec
+        with:
+          components: rustfmt, clippy
+      - name: Format Rust sources
+        shell: pwsh
+        run: |
+          cargo fmt --all
+          if($LASTEXITCODE -ne 0){throw 'Rust formatting failed'}
+          git diff --quiet
+          if($LASTEXITCODE -ne 0){
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add '*.rs'
+            git commit -m 'Format Rust implementation'
+            git push
+          }
+      - name: Clippy
+        run: cargo clippy --all-targets --locked -- -D warnings
+      - name: Rust tests
+        run: cargo test --all-targets --locked
+      - name: JavaScript checks
+        run: |
+          node --check ui/app.js
+          node --check ui/spotify.js
+          node --check ui/music-layout.js
+          node scripts/music-queue-smoke.cjs
+      - name: Build executable
+        run: cargo build --release --locked
+      - name: Verify workers
+        run: |
+          node scripts/worker-smoke.mjs --exe=target/release/mare-browser.exe
+          node scripts/spotify-smoke.mjs --exe=target/release/mare-browser.exe
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: mare-implementation-windows-x64
+          path: target/release/mare-browser.exe

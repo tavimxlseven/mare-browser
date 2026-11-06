@@ -13,6 +13,8 @@ pub struct Tab {
     #[serde(default)]
     pub favicon: String,
     #[serde(default)]
+    pub app_id: Option<String>,
+    #[serde(default)]
     pub loading: bool,
     #[serde(default)]
     pub private: bool,
@@ -205,6 +207,7 @@ impl BrowserState {
             title: page_title(&url),
             url,
             favicon: String::new(),
+            app_id: None,
             loading,
             private,
             pinned: false,

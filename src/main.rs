@@ -8,11 +8,12 @@ mod downloads;
 mod extensions;
 mod icon;
 mod icon_pixels;
-mod larper;
 mod model;
 mod music;
+mod music_search;
 mod native_app;
 mod playlist;
+mod permissions;
 mod presence;
 mod protection;
 mod resource_control;
@@ -61,6 +62,7 @@ enum BrowserEvent {
     Media(u64, u64, bool),
     Audio(u64, u64, bool),
     StorageError(String),
+    Permission(Value),
     ExtensionPrepared(Result<extensions::Prepared, String>),
     Extensions(Value),
     ExtensionChanged(Result<(), String>),
@@ -105,6 +107,7 @@ struct Browser {
     extension_root: PathBuf,
     pending_extension: Option<extensions::Prepared>,
     extension_busy: bool,
+    permissions: permissions::Manager,
     protection: protection::Protection,
     views: HashMap<u64, WebView>,
     view_generations: HashMap<u64, u64>,
@@ -136,7 +139,7 @@ struct Browser {
 fn embedded_ui() -> String {
     include_str!("../ui/index.html")
         .replace("<link rel=\"stylesheet\" href=\"styles.css\">", &format!("<style>{}</style><style>{}</style>", include_str!("../ui/styles.css"), include_str!("../ui/spotify.css")))
-        .replace("<script src=\"app.js\"></script>", &format!("<script>{}</script><script>{}</script>", include_str!("../ui/spotify.js"), include_str!("../ui/app.js")))
+        .replace("<script src=\"app.js\"></script>", &format!("<script>{}</script><script>{}</script>", format!("{}{}{}",include_str!("../ui/music-queue.js"),include_str!("../ui/music-layout.js"),include_str!("../ui/spotify.js")), include_str!("../ui/app.js")))
         .replace("<head>", "<head><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: https: http:; connect-src 'none'; base-uri 'none'; form-action 'none'\">")
 }
 
@@ -226,6 +229,7 @@ impl Browser {
         self.view_generations.get(&id) == Some(&generation) && self.views.contains_key(&id)
     }
     fn remove_view(&mut self, id: u64) {
+        self.permissions.close_tab(id);
         self.media_tabs.remove(&id);
         self.audio_tabs.remove(&id);
         self.view_bounds.remove(&id);
@@ -247,7 +251,12 @@ impl Browser {
                 tab.can_go_forward = view.can_go_forward().unwrap_or(false);
             }
         }
-        let app_state = self.apps.snapshot();
+        let mut app_state = self.apps.snapshot();
+        if let Some(tab)=self.state.tabs.iter().find(|t|t.app_id.as_deref()==Some("discord")) {
+            if let Some(catalog)=app_state["catalog"].as_array_mut() {
+                if let Some(app)=catalog.iter_mut().find(|a|a["id"]=="discord") {app["running"]=json!(true);app["web_tab_id"]=json!(tab.id);}
+            }
+        }
         let app_title = app_state["catalog"]
             .as_array()
             .into_iter()
@@ -481,6 +490,9 @@ impl Browser {
             }
         }
         let blocked_proxy = self.proxy.clone();
+        {
+            let proxy=self.proxy.clone();self.permissions.attach(&view,id,move |value|{let _=proxy.send_event(BrowserEvent::Permission(value));})?;
+        }
         {
             use webview2_com::{
                 IsDocumentPlayingAudioChangedEventHandler,
@@ -757,6 +769,7 @@ impl Browser {
             self.apps.deactivate();
         }
         match cmd {
+            "permission_answer"=>{self.permissions.answer(value["id"].as_u64().unwrap_or(0),value["allow"].as_bool().unwrap_or(false),value["remember"].as_bool().unwrap_or(false));return;}
             "extensions_list" => {
                 self.list_extensions();
                 return;
@@ -979,6 +992,19 @@ impl Browser {
             }
             "apps_install" | "apps_uninstall" | "apps_open" => {
                 let app_id = value["id"].as_str().unwrap_or("");
+                if app_id=="discord" && cmd=="apps_open" {
+                    self.apps.install("discord").ok();
+                    self.apps.deactivate();
+                    if let Some(id)=self.state.tabs.iter().find(|t|t.app_id.as_deref()==Some("discord")).map(|t|t.id) {self.state.activate(id);}else{
+                        let id=self.state.new_tab("https://discord.com/app".into(),false);
+                        if let Some(tab)=self.state.tabs.iter_mut().find(|t|t.id==id) {tab.app_id=Some("discord".into());tab.title="Discord".into();}
+                    }
+                    self.arrange();self.publish();self.save();return;
+                }
+                if app_id=="discord" && cmd=="apps_uninstall" {
+                    let ids:Vec<_>=self.state.tabs.iter().filter(|t|t.app_id.as_deref()==Some("discord")).map(|t|t.id).collect();
+                    for id in ids {self.close_tab(id);}
+                }
                 let result = match cmd {
                     "apps_install" => self.apps.install(app_id),
                     "apps_uninstall" => self.apps.uninstall(app_id),
@@ -1371,6 +1397,7 @@ impl Browser {
             return;
         }
         match event {
+            BrowserEvent::Permission(value)=>{let _=self.chrome.evaluate_script(&format!("window.mare?.permissionRequest({value});"));return;}
             BrowserEvent::ExtensionPrepared(result) => {
                 self.extension_busy = false;
                 match result {
@@ -1829,6 +1856,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         extension_root: data_dir.join("extensions"),
         pending_extension: None,
         extension_busy: false,
+        permissions: permissions::Manager::default(),
         external_viewport: None,
         last_external_layout: String::new(),
         external_window: 0,

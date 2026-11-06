@@ -1564,7 +1564,7 @@
             const stopping = (state.apps?.stopping || []).some(
               (process) => process.id === app.id,
             );
-            return `<article class="store-app" data-app-row="${esc(app.id)}"><div class="store-app-icon app-icon-${esc(app.id)}">${icon(appIcon(app))}</div><div class="store-app-info"><h3>${esc(app.name)}</h3><p>${esc(app.description)}</p><span>${available ? (app.kind === "external-native" ? "Cliente nativo Zig/SDL" : "Aplicativo nativo Rust") : "Em desenvolvimento"}${app.version ? ` · ${esc(app.version)}` : ""}</span></div><div class="store-app-actions">${available ? `<button class="button${app.installed ? "" : " primary"}" data-app-action="${app.installed ? "open" : "install"}" data-app-id="${esc(app.id)}" ${stopping ? "disabled" : ""}>${stopping ? "Encerrando…" : app.running ? "Em execução" : app.installed ? "Abrir" : "Instalar"}</button>${app.installed && !app.running && !stopping ? `<button class="store-remove" data-app-action="uninstall" data-app-id="${esc(app.id)}" aria-label="Remover ${esc(app.name)}" title="Remover aplicativo">${icon("trash")}</button>` : ""}` : `<span class="planned-label">${app.status === "component_missing" ? "Não incluído" : "Planejado"}</span>`}</div></article>`;
+            return `<article class="store-app" data-app-row="${esc(app.id)}"><div class="store-app-icon app-icon-${esc(app.id)}">${icon(appIcon(app))}</div><div class="store-app-info"><h3>${esc(app.name)}</h3><p>${esc(app.description)}</p><span>${available ? (app.kind === "web" ? "Aplicativo web oficial" : app.kind === "external-native" ? "Cliente nativo Zig/SDL" : "Aplicativo nativo Rust") : "Em desenvolvimento"}${app.version ? ` · ${esc(app.version)}` : ""}</span></div><div class="store-app-actions">${available ? `<button class="button${app.installed ? "" : " primary"}" data-app-action="${app.installed ? "open" : "install"}" data-app-id="${esc(app.id)}" ${stopping ? "disabled" : ""}>${stopping ? "Encerrando…" : app.running ? "Em execução" : app.installed ? "Abrir" : "Instalar"}</button>${app.installed && !app.running && !stopping ? `<button class="store-remove" data-app-action="uninstall" data-app-id="${esc(app.id)}" aria-label="Remover ${esc(app.name)}" title="Remover aplicativo">${icon("trash")}</button>` : ""}` : `<span class="planned-label">${app.status === "component_missing" ? "Não incluído" : "Planejado"}</span>`}</div></article>`;
           })
           .join("")
       : '<div class="store-empty">O catálogo de aplicativos ainda não está disponível.</div>';
@@ -1761,6 +1761,22 @@
       appRequests.set(requestId, { resolve, reject, timer });
       send({ cmd: "apps_request", id, method, params, request_id: requestId });
     });
+  }
+  const pendingPermissions=[];
+  let activePermission=null;
+  function permissionRequest(value) {
+    pendingPermissions.push(value);
+    if (!activePermission) showNextPermission();
+  }
+  function showNextPermission() {
+    activePermission=pendingPermissions.shift();
+    if (!activePermission) return;
+    const p=activePermission;
+    showOverlay("permission","Permitir acesso ao "+p.permission+"?",'<p><strong>'+esc(p.origin)+'</strong> está solicitando acesso ao '+esc(p.permission)+'.</p><label class="permission-remember"><input type="checkbox" id="permission-remember"> Lembrar para este site</label><div class="dialog-actions"><button class="button" data-permission-deny>Bloquear</button><button class="button primary" data-permission-allow>Permitir</button></div>');
+    const answer=allow=>{send({cmd:"permission_answer",id:p.id,allow,remember:!!$("#permission-remember")?.checked});activePermission=null;closeTransient();showNextPermission();};
+    $("[data-permission-allow]").onclick=()=>answer(true);
+    $("[data-permission-deny]").onclick=()=>answer(false);
+    $("[data-dialog-close]").onclick=()=>answer(false);
   }
   function appsRequestFailed(id, message) {
     const pending = appRequests.get(id);
@@ -2863,6 +2879,7 @@
     showStore,
     appsEvent,
     appsRequestFailed,
+    permissionRequest,
     requestClose,
     copy,
   };

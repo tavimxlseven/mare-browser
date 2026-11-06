@@ -37,8 +37,7 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
     filter = "all",
     query = "",
     signature = "",
-    shuffle = false,
-    repeat = false,
+
     polling = false,
     disposed = false,
     autoStarting = false,
@@ -47,6 +46,8 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
   <section class="music-main music-panel"><header class="music-toolbar"><label>${svg("search")}<input class="spotify-search" type="search" placeholder="Pesquisar na sua biblioteca" aria-label="Pesquisar na biblioteca"></label><button class="music-account" data-action="account" hidden>Conectar conta</button><button data-action="settings" aria-label="Configurações de música">${svg("settings")}</button></header><div class="music-scroll"><div class="music-heading"><div><small class="music-section-label">Sua música</small><h2>Sua biblioteca</h2><p class="music-subtitle">Seus links e músicas baixadas, em um só lugar.</p></div><button class="music-add" data-action="add">${svg("plus")} Adicionar link</button></div><div class="music-list-heading"><span>#</span><span>Título</span><span>Origem</span><span></span></div><div class="spotify-library"></div></div><div class="music-download" hidden role="status"><span class="music-download-spinner"></span><div><strong></strong><small></small></div><button data-action="cancel_download" aria-label="Cancelar download">${svg("close")}</button></div></section>
   <aside class="music-queue music-panel"><header><strong>Fila</strong><button data-action="queue" aria-label="Fechar fila">${svg("close")}</button></header><h3>Tocando agora</h3><div class="music-now"><div class="music-now-art">${svg("music")}</div><strong>Nada tocando</strong><small>Escolha uma faixa baixada.</small></div><h3>A seguir</h3><div class="music-next"></div><p class="music-queue-note">A música continua ao trocar de aba. Feche a aba do app para encerrar a reprodução.</p></aside>
   <footer class="spotify-player"><div class="music-track"><div class="music-track-art">${svg("music")}</div><div><strong>Nenhuma faixa selecionada</strong><small>Escolha uma música baixada</small></div></div><div class="music-transport"><div><button data-action="shuffle" aria-label="Reprodução aleatória" aria-pressed="false">${svg("shuffle")}</button><button data-action="previous" aria-label="Faixa anterior">${svg("previous")}</button><button class="music-play" data-action="play" aria-label="Reproduzir">${svg("play")}</button><button data-action="next" aria-label="Próxima faixa">${svg("next")}</button><button data-action="repeat" aria-label="Repetir fila" aria-pressed="false">${svg("repeat")}</button></div><label class="music-timeline"><span class="music-position">0:00</span><input type="range" min="0" max="1" value="0" step="1000" class="music-seek" aria-label="Posição da música"><span class="music-duration">0:00</span></label></div><div class="music-volume"><button data-action="queue" aria-label="Mostrar fila">${svg("queue")}</button>${svg("volume")}<input type="range" min="0" max="100" value="80" class="music-volume-slider" aria-label="Volume"></div></footer>`;
+  const playback = new window.MareMusicQueue();
+  const musicLayout = window.attachMusicLayout(element);
   async function invoke(method, params = {}) {
     try {
       const result = await request(method, params);
@@ -520,17 +521,15 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
     ]);
     if ($(".music-next").dataset.signature !== queueSignature) {
       $(".music-next").dataset.signature = queueSignature;
-      const index = data.local_tracks.findIndex(
-        (t) => t.id === player.track_id,
-      );
-      $(".music-next").innerHTML =
-        data.local_tracks
-          .slice(index + 1, index + 9)
-          .map(
-            (t) =>
-              `<button data-action="play_local" data-id="${t.id}"><span>${data.artwork?.[t.track_uri || queueMeta.get(t.id)?.uri || t.source_uri] ? `<img src="${esc(data.artwork[t.track_uri || queueMeta.get(t.id)?.uri || t.source_uri])}" alt="">` : svg("music")}</span><div><strong>${esc(t.title)}</strong><small>${esc(t.artists || "Arquivo local")}</small></div></button>`,
-          )
-          .join("") || "<small>A fila está vazia.</small>";
+      const upcoming = playback.upcoming();
+      $(".music-next").innerHTML = upcoming.map((id, index) => {
+        const t = data.local_tracks.find(t => t.id === id);
+        if (!t?.available) return "";
+        const at = playback.position + index + 1;
+        const art = data.artwork?.[t.track_uri || queueMeta.get(t.id)?.uri || t.source_uri] || t.artwork || "";
+        return '<article class="music-queue-row" draggable="true" data-queue-index="'+at+'"><button data-action="queue_play" data-index="'+at+'" aria-label="Reproduzir '+esc(t.title)+'"><span>'+ (art ? '<img src="'+esc(art)+'" alt="" loading="lazy">' : svg("music")) +'</span><div><strong>'+esc(t.title)+'</strong><small>'+esc(t.artists||"Música baixada")+'</small></div></button><div class="music-queue-actions"><button data-action="queue_up" data-index="'+at+'" aria-label="Subir na fila">'+svg("up")+'</button><button data-action="queue_remove" data-index="'+at+'" aria-label="Remover da fila">'+svg("close")+'</button></div></article>';
+      }).join("") || '<small>A fila está vazia.</small>';
+      $(".music-queue h3:last-of-type").textContent = 'A seguir · ' + upcoming.length;
     }
     if (playing) lastPlaying = player.track_id;
     if (
@@ -573,34 +572,24 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
       : "Conectar conta";
   }
 
-  async function step(direction, automatic = false) {
-    const tracks = queueIds.length
-      ? queueIds
-          .map((id) => data.local_tracks.find((t) => t.id === id))
-          .filter((t) => t?.available)
-      : data.local_tracks.filter((t) => t.available);
-    if (!tracks.length) return;
-    let index = tracks.findIndex((t) => t.id === data.player?.track_id);
-    index = shuffle
-      ? Math.floor(Math.random() * tracks.length)
-      : index + direction;
-    if (index >= tracks.length) {
-      if (!repeat && automatic) return;
-      index = 0;
-    }
-    if (index < 0) index = tracks.length - 1;
-    autoStarting = true;
-    try {
-      const meta = queueMeta.get(tracks[index].id);
-      await invoke("play_local", {
-        id: tracks[index].id,
-        track_uri: meta?.uri,
-        artwork: data.artwork?.[meta?.uri] || meta?.artwork || "",
-      });
-    } finally {
-      autoStarting = false;
-    }
+  async function playQueued(id) {
+    if (id == null) return;
+    const meta=queueMeta.get(id);
+    queueIds=[...playback.order];
+    autoStarting=true;
+    try { await invoke("play_local", {id,track_uri:meta?.uri,artwork:data.artwork?.[meta?.uri]||meta?.artwork||""}); }
+    finally {autoStarting=false;renderPlayer();}
   }
+  async function step(direction, automatic = false) {
+    if (direction < 0 && data.player?.position_ms > 3000) return invoke("seek",{position_ms:0});
+    if (!playback.order.length) playback.start(data.local_tracks.filter(t=>t.available).map(t=>t.id),data.player?.track_id || data.local_tracks.find(t=>t.available)?.id);
+    return playQueued(direction > 0 ? playback.next(automatic) : playback.previous());
+  }
+  let draggingQueue=null;
+  element.addEventListener("dragstart",event=>{const row=event.target.closest("[data-queue-index]");if(row){draggingQueue=Number(row.dataset.queueIndex);event.dataTransfer.effectAllowed="move";event.dataTransfer.setData("text/plain",String(draggingQueue));}});
+  element.addEventListener("dragover",event=>{if(draggingQueue!==null&&event.target.closest("[data-queue-index]"))event.preventDefault();});
+  element.addEventListener("drop",event=>{const row=event.target.closest("[data-queue-index]");if(row&&draggingQueue!==null){event.preventDefault();playback.move(draggingQueue,Number(row.dataset.queueIndex));queueIds=[...playback.order];renderPlayer();}draggingQueue=null;});
+  element.addEventListener("dragend",()=>draggingQueue=null);
   element.addEventListener("click", async (event) => {
     const button = event.target.closest("button");
     if (!button || button.disabled) return;
@@ -661,7 +650,7 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
     if (action === "account") return accountDialog();
     if (action === "search") return $(".spotify-search").focus();
     if (action === "queue") {
-      element.classList.toggle("queue-hidden");
+      musicLayout.toggleQueue();
       const queue = $(".music-queue");
       if (
         !element.classList.contains("queue-hidden") &&
@@ -677,13 +666,18 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
       return;
     }
     if (action === "shuffle" || action === "repeat") {
-      if (action === "shuffle") shuffle = !shuffle;
-      else repeat = !repeat;
-      button.setAttribute(
-        "aria-pressed",
-        String(action === "shuffle" ? shuffle : repeat),
-      );
-      return;
+      if (action === "shuffle") playback.setShuffle(!playback.shuffled);
+      else playback.repeat = ({off:"all",all:"one",one:"off"})[playback.repeat];
+      queueIds=[...playback.order];
+      button.setAttribute("aria-pressed",String(action === "shuffle" ? playback.shuffled : playback.repeat!=="off"));
+      if (action === "repeat") {button.dataset.mode=playback.repeat;button.setAttribute("aria-label",playback.repeat==="one"?"Repetir faixa":playback.repeat==="all"?"Repetir fila":"Ativar repetição");}
+      renderPlayer();return;
+    }
+    if (action === "queue_play") return playQueued(playback.selectAt(Number(button.dataset.index)));
+    if (action === "queue_remove" || action === "queue_up") {
+      const index=Number(button.dataset.index);
+      if (action === "queue_remove") playback.removeAt(index); else playback.move(index,index-1);
+      queueIds=[...playback.order];renderPlayer();return;
     }
     if (action === "next" || action === "previous")
       return step(action === "next" ? 1 : -1);
@@ -700,7 +694,7 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
         data.local_tracks.find(
           (t) => t.id === data.player?.track_id && t.available,
         ) || data.local_tracks.find((t) => t.available);
-      if (track) return invoke("play_local", { id: track.id });
+      if (track) {playback.start(data.local_tracks.filter(t=>t.available).map(t=>t.id),track.id);queueIds=[...playback.order];return invoke("play_local", { id: track.id });}
       return;
     }
     if (action === "play_local") {
@@ -712,6 +706,8 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
         for (const row of currentRows.filter((e) => e.local?.available))
           queueMeta.set(row.local.id, { uri: row.uri, artwork: row.thumbnail });
       }
+      playback.start(queueIds.length ? queueIds : data.local_tracks.filter(t=>t.available).map(t=>t.id),Number(button.dataset.id));
+      queueIds=[...playback.order];
       return invoke("play_local", {
         id: Number(button.dataset.id),
         artwork:
@@ -760,7 +756,8 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
       d.querySelector("[data-confirm-delete]").onclick = async (event) => {
         event.target.disabled = true;
         if (await invoke("delete_local", { id })) {
-          queueIds = queueIds.filter((value) => value !== id);
+          playback.prune(new Set(data.local_tracks.filter(t=>t.available).map(t=>t.id)));
+          queueIds=[...playback.order];
           queueMeta.delete(id);
           d.close();
         } else event.target.disabled = false;
@@ -794,6 +791,8 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
       result.download?.state !== data.download?.state;
     data = { ...data, ...result };
     data.local_tracks ||= [];
+    playback.prune(new Set(data.local_tracks.filter(t=>t.available).map(t=>t.id)));
+    queueIds=[...playback.order];
     if (libraryChanged) renderLibrary();
     renderPlayer();
     renderDownload();
@@ -826,6 +825,7 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
     load: () => invoke("list"),
     dispose: () => {
       disposed = true;
+      musicLayout.dispose();
       cancelAnimationFrame(visualFrame);
       coverObserver?.disconnect();
       clearTimeout(coverTimer);

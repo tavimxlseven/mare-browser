@@ -4,6 +4,8 @@ use std::path::PathBuf;
 pub fn executable(component: &str) -> Option<PathBuf> {
     let relative = match component {
         "sunnify" => "sunnify/Sunnify.exe",
+        "yt-dlp" => "music/yt-dlp.exe",
+        "deno" => "music/deno.exe",
         "larpercord" => "larpercord/larperCord/larpercord.exe",
         _ => return None,
     };
