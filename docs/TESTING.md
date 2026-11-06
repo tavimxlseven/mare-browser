@@ -120,7 +120,7 @@ Os apps Notas e Calculadora mantiveram dois PIDs reais simultâneos. Pedidos em 
 
 As capturas em `screenshots/` foram feitas na interface nativa com o host Rust e workers reais. As 20 regressões em fixtures complementam essas verificações; não são apresentadas como testes de rede ou de processos.
 
-Não foi feito benchmark comparativo de consumo com Spotify, Discord ou outros navegadores. A CI remota da versão 0.2.0 será registrada após o envio do commit.
+Não foi feito benchmark comparativo de consumo com Spotify, Discord ou outros navegadores. A [CI Windows da versão 0.2.0](https://github.com/tavimxlseven/mare-browser/actions/runs/42142491228) terminou com `completed / success` para o commit `6bcf237ebbc0ebe29c61ae2a9989c6cb4a03061c`. A execução aprovou formatação, Clippy, testes Rust, sintaxe JavaScript, build release MSVC, quatro verificações CLI dos workers nativos, empacotamento e upload do artefato.
 
 ## Validação 0.1.0
 
