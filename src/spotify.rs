@@ -663,7 +663,11 @@ mod tests {
         fs::create_dir_all(&dir).unwrap();
         let uri = "spotify:track:4uLU6hMCjMI75M1A2tKUQC";
         let legacy = json!({"entries":[{"uri":uri,"url":"https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC","kind":"track","title":"Legacy fixture","thumbnail":"","favorite":true,"collection":1}],"collections":[{"id":1,"name":"Existing"},{"id":2,"name":"Second"}],"next_id":3});
-        fs::write(dir.join("library.json"), serde_json::to_vec(&legacy).unwrap()).unwrap();
+        fs::write(
+            dir.join("library.json"),
+            serde_json::to_vec(&legacy).unwrap(),
+        )
+        .unwrap();
         let mut app = Spotify::new(&dir).unwrap();
         app.handle("set_collection", &json!({"uri":uri,"collection":2}))
             .unwrap();
@@ -676,5 +680,4 @@ mod tests {
         drop(app);
         fs::remove_dir_all(dir).unwrap();
     }
-
 }
