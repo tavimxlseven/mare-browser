@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Maré</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <header id="chrome">
+      <div class="toolbar" id="titlebar">
+        <div class="toolbar-start">
+          <div class="traffic-lights" aria-label="Controles da janela">
+            <button class="traffic close" data-window="close" aria-label="Fechar janela" title="Fechar janela"><span>×</span></button>
+            <button class="traffic minimize" data-window="minimize" aria-label="Minimizar janela" title="Minimizar"><span>−</span></button>
+            <button class="traffic maximize" data-window="maximize" aria-label="Maximizar ou restaurar janela" title="Maximizar ou restaurar"><span>↗</span></button>
+          </div>
+          <button class="icon-button" id="sidebar-toggle" data-icon="sidebar" aria-label="Mostrar barra lateral" title="Barra lateral (Ctrl+B)"></button>
+          <span class="toolbar-divider"></span>
+          <button class="icon-button" id="back" data-icon="back" aria-label="Voltar" title="Voltar (Alt+←)" disabled></button>
+          <button class="icon-button" id="forward" data-icon="forward" aria-label="Avançar" title="Avançar (Alt+→)" disabled></button>
+        </div>
+        <form id="address-form" class="address-shell" autocomplete="off">
+          <button type="button" class="address-security" id="site-info" data-icon="search" aria-label="Informações da página" title="Informações da página"></button>
+          <label class="sr-only" for="address">Pesquisar ou digitar endereço</label>
+          <input id="address" name="address" spellcheck="false" autocomplete="off" placeholder="Pesquisar ou digitar endereço" aria-autocomplete="list" aria-controls="suggestions" aria-expanded="false">
+          <button type="button" class="address-action" id="reader-button" data-icon="reader" aria-label="Modo de leitura" title="Modo de leitura (Ctrl+Shift+R)" hidden></button>
+          <button type="button" class="address-action" id="reload" data-icon="reload" aria-label="Recarregar página" title="Recarregar (Ctrl+R)"></button>
+          <span class="load-progress" id="load-progress"></span>
+        </form>
+        <div class="toolbar-end">
+          <button class="icon-button" id="downloads-button" data-icon="download" aria-label="Downloads" title="Downloads (Ctrl+J)"></button>
+          <button class="icon-button" id="share-button" data-icon="share" aria-label="Compartilhar e salvar" title="Compartilhar e salvar"></button>
+          <button class="icon-button" id="new-tab" data-icon="plus" aria-label="Nova aba" title="Nova aba (Ctrl+T)"></button>
+          <button class="icon-button" id="overview-button" data-icon="overview" aria-label="Visão geral das abas" title="Visão geral das abas"></button>
+          <button class="icon-button" id="more-button" data-icon="more" aria-label="Mais opções" title="Mais opções"></button>
+        </div>
+      </div>
+      <div class="tab-bar"><div id="tabs" role="tablist" aria-label="Abas abertas"></div></div>
+    </header>
+    <div id="workspace">
+      <aside id="sidebar" aria-label="Barra lateral" hidden>
+        <div class="sidebar-heading"><div class="brand-mark" data-icon="compass"></div><strong>Maré</strong><button class="icon-button" id="sidebar-close" data-icon="sidebar" aria-label="Fechar barra lateral"></button></div>
+        <button class="sidebar-home" id="sidebar-start"><span data-icon="home"></span>Página inicial</button>
+        <div class="sidebar-switch" role="tablist" aria-label="Biblioteca">
+          <button data-section="bookmarks" role="tab" aria-label="Favoritos" title="Favoritos" data-icon="book"></button>
+          <button data-section="reading" role="tab" aria-label="Lista de leitura" title="Lista de leitura" data-icon="glasses"></button>
+          <button data-section="history" role="tab" aria-label="Histórico" title="Histórico" data-icon="history"></button>
+        </div>
+        <div class="sidebar-section-heading"><h2 id="sidebar-title">Favoritos</h2><button class="icon-button" id="sidebar-add" data-icon="plus" aria-label="Adicionar favorito" title="Adicionar favorito"></button></div>
+        <label class="sidebar-search"><span data-icon="search"></span><input id="library-search" type="search" placeholder="Buscar na biblioteca" aria-label="Buscar na biblioteca"></label>
+        <div id="sidebar-list" class="library-list"></div>
+        <div class="sidebar-footer"><button id="settings-button"><span data-icon="settings"></span>Ajustes</button><button id="private-button" title="Nova aba privada (Ctrl+Shift+N)" aria-label="Nova aba privada" data-icon="private"></button></div>
+      </aside>
+      <main id="main">
+        <form id="find-bar" hidden>
+          <label for="find-input">Buscar nesta página</label><input id="find-input" type="search" placeholder="Texto da busca" autocomplete="off">
+          <button type="button" id="find-prev" data-icon="up" aria-label="Resultado anterior"></button><button type="submit" data-icon="down" aria-label="Próximo resultado"></button><button type="button" id="find-close" data-icon="close" aria-label="Fechar busca"></button>
+        </form>
+        <div id="viewport">
+          <div id="startpage" class="wallpaper aurora">
+            <div class="landscape" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+            <div class="start-content">
+              <div class="welcome"><div class="welcome-compass" data-icon="compass"></div><div><p id="welcome-label">Um novo horizonte.</p><p class="welcome-subtitle">Comece por onde você gosta.</p></div></div>
+              <section class="favorites-section" aria-labelledby="favorites-heading"><div class="section-heading"><h1 id="favorites-heading">Favoritos</h1><button id="add-favorite" class="subtle-button" data-icon="plus" aria-label="Adicionar favorito" title="Adicionar favorito"></button></div><div id="favorites" class="favorites-grid"></div></section>
+              <section class="reading-section" aria-labelledby="reading-heading"><div class="section-heading"><h2 id="reading-heading">Lista de leitura</h2><button class="text-button" id="reading-all">Mostrar tudo</button></div><div id="reading-preview"></div></section>
+              <section class="recent-section" aria-labelledby="recent-heading"><div class="section-heading"><h2 id="recent-heading">Visitados recentemente</h2><button class="text-button" id="history-all">Histórico</button></div><div id="recent-preview"></div></section>
+            </div>
+            <div class="start-footer"><span class="start-signature">Maré <span id="version-label"></span></span><span class="private-note" hidden><span data-icon="private"></span>Esta aba não aparece no histórico.</span><button id="customize" class="customize-button" title="Personalizar página inicial"><span data-icon="sliders"></span>Personalizar</button></div>
+          </div>
+          <div id="remote-placeholder" hidden><div class="remote-spinner"></div><p>Abrindo a página…</p><small id="remote-domain"></small></div>
+        </div>
+      </main>
+    </div>
+    <div id="suggestions" class="suggestions floating-panel" role="listbox" aria-label="Sugestões" hidden></div>
+    <div id="popup" class="floating-panel popup" hidden></div>
+    <div id="overlay" hidden><section id="overlay-panel" role="dialog" aria-modal="true" aria-labelledby="overlay-title"></section></div>
+    <div id="toast" role="status" aria-live="polite" hidden></div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+# Rust
+/target/
+**/*.rs.bk
+
+# Perfis e dados privados
+/data/
+/profile/
+/profiles/
+/user-data/
+/runtime/
+/runtime-data/
+/downloads/
+/download-cache/
+*.WebView2/
+EBWebView/
+
+# Ferramentas, caches e arquivos intermediários locais
+/.tools/
+/.cache/
+/.cargo-home/
+/.rustup-home/
+/node_modules/
+/work/
+/tmp/
+*.log
+*.tmp
+*.dmp
+*.raw.json
+*.evidence.json
+
+# Segredos locais
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Editor e sistema
+/.idea/
+/.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+/dist/
+/MareBrowserData/
+
+/mare-data/

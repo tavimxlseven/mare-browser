@@ -1,0 +1,12 @@
+{
+  "package": "rea-agents",
+  "version": "6.8.0",
+  "repository": "git+https://github.com/morluto/rea.git",
+  "tarball": "https://registry.npmjs.org/rea-agents/-/rea-agents-6.8.0.tgz",
+  "integrity": "sha512-9QDeRnGqEDzABZyr04eLnBXBv/c6I9/TWu/6M0MD4pEfkySI/BIgwTODIbAReX3C1x6hjw9+Jlx4A2yUSPZ9ww==",
+  "package_sha256": "8d542ec76a9cb350584b60a6c9c088706ff812d5bb5b094c20c95b6dc25698bb",
+  "node": "24.22.1",
+  "installed_with_scripts_disabled": true,
+  "installed_mcp": false,
+  "integrity_verified": true
+}

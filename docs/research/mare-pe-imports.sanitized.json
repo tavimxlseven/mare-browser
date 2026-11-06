@@ -1,0 +1,559 @@
+{
+  "document_kind": "sanitized-projection-of-rea-evidence",
+  "recorded_date": "2026-11-05",
+  "scope": "Specific intermediate debug build; not a release certification or runtime test.",
+  "source_evidence_id": "ev_8e8a7fe119cb6d8449cf774a6f9e7dedf96d7b32eb5716c72ea5232dace54ece",
+  "source_raw_sha256": "269f691ea0a75e611e58fc1100248827218f5c65abebbf31dda85854d805d97b",
+  "tool": {
+    "upstream": "https://github.com/morluto/rea",
+    "name": "rea-agents",
+    "version": "6.8.0"
+  },
+  "operation": "inspect_pe_imports",
+  "artifact": {
+    "build": "debug",
+    "bytes": 68136331,
+    "name": "mare-browser.exe",
+    "sha256": "2adeb67fccad5943ce570ea0da21f0c6e5512aac54904f8fb962ae2dfee71296"
+  },
+  "format": "pe32-plus",
+  "architecture": "amd64",
+  "bits": 64,
+  "parameters": {
+    "max_file_bytes": 104857600
+  },
+  "coverage": {
+    "status": "complete",
+    "reason": null,
+    "examined_dlls": 33,
+    "imports": 349,
+    "delay_imports": 0
+  },
+  "imports": [
+    {
+      "functions": [
+        "CreateCoreWebView2EnvironmentWithOptions",
+        "GetAvailableCoreWebView2BrowserVersionString"
+      ],
+      "dll": "WebView2Loader.dll"
+    },
+    {
+      "functions": [
+        "CloseHandle",
+        "GetLastError",
+        "GetModuleHandleA",
+        "GetProcAddress",
+        "Sleep"
+      ],
+      "dll": "kernel32.dll"
+    },
+    {
+      "functions": [
+        "RegGetValueW"
+      ],
+      "dll": "advapi32.dll"
+    },
+    {
+      "functions": [
+        "WakeByAddressSingle"
+      ],
+      "dll": "api-ms-win-core-synch-l1-2-0.dll"
+    },
+    {
+      "functions": [
+        "CoTaskMemAlloc",
+        "CoTaskMemFree"
+      ],
+      "dll": "combase.dll"
+    },
+    {
+      "functions": [
+        "DefSubclassProc",
+        "RemoveWindowSubclass",
+        "SetWindowSubclass"
+      ],
+      "dll": "comctl32.dll"
+    },
+    {
+      "functions": [
+        "DwmEnableBlurBehindWindow",
+        "DwmSetWindowAttribute"
+      ],
+      "dll": "dwmapi.dll"
+    },
+    {
+      "functions": [
+        "CreateRectRgn",
+        "CreateSolidBrush",
+        "DeleteObject",
+        "GetDeviceCaps"
+      ],
+      "dll": "gdi32.dll"
+    },
+    {
+      "functions": [
+        "ImmGetCompositionStringW",
+        "ImmGetContext",
+        "ImmReleaseContext",
+        "ImmSetCompositionWindow"
+      ],
+      "dll": "imm32.dll"
+    },
+    {
+      "functions": [
+        "GetCurrentThreadId",
+        "GetModuleHandleW",
+        "GetUserDefaultUILanguage",
+        "HeapFree",
+        "LCIDToLocaleName",
+        "LoadLibraryA",
+        "LoadLibraryW",
+        "TlsGetValue",
+        "TlsSetValue",
+        "lstrlenW"
+      ],
+      "dll": "kernel32.dll"
+    },
+    {
+      "functions": [
+        "CoCreateInstance",
+        "CoInitializeEx",
+        "CoUninitialize",
+        "OleInitialize",
+        "PropVariantClear",
+        "PropVariantCopy",
+        "RegisterDragDrop",
+        "RevokeDragDrop"
+      ],
+      "dll": "ole32.dll"
+    },
+    {
+      "functions": [
+        "VariantClear",
+        "VariantCopy"
+      ],
+      "dll": "oleaut32.dll"
+    },
+    {
+      "functions": [
+        "PropVariantCompareEx",
+        "PropVariantToBSTR",
+        "PropVariantToBoolean",
+        "PropVariantToDouble",
+        "PropVariantToInt16",
+        "PropVariantToInt32",
+        "PropVariantToInt64",
+        "PropVariantToUInt16",
+        "PropVariantToUInt32",
+        "PropVariantToUInt64",
+        "PropVariantToVariant",
+        "VariantToBoolean",
+        "VariantToDouble",
+        "VariantToInt16",
+        "VariantToInt32",
+        "VariantToInt64",
+        "VariantToPropVariant",
+        "VariantToUInt16",
+        "VariantToUInt32",
+        "VariantToUInt64"
+      ],
+      "dll": "propsys.dll"
+    },
+    {
+      "functions": [
+        "DragFinish",
+        "DragQueryFileW",
+        "SHAppBarMessage"
+      ],
+      "dll": "shell32.dll"
+    },
+    {
+      "functions": [
+        "SHCreateMemStream"
+      ],
+      "dll": "shlwapi.dll"
+    },
+    {
+      "functions": [
+        "AdjustWindowRectEx",
+        "ChangeDisplaySettingsExW",
+        "ClientToScreen",
+        "ClipCursor",
+        "CloseTouchInputHandle",
+        "CreateIcon",
+        "CreateWindowExW",
+        "DefWindowProcW",
+        "DestroyIcon",
+        "DestroyWindow",
+        "DispatchMessageA",
+        "DispatchMessageW",
+        "EnableMenuItem",
+        "EnumChildWindows",
+        "EnumDisplayMonitors",
+        "FillRect",
+        "GetActiveWindow",
+        "GetAsyncKeyState",
+        "GetClientRect",
+        "GetClipCursor",
+        "GetCursorPos",
+        "GetDC",
+        "GetKeyState",
+        "GetKeyboardLayout",
+        "GetKeyboardState",
+        "GetMenu",
+        "GetMessageA",
+        "GetMessageW",
+        "GetMonitorInfoW",
+        "GetRawInputData",
+        "GetRawInputDeviceInfoW",
+        "GetSystemMenu",
+        "GetSystemMetrics",
+        "GetTouchInputInfo",
+        "GetUpdateRect",
+        "GetWindow",
+        "GetWindowLongPtrW",
+        "GetWindowLongW",
+        "GetWindowPlacement",
+        "GetWindowRect",
+        "GetWindowTextLengthW",
+        "GetWindowTextW",
+        "InvalidateRgn",
+        "IsIconic",
+        "IsProcessDPIAware",
+        "IsWindowVisible",
+        "LoadCursorW",
+        "LoadImageW",
+        "MapVirtualKeyExW",
+        "MapVirtualKeyW",
+        "MapWindowPoints",
+        "MonitorFromPoint",
+        "MonitorFromRect",
+        "MonitorFromWindow",
+        "MsgWaitForMultipleObjectsEx",
+        "PeekMessageW",
+        "PostMessageW",
+        "PostThreadMessageW",
+        "RedrawWindow",
+        "RegisterClassExW",
+        "RegisterRawInputDevices",
+        "RegisterTouchWindow",
+        "RegisterWindowMessageA",
+        "ReleaseCapture",
+        "ReleaseDC",
+        "ScreenToClient",
+        "SendInput",
+        "SendMessageW",
+        "SetCapture",
+        "SetCursor",
+        "SetFocus",
+        "SetForegroundWindow",
+        "SetParent",
+        "SetPropW",
+        "SetWindowDisplayAffinity",
+        "SetWindowLongPtrW",
+        "SetWindowLongW",
+        "SetWindowPlacement",
+        "SetWindowPos",
+        "SetWindowTextW",
+        "ShowCursor",
+        "ShowWindow",
+        "SystemParametersInfoA",
+        "SystemParametersInfoW",
+        "ToUnicodeEx",
+        "TrackMouseEvent",
+        "TranslateMessage",
+        "ValidateRect"
+      ],
+      "dll": "user32.dll"
+    },
+    {
+      "functions": [
+        "CoCreateFreeThreadedMarshaler"
+      ],
+      "dll": "combase.dll"
+    },
+    {
+      "functions": [
+        "FreeLibrary",
+        "LoadLibraryExA"
+      ],
+      "dll": "kernel32.dll"
+    },
+    {
+      "functions": [
+        "UuidCreate"
+      ],
+      "dll": "rpcrt4.dll"
+    },
+    {
+      "functions": [
+        "RoOriginateErrorW"
+      ],
+      "dll": "api-ms-win-core-winrt-error-l1-1-0.dll"
+    },
+    {
+      "functions": [
+        "FormatMessageW"
+      ],
+      "dll": "kernel32.dll"
+    },
+    {
+      "functions": [
+        "GetErrorInfo",
+        "SetErrorInfo"
+      ],
+      "dll": "oleaut32.dll"
+    },
+    {
+      "functions": [
+        "GetProcessHeap",
+        "HeapAlloc"
+      ],
+      "dll": "kernel32.dll"
+    },
+    {
+      "functions": [
+        "SysAllocStringLen",
+        "SysFreeString",
+        "SysStringLen"
+      ],
+      "dll": "oleaut32.dll"
+    },
+    {
+      "functions": [
+        "RegGetValueA"
+      ],
+      "dll": "advapi32.dll"
+    },
+    {
+      "functions": [
+        "RtlGetVersion"
+      ],
+      "dll": "ntdll.dll"
+    },
+    {
+      "functions": [
+        "AddVectoredExceptionHandler",
+        "CancelIo",
+        "CompareStringOrdinal",
+        "CopyFileExW",
+        "CreateDirectoryW",
+        "CreateEventW",
+        "CreateFileMappingA",
+        "CreateFileW",
+        "CreateHardLinkW",
+        "CreatePipe",
+        "CreateProcessW",
+        "CreateSymbolicLinkW",
+        "CreateThread",
+        "CreateToolhelp32Snapshot",
+        "CreateWaitableTimerExW",
+        "DeleteCriticalSection",
+        "DeleteFileW",
+        "DeleteProcThreadAttributeList",
+        "DeviceIoControl",
+        "DuplicateHandle",
+        "EnterCriticalSection",
+        "ExitProcess",
+        "FindClose",
+        "FindFirstFileExW",
+        "FindNextFileW",
+        "FlsAlloc",
+        "FlsFree",
+        "FlsSetValue",
+        "FlushFileBuffers",
+        "FreeEnvironmentStringsW",
+        "GetCommandLineW",
+        "GetConsoleMode",
+        "GetConsoleOutputCP",
+        "GetCurrentDirectoryW",
+        "GetCurrentProcess",
+        "GetCurrentProcessId",
+        "GetCurrentThread",
+        "GetEnvironmentStringsW",
+        "GetEnvironmentVariableW",
+        "GetExitCodeProcess",
+        "GetFileAttributesW",
+        "GetFileInformationByHandle",
+        "GetFileInformationByHandleEx",
+        "GetFileSizeEx",
+        "GetFileType",
+        "GetFinalPathNameByHandleW",
+        "GetFullPathNameW",
+        "GetModuleFileNameW",
+        "GetModuleHandleExW",
+        "GetOverlappedResult",
+        "GetProcessId",
+        "GetStdHandle",
+        "GetSystemDirectoryW",
+        "GetSystemInfo",
+        "GetSystemTimePreciseAsFileTime",
+        "GetTempPathW",
+        "GetWindowsDirectoryW",
+        "HeapReAlloc",
+        "InitOnceBeginInitialize",
+        "InitOnceComplete",
+        "InitializeCriticalSection",
+        "InitializeProcThreadAttributeList",
+        "IsThreadAFiber",
+        "LeaveCriticalSection",
+        "LockFileEx",
+        "MapViewOfFile",
+        "Module32FirstW",
+        "Module32NextW",
+        "MoveFileExW",
+        "MultiByteToWideChar",
+        "QueryPerformanceCounter",
+        "QueryPerformanceFrequency",
+        "RaiseException",
+        "ReadConsoleW",
+        "ReadFile",
+        "ReadFileEx",
+        "RemoveDirectoryW",
+        "RtlCaptureContext",
+        "RtlLookupFunctionEntry",
+        "RtlUnwindEx",
+        "RtlVirtualUnwind",
+        "SetCurrentDirectoryW",
+        "SetEnvironmentVariableW",
+        "SetFileAttributesW",
+        "SetFileInformationByHandle",
+        "SetFilePointerEx",
+        "SetFileTime",
+        "SetHandleInformation",
+        "SetLastError",
+        "SetStdHandle",
+        "SetThreadStackGuarantee",
+        "SetUnhandledExceptionFilter",
+        "SetWaitableTimer",
+        "SleepEx",
+        "SwitchToThread",
+        "TerminateProcess",
+        "TlsAlloc",
+        "TlsFree",
+        "UnlockFile",
+        "UnmapViewOfFile",
+        "UpdateProcThreadAttribute",
+        "VirtualProtect",
+        "VirtualQuery",
+        "WaitForMultipleObjects",
+        "WaitForSingleObject",
+        "WideCharToMultiByte",
+        "WriteConsoleW",
+        "WriteFileEx",
+        "__C_specific_handler"
+      ],
+      "dll": "KERNEL32.dll"
+    },
+    {
+      "functions": [
+        "__getmainargs",
+        "__initenv",
+        "__iob_func",
+        "__set_app_type",
+        "__setusermatherr",
+        "_amsg_exit",
+        "_cexit",
+        "_commode",
+        "_errno",
+        "_exit",
+        "_fmode",
+        "_fpreset",
+        "_initterm",
+        "atexit",
+        "abort",
+        "calloc",
+        "ceil",
+        "ceilf",
+        "exit",
+        "fflush",
+        "fprintf",
+        "free",
+        "malloc",
+        "memcmp",
+        "memcpy",
+        "memmove",
+        "memset",
+        "setvbuf",
+        "signal",
+        "strlen",
+        "strncmp",
+        "vfprintf",
+        "wcslen"
+      ],
+      "dll": "msvcrt.dll"
+    },
+    {
+      "functions": [
+        "NtCreateFile",
+        "NtCreateNamedPipeFile",
+        "NtOpenFile",
+        "NtReadFile",
+        "NtSetInformationFile",
+        "NtWriteFile",
+        "RtlNtStatusToDosError"
+      ],
+      "dll": "ntdll.dll"
+    },
+    {
+      "functions": [
+        "GetUserProfileDirectoryW"
+      ],
+      "dll": "USERENV.dll"
+    },
+    {
+      "functions": [
+        "GetHostNameW",
+        "WSADuplicateSocketW",
+        "WSAGetLastError",
+        "WSARecv",
+        "WSASend",
+        "WSASocketW",
+        "WSAStartup",
+        "accept",
+        "bind",
+        "closesocket",
+        "connect",
+        "freeaddrinfo",
+        "getaddrinfo",
+        "getpeername",
+        "getsockname",
+        "getsockopt",
+        "ioctlsocket",
+        "listen",
+        "recv",
+        "recvfrom",
+        "select",
+        "send",
+        "sendto",
+        "setsockopt",
+        "shutdown"
+      ],
+      "dll": "WS2_32.dll"
+    },
+    {
+      "functions": [
+        "WaitOnAddress",
+        "WakeByAddressAll"
+      ],
+      "dll": "api-ms-win-core-synch-l1-2-0.dll"
+    },
+    {
+      "functions": [
+        "ProcessPrng"
+      ],
+      "dll": "bcryptprimitives.dll"
+    }
+  ],
+  "delay_imports": [],
+  "issues": [],
+  "limitations": [
+    "Rows reproduce the PE import and delay-load directories; they do not establish that an import is bound, forwarded or reachable at runtime.",
+    "Bound import snapshots, the import address table as loaded, and export-forward resolution in another DLL remain unobserved."
+  ],
+  "redactions": [
+    "Local artifact path omitted.",
+    "PE offsets, RVAs and thunk values omitted.",
+    "This projection is not an original REA Evidence bundle; no target process was launched."
+  ]
+}

@@ -1,0 +1,721 @@
+{
+  "document_kind": "sanitized-projection-of-rea-evidence",
+  "recorded_date": "2026-11-05",
+  "source_evidence_id": "ev_a2dfd773d7a84b0ed9a7dc95addedd831c8012d35fbca294325f7a98828703b1",
+  "source_raw_sha256": "688826bc3ae4876e296e33a62cec1cb56e904573cf3f972f6bc51267513df0dd",
+  "tool": {
+    "version": "6.8.0",
+    "name": "rea-agents",
+    "upstream": "https://github.com/morluto/rea"
+  },
+  "operation": "inspect_desktop_application",
+  "target": {
+    "product": "Microsoft Edge WebView2 Runtime",
+    "version": "156.0.4314.58",
+    "installation_path": "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\156.0.4314.58",
+    "platform": "Windows"
+  },
+  "provider": {
+    "id": "rea-artifact-graph",
+    "name": "REA safe artifact graph provider",
+    "version": "1"
+  },
+  "parameters": {
+    "max_probe_bytes": 2097152,
+    "max_entries": 1500
+  },
+  "coverage": {
+    "status": "complete-within-scan",
+    "entries_examined": 963,
+    "files_probed": 45,
+    "bytes_read": 14992,
+    "symlinks_not_followed": 0,
+    "special_entries_omitted": 0,
+    "limits": {
+      "max_entries": 1500,
+      "max_probe_bytes": 2097152
+    }
+  },
+  "runtime_candidates": [],
+  "examined_files": [
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 120,
+          "value": {
+            "format": "pe",
+            "machine": 332
+          }
+        }
+      ],
+      "path": "BHO/ie_to_edge_bho.dll",
+      "bytes": 474432,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 120,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "BHO/ie_to_edge_bho_64.dll",
+      "bytes": 595272,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 120,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "BHO/ie_to_edge_stub.exe",
+      "bytes": 534848,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 120,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "EBWebView/x64/EmbeddedBrowserWebView.dll",
+      "bytes": 9078600,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 120,
+          "value": {
+            "format": "pe",
+            "machine": 332
+          }
+        }
+      ],
+      "path": "EBWebView/x86/EmbeddedBrowserWebView.dll",
+      "bytes": 5779272,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 120,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "Installer/setup.exe",
+      "bytes": 6605128,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 120,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "PdfPreview/PdfPreviewHandler.dll",
+      "bytes": 261448,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 120,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "WidevineCdm/_platform_specific/win_x64/widevinecdm.dll",
+      "bytes": 22716072,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 248,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "concrt140.dll",
+      "bytes": 384264,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 120,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "cookie_exporter.exe",
+      "bytes": 122184,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 280,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "d3dcompiler_47.dll",
+      "bytes": 4763944,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 120,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "dual_engine_adapter_x64.dll",
+      "bytes": 5433544,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 120,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "dxcompiler.dll",
+      "bytes": 20537160,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 120,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "elevation_service.exe",
+      "bytes": 4322120,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 120,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "eventlog_provider.dll",
+      "bytes": 16200,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 120,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "ffmpeg.dll",
+      "bytes": 3107656,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 120,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "identity_helper.exe",
+      "bytes": 2578248,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 120,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "learning_tools.dll",
+      "bytes": 1312072,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 120,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "microsoft_shell_integration.dll",
+      "bytes": 463688,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 120,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "mip_core_gn.dll",
+      "bytes": 8606536,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 120,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "msedge.dll",
+      "bytes": 355200328,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 120,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "msedge_elf.dll",
+      "bytes": 4053832,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 120,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "msedge_proxy.exe",
+      "bytes": 2796360,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 120,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "msedge_wer.dll",
+      "bytes": 125768,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 120,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "msedgewebview2.exe",
+      "bytes": 4911936,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 120,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "mspdf.dll",
+      "bytes": 18856264,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 248,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "msvcp140.dll",
+      "bytes": 653576,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 248,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "msvcp140_codecvt_ids.dll",
+      "bytes": 41216,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 120,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "notification_helper.exe",
+      "bytes": 2868552,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 120,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "oneauth.dll",
+      "bytes": 6596936,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 120,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "oneds.dll",
+      "bytes": 3540808,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 120,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "onnxruntime.dll",
+      "bytes": 11282760,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 120,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "onramp.dll",
+      "bytes": 474440,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 120,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "platform_experiences_helper.exe",
+      "bytes": 3186504,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 240,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "prefs_enclave_x64.dll",
+      "bytes": 116504,
+      "read_status": "examined"
+    },
+    {
+      "facts": [],
+      "path": "show_third_party_software_licenses.bat",
+      "bytes": 270,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 120,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "telclient.dll",
+      "bytes": 4092232,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 120,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "unified_copilot_telemetry.dll",
+      "bytes": 1745224,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 256,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "vccorlib140.dll",
+      "bytes": 360712,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 248,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "vcruntime140.dll",
+      "bytes": 188680,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 248,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "vcruntime140_1.dll",
+      "bytes": 60168,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 120,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "vk_swiftshader.dll",
+      "bytes": 4563272,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 120,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "vulkan-1.dll",
+      "bytes": 975688,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 120,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "wdag.dll",
+      "bytes": 251208,
+      "read_status": "examined"
+    },
+    {
+      "facts": [
+        {
+          "kind": "native-image-header",
+          "offset": 120,
+          "value": {
+            "format": "pe",
+            "machine": 34404
+          }
+        }
+      ],
+      "path": "webview2_integration.dll",
+      "bytes": 31560,
+      "read_status": "examined"
+    }
+  ],
+  "limitations": [
+    "Runtime candidates and component markers do not establish loaded code, execution, or build correspondence.",
+    "The directory SHA-256 commits only to retained paths, omission kinds, available filesystem metadata and read-range digests, not to every file's contents. Unread bytes are unknown.",
+    "Special-entry payloads are not read. Their paths and kinds are retained; other special-entry metadata is unavailable in this report.",
+    "Child symlinks are not followed. Executable section-embedded PCKs without a trailer and encrypted contents remain unexamined.",
+    "This is a sequence of stable entry observations, not an atomic snapshot of the entire directory.",
+    "Unity reference decoding stops after a witness in each Data/Managed directory; other assemblies' references are unexamined. Header facts remain per-file."
+  ],
+  "redactions": [
+    "Filesystem device/inode identities and modification times omitted.",
+    "Unexamined file inventory omitted.",
+    "This projection is not an original REA Evidence bundle; the source_evidence_id identifies the original local report."
+  ]
+}

@@ -1,0 +1,1 @@
+{"name":"rea-agents","version":"6.8.0","runtime":{"id":"node","version":"24.22.1"},"platform":"win32","architecture":"x64","supported_runtime":{"range":"^22.23.4 || ^24.22.1 || >=26.12.1","satisfied":true}}

@@ -1,0 +1,22 @@
+[package]
+name = "mare-browser"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+description = "A Rust desktop browser with a calm, Safari-inspired interface"
+license = "MIT"
+keywords = ["browser", "webview", "desktop", "rust"]
+categories = ["web-programming", "gui"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+url = "2"
+getrandom = "0.3"
+tao = "0.37"
+wry = { version = "0.57", features = ["devtools"] }
+
+[profile.release]
+lto = "thin"
+strip = true
+codegen-units = 1
