@@ -178,7 +178,15 @@ mod tests {
     #[test]
     fn video_ids_are_fixed_identifiers() {
         assert_eq!(video_id("youtube:video:BaW_jenozKc"), Some("BaW_jenozKc"));
-        for input in ["youtube:video:../file.exe", "youtube:video:ABCDEFGHIJ?", "youtube:video:ABCDEFGHIJK&x", "https://youtube.com/watch?v=BaW_jenozKc", "spotify:track:BaW_jenozKc"] { assert_eq!(video_id(input), None); }
+        for input in [
+            "youtube:video:../file.exe",
+            "youtube:video:ABCDEFGHIJ?",
+            "youtube:video:ABCDEFGHIJK&x",
+            "https://youtube.com/watch?v=BaW_jenozKc",
+            "spotify:track:BaW_jenozKc",
+        ] {
+            assert_eq!(video_id(input), None);
+        }
     }
     #[test]
     fn search_rejects_unbounded_queries_and_unselected_tracks() {

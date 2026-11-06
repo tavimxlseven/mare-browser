@@ -79,7 +79,9 @@ impl Manager {
                 .map_err(|e| e.to_string())
         }
     }
-    pub fn contains(&self, id: u64) -> bool { self.pending.borrow().contains_key(&id) }
+    pub fn contains(&self, id: u64) -> bool {
+        self.pending.borrow().contains_key(&id)
+    }
     pub fn answer(&self, id: u64, allow: bool, remember: bool) {
         if let Some(p) = self.pending.borrow_mut().remove(&id) {
             unsafe {

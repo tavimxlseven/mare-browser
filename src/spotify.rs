@@ -339,7 +339,9 @@ impl Spotify {
                 let uri = params["uri"].as_str().ok_or("Selecione um item.")?;
                 if method == "remove" {
                     next.entries.retain(|e| e.uri != uri);
-                    for collection in &mut next.collections {collection.uris.retain(|item|item!=uri);}
+                    for collection in &mut next.collections {
+                        collection.uris.retain(|item| item != uri);
+                    }
                 } else {
                     let collection = params["collection"].as_u64();
                     if method == "set_collection"
@@ -356,9 +358,19 @@ impl Spotify {
                         entry.favorite = !entry.favorite;
                     } else {
                         entry.collection = collection;
-                        if collection.is_none() {for list in &mut next.collections {list.uris.retain(|item|item!=uri);}}
-                        if let Some(collection)=next.collections.iter_mut().find(|c|Some(c.id)==collection) {
-                            if !collection.uris.iter().any(|item|item==uri) {collection.uris.push(uri.into());}
+                        if collection.is_none() {
+                            for list in &mut next.collections {
+                                list.uris.retain(|item| item != uri);
+                            }
+                        }
+                        if let Some(collection) = next
+                            .collections
+                            .iter_mut()
+                            .find(|c| Some(c.id) == collection)
+                        {
+                            if !collection.uris.iter().any(|item| item == uri) {
+                                collection.uris.push(uri.into());
+                            }
                         }
                     }
                 }
@@ -366,7 +378,9 @@ impl Spotify {
             "create_collection" => {
                 let name = params["name"].as_str().unwrap_or("").trim();
                 if name.is_empty() || name.chars().count() > 60 || next.collections.len() >= 200 {
-                    return Err("Informe um nome de até 60 caracteres (máximo 200 playlists).".into());
+                    return Err(
+                        "Informe um nome de até 60 caracteres (máximo 200 playlists).".into(),
+                    );
                 }
                 let id = next.next_id.max(1);
                 next.next_id = id.checked_add(1).ok_or("Limite de coleções.")?;
@@ -377,16 +391,31 @@ impl Spotify {
                 });
             }
             "rename_collection" => {
-                let id=params["id"].as_u64().ok_or("Playlist inválida.")?;
-                let name=params["name"].as_str().unwrap_or("").trim();
-                if name.is_empty()||name.chars().count()>60{return Err("Use um nome entre 1 e 60 caracteres.".into());}
-                next.collections.iter_mut().find(|c|c.id==id).ok_or("Playlist não encontrada.")?.name=name.into();
+                let id = params["id"].as_u64().ok_or("Playlist inválida.")?;
+                let name = params["name"].as_str().unwrap_or("").trim();
+                if name.is_empty() || name.chars().count() > 60 {
+                    return Err("Use um nome entre 1 e 60 caracteres.".into());
+                }
+                next.collections
+                    .iter_mut()
+                    .find(|c| c.id == id)
+                    .ok_or("Playlist não encontrada.")?
+                    .name = name.into();
             }
             "remove_from_collection" => {
-                let id=params["id"].as_u64().ok_or("Playlist inválida.")?;
-                let uri=params["uri"].as_str().ok_or("Música inválida.")?;
-                next.collections.iter_mut().find(|c|c.id==id).ok_or("Playlist não encontrada.")?.uris.retain(|value|value!=uri);
-                for entry in &mut next.entries {if entry.uri==uri&&entry.collection==Some(id){entry.collection=None;}}
+                let id = params["id"].as_u64().ok_or("Playlist inválida.")?;
+                let uri = params["uri"].as_str().ok_or("Música inválida.")?;
+                next.collections
+                    .iter_mut()
+                    .find(|c| c.id == id)
+                    .ok_or("Playlist não encontrada.")?
+                    .uris
+                    .retain(|value| value != uri);
+                for entry in &mut next.entries {
+                    if entry.uri == uri && entry.collection == Some(id) {
+                        entry.collection = None;
+                    }
+                }
             }
             "delete_collection" => {
                 let id = params["id"].as_u64().ok_or("Coleção inválida.")?;
@@ -587,13 +616,23 @@ mod tests {
         assert!(app
             .handle("set_collection", &json!({"uri":uri,"collection":999}))
             .is_err());
-        app.handle("create_collection",&json!({"name":"Second"})).unwrap();
-        app.handle("set_collection",&json!({"uri":uri,"collection":2})).unwrap();
-        app.handle("remove_from_collection",&json!({"uri":uri,"id":2})).unwrap();
-        app.handle("set_collection",&json!({"uri":uri,"collection":1})).unwrap();
-        let playlists=app.handle("list",&json!({})).unwrap();
-        assert_eq!(playlists["collections"][0]["uris"][0],uri);
-        assert_eq!(playlists["collections"][1]["uris"].as_array().unwrap().len(),0);
+        app.handle("create_collection", &json!({"name":"Second"}))
+            .unwrap();
+        app.handle("set_collection", &json!({"uri":uri,"collection":2}))
+            .unwrap();
+        app.handle("remove_from_collection", &json!({"uri":uri,"id":2}))
+            .unwrap();
+        app.handle("set_collection", &json!({"uri":uri,"collection":1}))
+            .unwrap();
+        let playlists = app.handle("list", &json!({})).unwrap();
+        assert_eq!(playlists["collections"][0]["uris"][0], uri);
+        assert_eq!(
+            playlists["collections"][1]["uris"]
+                .as_array()
+                .unwrap()
+                .len(),
+            0
+        );
         drop(app);
         let mut restored = Spotify::new(&dir).unwrap();
         let result = restored.handle("list", &json!({})).unwrap();

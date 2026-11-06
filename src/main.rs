@@ -652,7 +652,9 @@ impl Browser {
             Ok(url) => {
                 let id = self.state.active_id;
                 self.permissions.close_tab(id);
-                if let Some(tab) = self.state.tabs.iter_mut().find(|t| t.id == id) { tab.app_id = None; }
+                if let Some(tab) = self.state.tabs.iter_mut().find(|t| t.id == id) {
+                    tab.app_id = None;
+                }
                 if self.state.navigate(id, url.clone()) {
                     if url == START_URL {
                         self.remove_view(id);
@@ -1443,7 +1445,12 @@ impl Browser {
         }
         match event {
             BrowserEvent::Permission(value) => {
-                if !value["id"].as_u64().is_some_and(|id| self.permissions.contains(id)) { return; }
+                if !value["id"]
+                    .as_u64()
+                    .is_some_and(|id| self.permissions.contains(id))
+                {
+                    return;
+                }
                 let _ = self
                     .chrome
                     .evaluate_script(&format!("window.mare?.permissionRequest({value});"));
