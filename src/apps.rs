@@ -319,7 +319,8 @@ impl AppManager {
             drop(requests);
             let callback = Arc::clone(&self.callback);
             self.reapers.push(thread::spawn(move || {
-                let deadline = Instant::now() + Duration::from_millis(750);
+                let deadline = Instant::now()
+                    + Duration::from_millis(if id == "discord" { 3500 } else { 750 });
                 let mut forced = false;
                 loop {
                     match child.try_wait() {

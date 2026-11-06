@@ -172,3 +172,16 @@ As sete verificações aprovadas pelo smoke foram:
 7. Limpeza assíncrona de cookies e dados dos sites no perfil comum.
 
 A inspeção REA permanece vinculada ao snapshot debug e ao hash documentados em [REA.md](REA.md), não ao executável otimizado final. A CI Windows hospedada no GitHub foi concluída com sucesso para o código no commit `a059ae7b32bdd09a2a14d3d85ee9f31932251972` (`a059ae7`), tanto na [execução da branch main](https://github.com/tavimxlseven/mare-browser/actions/runs/42136216044) quanto na [execução da tag v0.1.0](https://github.com/tavimxlseven/mare-browser/actions/runs/42136247073). Ambas terminaram com `completed / success`, cobrindo formatação, Clippy, testes, sintaxe JavaScript, build release MSVC e upload do artefato. Builds macOS/Linux não foram verificadas nesta sessão. O roteiro manual mais amplo deste documento continua útil para ampliar a cobertura; os resultados acima não implicam que cada linha desse roteiro foi exercitada.
+
+## Validação 0.3.1
+
+- Formatação, Clippy sem warnings, sintaxe JavaScript e 27 testes Rust aprovados.
+- Navegação nativa: 7 grupos; proteção e ciclo de apps: 5 grupos aprovados.
+- Regressão de redimensionamento em quatro tamanhos nativos após destruição de um WebView filho, comparando limites reais dos controladores e dimensões da interface.
+- WAV próprio em página HTTP loopback continuou avançando ao abrir Spotify, sem pausa nem evento visibilitychange para oculto.
+- Monitor coletou host, WebView2 e worker Spotify, sem PIDs duplicados. Valores de memória vêm do Windows, não de estimativa por aba.
+- Worker de música: áudio nativo, persistência de download confirmado e reutilização sem novo processo; solicitações repetidas reutilizaram o downloader ativo; cancelamento encerrou o processo.
+- Protocolo Rich Presence aprovado em IPC isolado. O Discord Canary real aceitou o handshake com `1568194392156668016`, sem publicar uma faixa de teste. Exibição visual no perfil ainda não foi confirmada.
+- Cliente larperCord local incorporado com HWND pai real e sem barras extras. A ordem das janelas foi conferida visualmente sobre uma página web mantida viva.
+
+Não houve login automatizado nem leitura de credenciais. Login persistente do larperCord e importação de uma conta Spotify real permanecem verificações manuais. Não foi realizado benchmark de consumo nem download integral de áudio externo.

@@ -17,10 +17,17 @@ O Maré invoca somente a CLI documentada e não incorpora código-fonte modifica
 
 ## larperCord
 
-O README upstream informa que a licença do código principal ainda está **“Not decided yet”**. A integração local usa o binário original adquirido diretamente do autor; os artefatos públicos do Maré não devem redistribuir esse binário sem esclarecer a licença/permissão com o autor. O código MIT do adaptador e o script de aquisição ficam disponíveis no repositório. A CI do Maré gera apenas o artefato do host Rust.
+O README upstream informa que a licença do código principal ainda está **“Not decided yet”**. O script público adquire o binário original diretamente do autor; os artefatos públicos do Maré não devem redistribuir esse binário sem esclarecer a licença/permissão com o autor. O código MIT do adaptador e o script de aquisição ficam disponíveis no repositório. A CI do Maré gera apenas o artefato do host Rust.
 
 O cliente usa Zig, SDL3 e Dear ImGui. A interface é uma janela nativa incorporada na área do app por HWND/SetParent; não é um iframe, uma cópia em HTML nem um cliente reescrito em Rust. O worker e o cliente permanecem abertos enquanto sua aba existir e são encerrados ao fechá-la.
 
 O perfil do cliente fica em `MARE_DATA_DIR/apps/discord/config/` e o cache em `apps/discord/cache/`. O Maré não importa tokens de outro Discord instalado. Login é realizado manualmente dentro do próprio cliente. A validação desta integração usou `--demo --no-live`, com dados do modo de teste explicitamente identificados, sem autenticar uma conta real.
 
 O upstream informa que clientes de terceiros violam os termos do Discord e podem provocar restrições na conta. Essa limitação pertence ao cliente escolhido e deve ser considerada antes de fazer login. [Documentação original](https://github.com/RshaCuDeVidro/larperCord).
+## Adaptação local do cliente de chat
+
+A instalação de desenvolvimento 0.3.1 usa uma compilação local do commit upstream `202198b8988f3c7ec9583b37e95e39d0713d895d`, identificada como `0.6.0-mare1`. Ela remove a página e a consulta automática de atualizações, impede o relançamento como janela independente, encerra ao fechar a aba e oculta a entrada de demonstração no modo incorporado. A abertura usa `LARPER_HIDDEN` antes de anexar a janela ao host.
+
+SHA256 do executável local: `23bbdd6459c8c2d408f027673d44c8be937a8c34b0b81cf123de8154ff11be71`. Toolchain Zig 0.17.0, alvo Windows GNU, otimização fast. Fonte de trabalho em `D:\DevTools\larpercord-mare-src`; nenhuma cópia modificada de código ou binário larperCord é publicada no repositório ou artefato do Maré enquanto a licença principal estiver indefinida. O script público de aquisição continua preparando a release original, não esta adaptação local.
+
+O adaptador do Maré usa o mesmo diretório de perfil em todas as aberturas e dá até 2,5 segundos para saída normal do cliente. Variáveis herdadas de QA e token não são fornecidas ao cliente. Demonstração só é permitida em build debug, perfil explicitamente QA e configuração de teste. A persistência de uma conta autenticada precisa de validação manual; o teste não acessa o cofre de credenciais do usuário.

@@ -19,6 +19,7 @@ pub struct Larper {
     window: HWND,
     _tree: crate::components::ProcessTree,
     attached: bool,
+    demo: bool,
 }
 impl Larper {
     pub fn new(directory: &Path) -> Result<Self, String> {
@@ -33,6 +34,10 @@ impl Larper {
         command
             .current_dir(executable.parent().unwrap())
             .args(["--lang", "pt"])
+            .env("LARPER_HIDDEN", "1")
+            .env_remove("QA_SUITE")
+            .env_remove("QA_SCENE")
+            .env_remove("LARPER_TOKEN")
             .env("XDG_CONFIG_HOME", &config)
             .env("XDG_CACHE_HOME", &cache)
             .env("APPDATA", &config)
@@ -40,7 +45,13 @@ impl Larper {
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null());
-        if std::env::var_os("MARE_APP_QA_DEMO").is_some() {
+        let demo = cfg!(debug_assertions)
+            && directory
+                .to_string_lossy()
+                .to_ascii_lowercase()
+                .contains("qa")
+            && std::env::var("MARE_APP_QA_DEMO").as_deref() == Ok("1");
+        if demo {
             command.args(["--demo", "--no-live"]);
         }
         use std::os::windows::process::CommandExt;
@@ -95,6 +106,7 @@ impl Larper {
             window: search.window,
             _tree: tree,
             attached: false,
+            demo,
         })
     }
     pub fn handle(&mut self, method: &str, params: &Value) -> Result<Value, String> {
@@ -149,7 +161,7 @@ impl Larper {
             return Err("Operação do larperCord indisponível.".into());
         }
         Ok(
-            json!({"app_id":"discord","protocol_version":1,"external_pid":self.child.id(),"window":self.window.0 as usize,"attached":self.attached,"parent":unsafe{GetParent(self.window).ok().map(|p|p.0 as usize)},"visible":unsafe{IsWindowVisible(self.window).as_bool()},"engine":"larperCord 0.6.0 · Zig/SDL","demo":std::env::var_os("MARE_APP_QA_DEMO").is_some()}),
+            json!({"app_id":"discord","protocol_version":1,"external_pid":self.child.id(),"window":self.window.0 as usize,"attached":self.attached,"parent":unsafe{GetParent(self.window).ok().map(|p|p.0 as usize)},"visible":unsafe{IsWindowVisible(self.window).as_bool()},"engine":"larperCord 0.6.0 · Zig/SDL","demo":self.demo}),
         )
     }
 }
@@ -163,7 +175,7 @@ impl Drop for Larper {
                 LPARAM(0),
             );
         }
-        let deadline = Instant::now() + Duration::from_millis(400);
+        let deadline = Instant::now() + Duration::from_millis(2500);
         while Instant::now() < deadline {
             if self.child.try_wait().ok().flatten().is_some() {
                 return;

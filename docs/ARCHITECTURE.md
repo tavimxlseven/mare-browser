@@ -90,3 +90,11 @@ O pacote portátil contém o executável com os assets da interface incorporados
 O código original usa licença MIT. A interface é independente e mantém fluxos familiares de navegadores desktop. O motor de bloqueio mantém MPL-2.0; as listas de filtros mantêm a licença alternativa CC BY-SA 3.0, com atribuição e fontes preservadas.
 
 Os avisos de licenças das dependências, da biblioteca padrão e do WebView2Loader acompanham a distribuição em THIRD_PARTY_NOTICES.md e THIRD_PARTY_LICENSES.txt.
+
+## Process monitor
+
+Open More → Gerenciador de tarefas or press Shift+Esc. Sampling runs only while the panel is open, every two seconds. The host obtains WebView2 process IDs from each environment and adds allowlisted app workers and their descendants. PIDs are deduplicated, and unrelated WebView2 applications are excluded.
+
+Private RAM is the resident private working set. Private memory is committed private memory and can include pages outside RAM. Resident memory includes shared pages, so summing it can double-count shared allocations. CPU is measured from process-time deltas and normalized to the machine's logical processor count; the first sample is unavailable. Missing Windows counters are shown as unavailable.
+
+The panel accounts for this instance without renaming runtime processes or promising a single Windows Task Manager group. WebView2 renderers can serve multiple tabs; memory is not estimated per tab. The WebView2 task manager remains available from the panel.

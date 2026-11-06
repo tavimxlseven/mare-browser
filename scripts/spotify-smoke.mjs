@@ -115,6 +115,8 @@ try {
     assert.equal(state.download.state, "running");
     const downloaderPid = state.downloader_pid;
     assert.ok(downloaderPid > 0);
+    const repeated = await call("download", { url, play_after: true });
+    assert.equal(repeated.downloader_pid, downloaderPid);
     state = await call("cancel_download");
     assert.equal(state.download.state, "cancelled");
     assert.equal(state.downloader_pid, null);
@@ -128,13 +130,35 @@ try {
     state = await call("import_link", { url });
     assert.notEqual(state.entries[0].title, "Local test fixture");
     assert.ok(
-      ["i.scdn.co", "image-cdn-ak.spotifycdn.com", "image-cdn-fa.spotifycdn.com"].includes(
-        new URL(state.entries[0].thumbnail).hostname,
-      ),
+      [
+        "i.scdn.co",
+        "image-cdn-ak.spotifycdn.com",
+        "image-cdn-fa.spotifycdn.com",
+      ].includes(new URL(state.entries[0].thumbnail).hostname),
     );
     console.log(
       "PASS official public Spotify metadata:",
       state.entries[0].title,
+    );
+  }
+  if (process.argv.includes("--audio")) {
+    await stop();
+    const indexPath = join(directory, "downloaded.json");
+    const tracks = JSON.parse(await readFile(indexPath, "utf8"));
+    tracks[0].source_uri = uri;
+    await writeFile(indexPath, JSON.stringify(tracks));
+    await writeFile(
+      join(directory, "completed-downloads.json"),
+      JSON.stringify([uri]),
+    );
+    start();
+    state = await call("download", { url, play_after: true });
+    assert.equal(state.downloader_pid, null);
+    assert.equal(state.player.state, "playing");
+    assert.deepEqual(state.completed_sources, [uri]);
+    await call("stop");
+    console.log(
+      "PASS confirmed download survives restart and plays without starting another downloader",
     );
   }
   await call("remove", { uri });

@@ -2,6 +2,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
+    collections::BTreeSet,
     fs,
     io::BufReader,
     path::{Path, PathBuf},
@@ -16,6 +17,8 @@ pub struct Track {
     pub title: String,
     pub artists: String,
     path: PathBuf,
+    #[serde(default)]
+    source_uri: String,
 }
 #[derive(Default)]
 struct Progress {
@@ -28,6 +31,8 @@ struct Download {
     reader: Option<thread::JoinHandle<()>>,
     tree: Option<crate::components::ProcessTree>,
     temporary: PathBuf,
+    source_uri: String,
+    play_after: bool,
 }
 pub struct Music {
     directory: PathBuf,
@@ -37,6 +42,7 @@ pub struct Music {
     current: Option<u64>,
     volume: u32,
     revision: u64,
+    completed: BTreeSet<String>,
     pub presence: crate::presence::Presence,
 }
 impl Drop for Download {
@@ -81,6 +87,12 @@ impl Music {
             current: None,
             volume: 80,
             revision: 0,
+            completed: match fs::read(directory.join("completed-downloads.json")) {
+                Ok(bytes) if bytes.len() <= 131072 => serde_json::from_slice(&bytes)
+                    .map_err(|_| "Registro de downloads inválido; arquivo preservado.")?,
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => BTreeSet::new(),
+                _ => return Err("Não foi possível ler o registro de downloads.".into()),
+            },
             presence: crate::presence::Presence::new(directory),
         })
     }
@@ -93,7 +105,15 @@ impl Music {
         }
         fs::write(&temp, bytes)
             .and_then(|()| fs::rename(temp, path))
-            .map_err(|e| e.to_string())
+            .map_err(|e| e.to_string())?;
+        let path = self.directory.join("completed-downloads.json");
+        let temp = path.with_extension("tmp");
+        fs::write(
+            &temp,
+            serde_json::to_vec(&self.completed).map_err(|e| e.to_string())?,
+        )
+        .and_then(|()| fs::rename(temp, path))
+        .map_err(|e| e.to_string())
     }
     fn add_file(&mut self, path: &Path, title: &str, artists: &str) -> bool {
         let Ok(path) = path.canonicalize() else {
@@ -130,6 +150,7 @@ impl Music {
             title: title.chars().take(300).collect(),
             artists: artists.chars().take(200).collect(),
             path,
+            source_uri: String::new(),
         });
         self.revision = self.revision.saturating_add(1);
         true
@@ -139,13 +160,22 @@ impl Music {
             return;
         };
         let finished = download.child.try_wait().ok().flatten();
+        let source_uri = download.source_uri.clone();
+        let play_after = download.play_after;
         if finished.is_some() {
             if let Some(reader) = download.reader.take() {
                 let _ = reader.join();
             }
         }
         let (events, last) = if let Ok(mut progress) = download.progress.lock() {
-            (std::mem::take(&mut progress.events), progress.last.clone())
+            (
+                if finished.is_some() {
+                    std::mem::take(&mut progress.events)
+                } else {
+                    Vec::new()
+                },
+                progress.last.clone(),
+            )
         } else {
             (Vec::new(), Value::Null)
         };
@@ -163,21 +193,50 @@ impl Music {
                     event["title"].as_str().unwrap_or("Áudio local"),
                     event["artists"].as_str().unwrap_or(""),
                 );
+                if let Ok(path) = Path::new(event["file"].as_str().unwrap_or("")).canonicalize() {
+                    if let Some(track) = self.tracks.iter_mut().find(|t| t.path == path) {
+                        if track.source_uri.is_empty() {
+                            track.source_uri = source_uri.clone();
+                            changed = true;
+                        }
+                    }
+                }
             }
         }
         if changed {
+            self.revision = self.revision.saturating_add(1);
             if let Err(error) = self.save() {
                 self.last_download["error"] = json!(error);
             }
         }
         if let Some(status) = finished {
-            self.last_download["state"] = json!(if status.success() {
-                "completed"
-            } else {
-                "failed"
-            });
+            let confirmed = status.success()
+                && self
+                    .tracks
+                    .iter()
+                    .any(|t| t.source_uri == source_uri && t.path.is_file());
+            self.last_download["state"] = json!(if confirmed { "completed" } else { "failed" });
             self.last_download["exit_code"] = json!(status.code());
             self.download = None;
+            if confirmed {
+                self.completed.insert(source_uri.clone());
+                self.revision = self.revision.saturating_add(1);
+                if let Err(error) = self.save() {
+                    self.last_download["error"] = json!(error);
+                }
+                if play_after {
+                    if let Some(id) = self
+                        .tracks
+                        .iter()
+                        .find(|t| t.source_uri == source_uri)
+                        .map(|t| t.id)
+                    {
+                        if let Err(error) = self.handle("play_local", &json!({"id":id})) {
+                            self.last_download["error"] = json!(error);
+                        }
+                    }
+                }
+            }
         }
     }
     pub fn snapshot(&mut self) -> Value {
@@ -209,7 +268,8 @@ impl Music {
         );
         let mut snapshot = json!({"library_revision":self.revision,"player":{"track_id":self.current,"state":mode,"position_ms":position,"duration_ms":duration,"volume":self.volume},"download":self.last_download,"sunnify_available":crate::components::executable("sunnify").is_some(),"downloader_pid":self.download.as_ref().map(|d|d.child.id()),"presence":self.presence.snapshot()});
         if known_revision != Some(self.revision) {
-            snapshot["local_tracks"]=json!(self.tracks.iter().map(|t|json!({"id":t.id,"title":t.title,"artists":t.artists,"available":t.path.is_file()})).collect::<Vec<_>>());
+            snapshot["completed_sources"] = json!(self.completed);
+            snapshot["local_tracks"]=json!(self.tracks.iter().map(|t|json!({"id":t.id,"title":t.title,"artists":t.artists,"source_uri":t.source_uri,"available":t.path.is_file()})).collect::<Vec<_>>());
         }
         snapshot
     }
@@ -217,6 +277,24 @@ impl Music {
         self.poll_download();
         match method {
             "download" => {
+                let (uri, _, _) =
+                    crate::spotify::normalize_link(params["url"].as_str().unwrap_or(""))?;
+                if let Some(download) = self.download.as_mut().filter(|d| d.source_uri == uri) {
+                    download.play_after |= params["play_after"].as_bool().unwrap_or(false);
+                    return Ok(());
+                }
+                if self.completed.contains(&uri)
+                    && self
+                        .tracks
+                        .iter()
+                        .any(|t| t.source_uri == uri && t.path.is_file())
+                {
+                    if params["play_after"].as_bool() == Some(true) {
+                        let id = self.tracks.iter().find(|t| t.source_uri == uri).unwrap().id;
+                        self.handle("play_local", &json!({"id":id}))?;
+                    }
+                    return Ok(());
+                }
                 if self.download.is_some() {
                     return Err("Já existe um download em andamento. Cancele ou aguarde.".into());
                 }
@@ -254,7 +332,7 @@ impl Music {
                     .stdout(Stdio::piped())
                     .stderr(Stdio::null());
                 use std::os::windows::process::CommandExt;
-                command.creation_flags(0x0800_0000);
+                command.creation_flags(0x0800_0000 | 0x0000_4000);
                 let mut child = command.spawn().map_err(|e| e.to_string())?;
                 let tree = match crate::components::ProcessTree::new(&child) {
                     Ok(tree) => tree,
@@ -294,13 +372,16 @@ impl Music {
                     reader: Some(reader),
                     tree: Some(tree),
                     temporary: temp,
+                    source_uri: uri,
+                    play_after: params["play_after"].as_bool().unwrap_or(false),
                 });
             }
             "cancel_download" => {
-                if let Some(mut download) = self.download.take() {
+                if let Some(download) = self.download.as_mut() {
+                    download.play_after = false;
                     let _ = download.child.kill();
                     let _ = download.child.wait();
-                    drop(download);
+                    self.poll_download();
                     self.last_download["state"] = json!("cancelled");
                 }
             }

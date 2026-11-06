@@ -2,6 +2,28 @@
 use serde_json::Value;
 use wry::WebView;
 
+/// Order the embedded native surface above web content; chrome is raised after this.
+pub fn raise_external(parent: usize, child: usize) {
+    #[cfg(windows)]
+    unsafe {
+        use windows::Win32::{Foundation::HWND, UI::WindowsAndMessaging::*};
+        let window = HWND(child as *mut _);
+        if child != 0 && GetParent(window).ok() == Some(HWND(parent as *mut _)) {
+            let _ = SetWindowPos(
+                window,
+                Some(HWND_TOP),
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+            );
+        }
+    }
+    #[cfg(not(windows))]
+    let _ = (parent, child);
+}
+
 pub fn visible(view: &WebView) -> bool {
     #[cfg(windows)]
     {

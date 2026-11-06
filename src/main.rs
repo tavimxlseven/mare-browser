@@ -13,6 +13,7 @@ mod resource_control;
 mod spotify;
 mod spotify_account;
 mod storage;
+mod task_manager;
 
 use model::{normalize_input, BrowserState, Download, Settings, Tab, START_URL};
 use serde_json::{json, Value};
@@ -49,6 +50,7 @@ enum BrowserEvent {
     App(apps::AppEvent),
     ProtectionChanged(u64),
     Cosmetics(u64, u64, String, String),
+    Resources(Value),
 }
 
 #[derive(Clone, Copy)]
@@ -59,6 +61,18 @@ struct Viewport {
     height: f64,
 }
 impl Viewport {
+    fn fitted(self, old: (f64, f64), new: (f64, f64)) -> Self {
+        let right = (old.0 - self.x - self.width).max(0.0);
+        let bottom = (old.1 - self.y - self.height).max(0.0);
+        let x = self.x.min((new.0 - 1.0).max(0.0));
+        let y = self.y.min((new.1 - 1.0).max(0.0));
+        Self {
+            x,
+            y,
+            width: (new.0 - x - right).max(1.0),
+            height: (new.1 - y - bottom).max(1.0),
+        }
+    }
     fn rect(self) -> Rect {
         Rect {
             position: LogicalPosition::new(self.x, self.y).into(),
@@ -70,6 +84,7 @@ impl Viewport {
 struct Browser {
     apps: apps::AppManager,
     resources: resource_control::ResourceControl,
+    monitor: task_manager::Monitor,
     protection: protection::Protection,
     views: HashMap<u64, WebView>,
     view_generations: HashMap<u64, u64>,
@@ -82,6 +97,8 @@ struct Browser {
     proxy: EventLoopProxy<BrowserEvent>,
     data_dir: PathBuf,
     viewport: Viewport,
+    layout_size: (f64, f64),
+    chrome_size: (u32, u32),
     overlay: bool,
     chrome_panels: Vec<Value>,
     external_viewport: Option<Viewport>,
@@ -177,6 +194,7 @@ const PAGE_SHORTCUTS: &str = r#"
   addEventListener('pointerdown', e => { if(e.isTrusted) publish('dismiss',false); }, true);
   addEventListener('keydown', e => {
     if (!e.isTrusted) return;
+    if(e.key==='Escape'&&e.shiftKey){e.preventDefault();publish('task-manager',false);return;}
     const key = e.key.toLowerCase();
     if ((e.ctrlKey || e.metaKey) && ['l','t','w','tab','f','d','h','j','b','n','r','p','+','=','-','0'].includes(key)) {
       e.preventDefault(); e.stopImmediatePropagation();
@@ -240,6 +258,19 @@ impl Browser {
                 "visible_tabs": self.views.iter().filter_map(|(id,view)|composition::visible(view).then_some(*id)).collect::<Vec<_>>(),
                 "suspended_tabs": self.resources.suspended_count(&self.views),
             });
+            #[cfg(debug_assertions)]
+            {
+                let size = self.window.inner_size();
+                let scale = self.window.scale_factor();
+                let bounds = |view: &WebView| {
+                    view.bounds().ok().map(|r| {
+                        let p = r.position.to_physical::<i32>(scale);
+                        let s = r.size.to_physical::<u32>(scale);
+                        json!([p.x, p.y, s.width, s.height])
+                    })
+                };
+                snapshot["runtime"]["geometry"] = json!({"window":[size.width,size.height],"scale":scale,"chrome":bounds(&self.chrome),"page":self.views.get(&self.state.active_id).and_then(bounds)});
+            }
             let _ = self
                 .chrome
                 .evaluate_script(&format!("window.mare?.receive({snapshot});"));
@@ -300,8 +331,28 @@ impl Browser {
                     }
                     let key = value["key"].as_str().unwrap_or("");
                     if [
-                        "l", "t", "w", "tab", "f", "d", "h", "j", "b", "n", "r", "p", "+", "=",
-                        "-", "0", "reload", "back", "forward", "devtools", "dismiss",
+                        "l",
+                        "t",
+                        "w",
+                        "tab",
+                        "f",
+                        "d",
+                        "h",
+                        "j",
+                        "b",
+                        "n",
+                        "r",
+                        "p",
+                        "+",
+                        "=",
+                        "-",
+                        "0",
+                        "reload",
+                        "back",
+                        "forward",
+                        "devtools",
+                        "dismiss",
+                        "task-manager",
                     ]
                     .contains(&key)
                     {
@@ -382,8 +433,28 @@ impl Browser {
         Ok(())
     }
     fn arrange(&mut self) {
+        let size = self.window.inner_size();
+        if size.width == 0 || size.height == 0 {
+            return;
+        }
+        if self.chrome_size != (size.width, size.height) {
+            // Child WebView destruction can detach Wry's parent resize subclass.
+            // Always size the chrome container/controller ourselves, using physical pixels.
+            let bounds = Rect {
+                position: wry::dpi::PhysicalPosition::new(0, 0).into(),
+                size: wry::dpi::PhysicalSize::new(size.width, size.height).into(),
+            };
+            if self.chrome.set_bounds(bounds).is_ok() {
+                self.chrome_size = (size.width, size.height);
+            }
+        }
+        let logical = size.to_logical::<f64>(self.window.scale_factor());
+        let viewport = self
+            .viewport
+            .fitted(self.layout_size, (logical.width, logical.height));
         let active = self.state.active_id;
-        let app_active = self.apps.snapshot()["active_id"].as_str().is_some();
+        let app_state = self.apps.snapshot();
+        let app_active = app_state["active_id"].as_str().is_some();
         let remote = self.state.active_tab().is_some_and(|t| t.url != START_URL);
         if remote {
             if let Err(error) = self.create_view(active) {
@@ -391,22 +462,26 @@ impl Browser {
             }
         }
         for (&id, view) in &self.views {
-            let visible = id == active && remote && !app_active;
+            // An app tab covers the web surface; keep the selected document visible
+            // to WebView2 so media does not receive a hidden-page pause transition.
+            let visible = id == active && remote;
             if visible {
-                let _ = view.set_bounds(self.viewport.rect());
+                let _ = view.set_bounds(viewport.rect());
             }
             let _ = view.set_visible(visible);
-            self.resources
-                .set_background(id, view, id != active || app_active);
+            self.resources.set_background(id, view, id != active);
         }
-        let external_active = self.apps.snapshot()["active_id"] == "discord";
-        let external_open = self.apps.snapshot()["open_ids"]
+        let external_active = app_state["active_id"] == "discord";
+        let external_open = app_state["open_ids"]
             .as_array()
             .is_some_and(|ids| ids.iter().any(|id| id == "discord"));
         #[cfg(windows)]
         if external_open {
             use tao::platform::windows::WindowExtWindows;
-            let v = self.external_viewport.unwrap_or(self.viewport);
+            let v = self
+                .external_viewport
+                .unwrap_or(self.viewport)
+                .fitted(self.layout_size, (logical.width, logical.height));
             let s = self.window.scale_factor();
             let params = json!({"parent":self.window.hwnd() as usize,"rect":[(v.x*s) as i32,(v.y*s) as i32,(v.width*s) as i32,(v.height*s) as i32],"visible":external_active});
             let key = params.to_string();
@@ -418,11 +493,23 @@ impl Browser {
             self.last_external_layout.clear();
         }
         let cutout = if external_active {
-            self.external_viewport.unwrap_or(self.viewport)
+            self.external_viewport
+                .unwrap_or(self.viewport)
+                .fitted(self.layout_size, (logical.width, logical.height))
         } else {
-            self.viewport
+            viewport
         };
         let size = self.window.inner_size();
+        #[cfg(windows)]
+        if external_active {
+            use tao::platform::windows::WindowExtWindows;
+            composition::raise_external(
+                self.window.hwnd() as usize,
+                app_state["responses"]["discord"]["payload"]["result"]["window"]
+                    .as_u64()
+                    .unwrap_or(0) as usize,
+            );
+        }
         composition::arrange(
             &self.chrome,
             [cutout.x, cutout.y, cutout.width, cutout.height],
@@ -522,6 +609,69 @@ impl Browser {
             self.apps.deactivate();
         }
         match cmd {
+            "resources_poll" => {
+                let mut seeds = vec![task_manager::Seed {
+                    pid: std::process::id(),
+                    group: "Maré Browser".into(),
+                    label: "Maré Browser · principal".into(),
+                }];
+                let apps = self.apps.snapshot();
+                for app in apps["running"].as_array().into_iter().flatten() {
+                    if let Some(pid) = app["pid"].as_u64() {
+                        let name = match app["id"].as_str().unwrap_or("") {
+                            "spotify" => "Spotify",
+                            "discord" => "Discord · larperCord",
+                            "notes" => "Notas",
+                            "calculator" => "Calculadora",
+                            _ => "App",
+                        };
+                        seeds.push(task_manager::Seed {
+                            pid: pid as u32,
+                            group: name.into(),
+                            label: format!("{name} · worker"),
+                        });
+                    }
+                }
+                seeds.extend(task_manager::engine_seeds(
+                    std::iter::once(&self.chrome)
+                        .chain(self.views.values())
+                        .chain(self.maintenance_view.iter()),
+                ));
+                let proxy = self.proxy.clone();
+                self.monitor.request(seeds, move |result| {
+                    let _ = proxy.send_event(BrowserEvent::Resources(result));
+                });
+                return;
+            }
+            "engine_task_manager" => {
+                use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2_6;
+                use windows::core::Interface;
+                let view = self
+                    .views
+                    .get(&self.state.active_id)
+                    .unwrap_or(&self.chrome);
+                if let Ok(native) = view.webview().cast::<ICoreWebView2_6>() {
+                    unsafe {
+                        let _ = native.OpenTaskManagerWindow();
+                    }
+                }
+                return;
+            }
+            #[cfg(debug_assertions)]
+            "qa_resize" => {
+                let width = value["width"]
+                    .as_f64()
+                    .unwrap_or(1280.0)
+                    .clamp(760.0, 2200.0);
+                let height = value["height"]
+                    .as_f64()
+                    .unwrap_or(820.0)
+                    .clamp(520.0, 1400.0);
+                self.window.set_inner_size(LogicalSize::new(width, height));
+                self.arrange();
+                self.publish();
+                return;
+            }
             "shield_toggle" => {
                 self.state.settings.shield_enabled = value["enabled"]
                     .as_bool()
@@ -585,6 +735,16 @@ impl Browser {
                 return;
             }
             "layout" => {
+                self.layout_size = (
+                    value["window_width"]
+                        .as_f64()
+                        .unwrap_or(self.layout_size.0)
+                        .clamp(1.0, 20000.0),
+                    value["window_height"]
+                        .as_f64()
+                        .unwrap_or(self.layout_size.1)
+                        .clamp(1.0, 20000.0),
+                );
                 self.viewport = Viewport {
                     x: value["x"].as_f64().unwrap_or(0.0).max(0.0),
                     y: value["y"].as_f64().unwrap_or(100.0).max(0.0),
@@ -900,6 +1060,12 @@ impl Browser {
     }
     fn handle(&mut self, event: BrowserEvent, control_flow: &mut ControlFlow) {
         match event {
+            BrowserEvent::Resources(result) => {
+                let _ = self
+                    .chrome
+                    .evaluate_script(&format!("window.mare?.resources?.({});", result));
+                return;
+            }
             BrowserEvent::ProtectionChanged(id) => {
                 if id != self.state.active_id {
                     return;
@@ -1186,6 +1352,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let mut browser = Browser {
         apps,
         resources: resource_control::ResourceControl::default(),
+        monitor: task_manager::Monitor::default(),
         protection,
         views: HashMap::new(),
         view_generations: HashMap::new(),
@@ -1203,6 +1370,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             width: 1280.0,
             height: 720.0,
         },
+        layout_size: (1280.0, 820.0),
+        chrome_size: (0, 0),
         overlay: false,
         chrome_panels: Vec::new(),
         external_viewport: None,
@@ -1264,6 +1433,25 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn viewport_resize_preserves_toolbar_sidebar_and_bottom_insets() {
+        let v = Viewport {
+            x: 200.0,
+            y: 96.0,
+            width: 1080.0,
+            height: 700.0,
+        };
+        let resized = v.fitted((1280.0, 820.0), (940.0, 600.0));
+        assert_eq!(
+            [resized.x, resized.y, resized.width, resized.height],
+            [200.0, 96.0, 740.0, 480.0]
+        );
+        let tiny = v.fitted((1280.0, 820.0), (1.0, 1.0));
+        assert_eq!(
+            [tiny.x, tiny.y, tiny.width, tiny.height],
+            [0.0, 0.0, 1.0, 1.0]
+        );
+    }
     #[test]
     fn remote_navigation_does_not_execute_local_schemes() {
         assert!(allowed_navigation("https://example.com"));

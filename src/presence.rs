@@ -30,7 +30,8 @@ impl Presence {
             path,
             client_id: settings["client_id"]
                 .as_str()
-                .unwrap_or(option_env!("MARE_DISCORD_CLIENT_ID").unwrap_or(""))
+                .filter(|id| !id.trim().is_empty())
+                .unwrap_or(option_env!("MARE_DISCORD_CLIENT_ID").unwrap_or("1568194392156668016"))
                 .into(),
             enabled: settings["enabled"].as_bool().unwrap_or(false),
             pipe: None,
@@ -203,7 +204,12 @@ impl Presence {
                 } else if value["evt"] == "ERROR" {
                     self.state = "rejected".into();
                 } else if value["cmd"] == "SET_ACTIVITY" {
-                    self.state = "active".into();
+                    self.state = if value["data"].is_null() {
+                        "ready"
+                    } else {
+                        "active"
+                    }
+                    .into();
                 }
             }
         }

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.1 — 2026-11-06
+
+- Explicitly resize chrome and content controllers after child WebView destruction and while layout events are pending.
+- Keep the selected web document visible under native app tabs so media continues playing.
+- Add an on-demand process monitor for host, WebView2, app workers and their helper processes, with private RAM, committed memory and CPU.
+- Unify downloaded music and Spotify links, prevent repeated downloads, and start requested playback only after the downloader exits and files are indexed.
+- Smooth the playback timeline, reuse real cover art, remove app implementation bars and add icon launch transitions.
+- Register the Maré Discord Application ID and correct cleared-activity status reporting.
+- Launch larperCord hidden, restrict demo mode to debug QA profiles, ignore inherited QA/token variables, and allow time for graceful profile shutdown.
+
 ## 0.3.0 — 2026-11-06
 
 - Start the independent Spotify library app with a Rust worker, public link metadata, local favorites and collections.

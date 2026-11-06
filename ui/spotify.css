@@ -1,4 +1,25 @@
 /* Desktop music workspace, based on the user's Spotify reference. */
+.music-track-art img,
+.music-now-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 4px;
+}
+.music-row.is-downloaded .music-availability {
+  color: #1ed760;
+}
+.music-row-actions button[data-action="download"]:disabled {
+  color: #1ed760;
+  opacity: 0.8;
+}
+.music-row-play svg {
+  width: 15px;
+  height: 15px;
+}
+.music-row-play:disabled {
+  opacity: 0.35;
+}
 .spotify-app {
   --music-muted: #b3b3b3;
   --music-green: #1ed760;

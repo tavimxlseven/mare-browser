@@ -287,6 +287,8 @@
       const r = $("#viewport").getBoundingClientRect();
       const data = {
         cmd: "layout",
+        window_width: innerWidth,
+        window_height: innerHeight,
         x: r.x,
         y: r.y,
         width: r.width,
@@ -306,6 +308,7 @@
             return [rect.x, rect.y, rect.width, rect.height];
           }),
         overlay:
+          !!document.querySelector(".native-app-launch") ||
           (!!state.apps?.active_id && state.apps.active_id !== "discord") ||
           !$("#overlay").hidden ||
           (ui.sidebar && innerWidth <= 520),
@@ -854,6 +857,7 @@
     }
   }
   function closeTransient(immediate = false) {
+    clearInterval(resourceTimer);
     immediate = immediate === true;
     closeSelect();
     const epoch = ++transitionEpoch;
@@ -1019,10 +1023,74 @@
         menuItem("printer", "Imprimir…", "print", "Ctrl+P") +
         separator +
         menuItem("settings", "Ajustes…", "settings") +
+        menuItem(
+          "sliders",
+          "Gerenciador de tarefas",
+          "task-manager",
+          "Shift+Esc",
+        ) +
         menuItem("code", "Ferramentas de desenvolvedor", "devtools", "F12"),
       $("#more-button"),
       "more",
     );
+  }
+  let resourceTimer,
+    resourcesOpenedAt = 0;
+  function showTaskManager() {
+    showOverlay(
+      "resources",
+      "Gerenciador de tarefas",
+      `<p class="resource-intro">Consumo desta instância do Maré, incluindo motor e apps abertos.</p><div class="resource-totals"><div><small>RAM privada</small><strong id="resource-ram">—</strong></div><div><small>Memória privada</small><strong id="resource-private">—</strong></div><div><small>CPU do computador</small><strong id="resource-cpu">Coletando…</strong></div><div><small>Processos</small><strong id="resource-count">—</strong></div></div><div class="resource-table-scroll"><table class="resource-table"><thead><tr><th>Processo</th><th>PID</th><th>RAM privada</th><th>Residente</th><th>Memória privada</th><th>CPU</th></tr></thead><tbody id="resource-rows"></tbody></table></div><p class="resource-explanation">RAM privada é a memória residente exclusiva. Memória privada inclui memória comprometida que pode estar fora da RAM. A coluna residente inclui páginas compartilhadas; sua soma pode contá-las mais de uma vez. Renderizadores podem atender mais de uma aba.</p><div class="resource-actions"><small id="resource-status" role="status">Lendo processos do Maré…</small><button class="button" id="resource-engine">Detalhes WebView2</button><button class="button" id="resource-refresh">Atualizar</button></div>`,
+      "resources-panel",
+    );
+    resourcesOpenedAt = Date.now();
+    const poll = () => send({ cmd: "resources_poll" });
+    $("#resource-refresh").onclick = poll;
+    $("#resource-engine").onclick = () => send({ cmd: "engine_task_manager" });
+    poll();
+    resourceTimer = setInterval(() => {
+      if (ui.overlay !== "resources") {
+        clearInterval(resourceTimer);
+        return;
+      }
+      poll();
+    }, 2000);
+  }
+  function resources(result) {
+    if (ui.overlay !== "resources" || result.sampled_at < resourcesOpenedAt)
+      return;
+    const memory = (value) =>
+      value == null
+        ? "—"
+        : `${(value / 1048576).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} MiB`;
+    const cpu = (value) =>
+      value == null
+        ? "—"
+        : `${value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
+    $("#resource-ram").textContent = memory(
+      result.totals.private_working_set_bytes,
+    );
+    $("#resource-private").textContent = memory(result.totals.private_bytes);
+    $("#resource-cpu").textContent = result.cpu_samples
+      ? cpu(result.totals.cpu_percent)
+      : "Coletando…";
+    $("#resource-count").textContent = String(result.process_count);
+    let group = "";
+    $("#resource-rows").innerHTML = result.processes
+      .map((row) => {
+        let header = "";
+        if (row.group !== group) {
+          group = row.group;
+          header = `<tr class="resource-group"><th colspan="6">${esc(group)}</th></tr>`;
+        }
+        return (
+          header +
+          `<tr data-process-pid="${row.pid}"><td><strong>${esc(row.name)}</strong><small>${esc(row.exe)}</small></td><td>${row.pid}</td><td>${memory(row.private_working_set_bytes)}</td><td>${memory(row.working_set_bytes)}</td><td>${memory(row.private_bytes)}</td><td>${cpu(row.cpu_percent)}</td></tr>`
+        );
+      })
+      .join("");
+    $("#resource-status").textContent =
+      `Atualizado às ${new Date(result.sampled_at).toLocaleTimeString("pt-BR")} · ${result.sampled_processes}/${result.process_count} processos medidos${result.truncated ? " · Totais parciais: limite atingido" : ""}`;
   }
   function showTabMenu(id, x, y) {
     const tab = state.tabs.find((t) => t.id === id);
@@ -1130,6 +1198,9 @@
         break;
       case "devtools":
         send({ cmd: "devtools" });
+        break;
+      case "task-manager":
+        showTaskManager();
         break;
       case "reader":
         send({ cmd: "reader" });
@@ -1351,6 +1422,21 @@
       notify("Salve a nota atual antes de abrir outro aplicativo.");
     }
   }
+  let appLaunch = null;
+  function finishAppLaunch(id) {
+    if (appLaunch?.id !== id) return;
+    appLaunch.ready = true;
+    const current = appLaunch;
+    setTimeout(
+      () => {
+        if (appLaunch !== current) return;
+        document.querySelector(".native-app-launch")?.remove();
+        appLaunch = null;
+        updateLayout();
+      },
+      Math.max(0, 380 - (performance.now() - current.start)),
+    );
+  }
   function renderApps() {
     const apps = state.apps || {},
       activeId = apps.active_id || null,
@@ -1394,7 +1480,11 @@
       }
     }
     workspace.hidden = !activeId;
-    if (!activeId) return;
+    if (!activeId) {
+      document.querySelector(".native-app-launch")?.remove();
+      appLaunch = null;
+      return;
+    }
     $("#startpage").hidden = true;
     $("#remote-placeholder").hidden = true;
     const app = openAppTabs().find((item) => item.id === activeId) ||
@@ -1441,6 +1531,16 @@
           appViews.set(activeId, $("#native-app-body").firstElementChild);
       }
       animate(workspace, [{ opacity: 0 }, { opacity: 1 }], 130);
+      document.querySelector(".native-app-launch")?.remove();
+      if (["spotify", "discord"].includes(activeId)) {
+        appLaunch = { id: activeId, start: performance.now() };
+        workspace.insertAdjacentHTML(
+          "beforeend",
+          `<div class="native-app-launch" role="status"><span class="app-icon-${esc(activeId)}">${icon(appIcon(app))}</span><strong>${esc(app.name)}</strong><small>Abrindo…</small></div>`,
+        );
+        updateLayout();
+        if (cachedView && activeId !== "discord") finishAppLaunch(activeId);
+      }
     }
     if (activeId === "notes") {
       renderNotes();
@@ -1499,6 +1599,7 @@
       appRequests.delete(payload.id);
     }
     if (payload.error) {
+      finishAppLaunch(event.app_id);
       const message =
         typeof payload.error === "string"
           ? payload.error
@@ -1512,6 +1613,13 @@
       return;
     }
     const result = payload.result || {};
+    if (
+      event.app_id === "spotify" &&
+      (result.player || payload.method === "hello")
+    )
+      finishAppLaunch("spotify");
+    if (event.app_id === "discord" && result.attached)
+      finishAppLaunch("discord");
     if (event.app_id === "notes" && Array.isArray(result.notes)) {
       appData.notes = result.notes;
       if (
@@ -2097,6 +2205,10 @@
   }
   function shortcut(key, shift = false) {
     const k = key.toLowerCase();
+    if (k === "task-manager" || (k === "escape" && shift)) {
+      showTaskManager();
+      return true;
+    }
     if (k === "l") {
       focusAddress();
       return true;
@@ -2529,6 +2641,12 @@
     }
   });
   window.addEventListener("resize", () => {
+    const popup = $("#popup");
+    if (!popup.hidden) {
+      const rect = popup.getBoundingClientRect();
+      popup.style.left = `${Math.max(8, Math.min(rect.x, innerWidth - rect.width - 8))}px`;
+      popup.style.top = `${Math.max(8, Math.min(rect.y, innerHeight - rect.height - 8))}px`;
+    }
     if (!$("#suggestions").hidden) renderSuggestions();
     updateLayout();
   });
@@ -2538,6 +2656,8 @@
   media.addEventListener("change", applyTheme);
   window.mare = {
     receive,
+    resources,
+    showTaskManager,
     dismiss: () => closeTransient(true),
     notify,
     shortcut,

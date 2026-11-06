@@ -8,11 +8,11 @@ O app reúne uma biblioteca de links Spotify, downloads em segundo plano e repro
 
 - Títulos e capas reais de links públicos pelo oEmbed do Spotify.
 - Pesquisa local, curtidas e coleções locais, sem modificar playlists da conta.
-- Biblioteca de arquivos baixados, fila, anterior/próxima, reprodução aleatória e repetição da fila.
+- Biblioteca unificada de links e músicas baixadas, com play na própria faixa, confirmação do download e fila. Downloads repetidos são bloqueados tanto na interface quanto no worker.
 - Áudio local com reproduzir/pausar, posição, duração e volume. O worker continua aberto ao alternar abas e encerra ao fechar a aba do app.
 - Sunnify CLI 2.6.0 incluído no pacote local completo, sem janela, instalação separada, ajuste de PATH ou configuração pelo usuário. O botão de baixar fornece os parâmetros e a pasta de destino.
 - Estado, erros reais e cancelamento de download na interface. Arquivos já concluídos são preservados. Um Job Object encerra os processos auxiliares; o diretório temporário de extração de cada execução é removido depois do encerramento.
-- Ação explícita para abrir o cliente oficial instalado. Seu Spicetify pertence a esse cliente e não é carregado pelo worker.
+- Play em uma faixa ainda não baixada aguarda o downloader terminar e o arquivo ser indexado. O player interpola a posição visual entre amostras nativas; nenhum áudio é reproduzido de um arquivo em gravação. Spicetify continua pertencendo ao cliente oficial.
 
 O Sunnify consulta metadados Spotify e busca o áudio correspondente no YouTube, com seu próprio matcher, yt-dlp, FFmpeg e gravador de tags. Ele **não baixa o fluxo de áudio do Spotify**. O resultado e a disponibilidade dependem da fonte e da rede; falhas são mostradas sem inventar um arquivo ou uma reprodução. Use downloads para conteúdo que você pode baixar. O binário original do Sunnify não foi modificado.
 
@@ -26,13 +26,13 @@ Após autorizar, o worker importa automaticamente playlists e músicas curtidas,
 
 ## Discord Rich Presence
 
-O worker implementa o protocolo IPC local do Discord, com handshake, atividade do tipo Listening, nome da faixa, artista, timestamps e limpeza ao pausar/parar/sair. Não usa token de usuário nem self-bot. O compartilhamento é opcional nas configurações de música. Um Application ID público registrado é necessário; pode ser definido na build por `MARE_DISCORD_CLIENT_ID` ou nas configurações avançadas. O nome da atividade depende desse aplicativo registrado; não é o selo oficial do Spotify.
+O worker implementa o protocolo IPC local do Discord, com handshake, atividade do tipo Listening, nome da faixa, artista, timestamps e limpeza ao pausar/parar/sair. Não usa token de usuário nem self-bot. O compartilhamento é opcional nas configurações de música. O Application ID público do Maré é `1568194392156668016`, incluído como padrão. Uma build pode substituí-lo por `MARE_DISCORD_CLIENT_ID`. O nome da atividade depende desse aplicativo registrado; não é o selo oficial do Spotify.
 
-O protocolo foi validado com servidor IPC isolado, faixa WAV silenciosa e o worker real, sem contatar uma conta Discord. A exibição em um perfil real permanece pendente do registro do aplicativo e do Discord desktop em execução. O larperCord é uma integração separada e não é tratado como servidor RPC oficial.
+O protocolo foi validado com servidor IPC isolado, faixa WAV silenciosa e o worker real, sem contatar uma conta Discord. O handshake com o Application ID do Maré foi aceito pelo Discord Canary instalado. Essa verificação não publicou uma faixa de teste nem confirmou visualmente a atividade em um perfil real. O Discord desktop precisa estar aberto e o compartilhamento de atividades habilitado. O larperCord é uma integração separada e não é tratado como servidor RPC oficial.
 
 ## Dados e componentes
 
-Os dados ficam em `MARE_DATA_DIR/apps/spotify/`: `library.json`, `downloaded.json`, `presence.json`, `audio/` e temporários em `runtime/`. Não são lidos tokens, cookies ou arquivos do Spotify/Spicetify instalado. Nenhum componente fechado é mantido residente pelo Maré.
+Os dados ficam em `MARE_DATA_DIR/apps/spotify/`: `library.json`, `downloaded.json`, `completed-downloads.json`, `presence.json`, `audio/` e temporários em `runtime/`. Não são lidos tokens, cookies ou arquivos do Spotify/Spicetify instalado. Nenhum componente fechado é mantido residente pelo Maré.
 
 A biblioteca de links aceita até 1000 itens, 20 coleções e 512 KiB serializados. O índice de arquivos locais aceita até 2000 faixas e 1 MiB. O protocolo de apps é limitado a 2 MiB por mensagem. As atualizações periódicas do player enviam a biblioteca local apenas quando sua revisão muda.
 
