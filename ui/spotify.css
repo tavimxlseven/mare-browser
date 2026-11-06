@@ -265,8 +265,14 @@
   width: 100%;
   height: 38px;
 }
+.spotify-app .music-toolbar input:focus-visible {
+  /* The surrounding search control owns the single, rounded focus indicator. */
+  outline: none;
+  box-shadow: none;
+}
 .music-toolbar label:focus-within {
   outline: 2px solid white;
+  outline-offset: 2px;
 }
 .music-toolbar .music-account {
   border-radius: 9px;
