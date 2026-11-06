@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.3 — 2026-11-06
+
+- Search music and artists inside the app without a Spotify account; show public YouTube results and add or download a selected recording.
+- Add complete playback queues, shuffle without replacement, repeat modes, drag reordering and a sleep timer.
+- Resize library/queue panels, persist appearance preferences and expose track context menus and editable local playlists.
+- Replace the larperCord adapter with the official Discord web client in a persistent browser tab; request device permissions explicitly.
+- Include original yt-dlp and Deno helpers in the installer and link the Windows C++ runtime statically.
+- Keep Spotify account login deferred. Rich Presence continues to use the shared application ID and the desktop Discord IPC connection.
+
 ## 0.3.2 — 2026-11-06
 
 - Install compatible Manifest V3 extensions from Chrome Web Store URLs, verify CRX3 publisher/developer signatures and review permissions before installation.

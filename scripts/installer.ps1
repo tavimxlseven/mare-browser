@@ -29,3 +29,5 @@ $output=Join-Path $projectRoot "dist\Release\Mare-Setup-$version-x64.exe"
 $sum=(Get-FileHash -LiteralPath $output -Algorithm SHA256).Hash.ToLowerInvariant()
 "$sum  $([IO.Path]::GetFileName($output))" | Set-Content -Encoding ascii (Join-Path (Split-Path -Parent $output) 'SHA256SUMS.txt')
 Write-Host "Instalador: $output"
+
+Copy-Item -LiteralPath (Join-Path $projectRoot "docs\MUSIC-SOURCES.txt") -Destination (Join-Path (Split-Path -Parent $output) "MUSIC-SOURCES.txt") -Force

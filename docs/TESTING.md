@@ -205,3 +205,13 @@ node scripts/release-smoke.mjs --exe=dist/Mare/Mare.exe --profile=D:\DevCache\ma
 ```
 
 A porta local 9260 precisa estar livre. O teste usa áudio silencioso e não mede o sinal sonoro nem FPS. A continuidade foi verificada em uma página própria que pausa ao ficar oculta; não representa uma cobertura de todas as condições de YouTube, Twitch e Kick. Não há benchmark comparativo de desempenho.
+
+## Validação 0.3.3
+
+A prévia de interface usou 170 faixas fictícias, com aviso visível e sem reprodução de áudio. Foram verificados: fila com 169 faixas seguintes após iniciar a primeira, menu de faixa e detalhes, busca com resultados de teste, persistência de largura/compactação após recarregar, janela de 800×620 e fila flutuante sem transbordamento horizontal. Não houve erros de console nessa verificação. O teste puro scripts/music-queue-smoke.cjs cobre 170 faixas únicas, histórico, repetição, reordenação, remoção e descarte de arquivos indisponíveis.
+
+O cenário scripts/spotify-smoke.mjs foi ampliado para associação a várias playlists, remoção seletiva e renomeação. A opção --catalog testa a busca pública real e a persistência de um resultado escolhido, sem baixar áudio. A consulta de rede é opt-in e aparece como etapa separada na CI, pois pode ser bloqueada pelo provedor; seu resultado deve ser consultado antes de afirmar validação online.
+
+O Windows deste ambiente passou a bloquear o compilador e a nova build não assinada por Application Control. A validação Rust e dos workers usa o runner Windows do GitHub. A build nova não foi executada na sessão gráfica deste computador, e o Maré já aberto foi preservado. Não foram desativadas políticas nem feitas tentativas de contorná-las. Login e chamadas Discord com conta real, áudio externo audível e Rich Presence em perfil real continuam fora dessa validação.
+
+Runner Windows da implementação (run 42269203239): formatação e Clippy aprovados; 33 testes Rust passaram, 0 falharam e 1 teste de rede opcional ficou ignorado. A fila de 170 músicas e os workers reais passaram. A busca pública real por música retornou resultados, permitiu adicionar um resultado e preservou título/canal após reiniciar o worker, sem baixar áudio. A inspeção PE da build MSVC confirmou a ausência de imports VCRUNTIME/MSVCP; o runtime C++ está vinculado estaticamente.

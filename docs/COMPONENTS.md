@@ -5,9 +5,9 @@ O código original do Maré é MIT. Os componentes abaixo conservam seus própri
 | Componente | Versão | Origem | SHA256 do artefato |
 | --- | --- | --- | --- |
 | Sunnify Windows CLI | 2.6.0 | [Release original](https://github.com/sunnypatell/sunnify-spotify-downloader/releases/tag/v2.6.0) | `abb16d22cabebf99d82c3eaf8ca60a0b5511dd99eb86b17f16d53d7077fb57ba` |
-| larperCord Windows ZIP | 0.6.0 | [Release original](https://github.com/RshaCuDeVidro/larperCord/releases/tag/v0.6.0) | `c6d9c1e3b93aa555392fc084ad5f17eec7c0fc7e76e09f13b5898906075b1871` |
+| larperCord Windows ZIP (histórico, até 0.3.2) | 0.6.0 | [Release original](https://github.com/RshaCuDeVidro/larperCord/releases/tag/v0.6.0) | `c6d9c1e3b93aa555392fc084ad5f17eec7c0fc7e76e09f13b5898906075b1871` |
 
-`scripts/components.ps1` adquire os artefatos originais, verifica esses hashes e prepara `dist/Mare/components/`. Não altera o código desses componentes. O download é uma etapa de montagem do pacote; quem usa o pacote local completo só vê a interface do Maré.
+`scripts/components.ps1` adquire os componentes atuais de música, verifica hashes e prepara `dist/Mare/components/`. Não altera o código desses componentes. O download é uma etapa de montagem do pacote; quem usa o pacote local completo só vê a interface do Maré.
 
 ## Sunnify
 

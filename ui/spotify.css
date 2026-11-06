@@ -1361,6 +1361,7 @@
 .spotify-app.music-narrow.queue-expanded .music-queue {
   display: flex;
   position: absolute;
+  grid-area: auto;
   width: min(var(--music-queue-width), 70%);
   right: 8px;
   top: 8px;

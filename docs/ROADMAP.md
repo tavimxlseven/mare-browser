@@ -25,7 +25,8 @@ This document describes direction, not a release schedule. Items are marked comp
 
 - 0.3: Spotify metadata/library, native Windows local playback, queue/transport controls, on-demand Sunnify CLI integration and explicit cancellation.
 - 0.3: optional read-only OAuth PKCE and local Discord Rich Presence implementations. Application registration and validation with real accounts remain outstanding.
-- 0.3: experimental native-window adapter for the original larperCord Zig/SDL client, with an isolated profile and tab-scoped process lifecycle. Tested in demo mode, without a real Discord login.
+- 0.3.3: official Discord web client in a persistent browser tab replaces the earlier larperCord adapter. Camera/microphone prompts are handled by the browser; real-account calls still need manual validation.
+- 0.3.3: independent public music search, editable local playlists, complete shuffled queues and adjustable library/queue panels.
 - Next: complete authorized account validation, improve metadata/local-file management and measure resource use with comparable workloads.
 
 See [music](SPOTIFY.md) and [component provenance and licensing](COMPONENTS.md). Sunnify matches audio from YouTube rather than downloading Spotify audio streams. Spicetify customizes the official Spotify client. Neither component is described as a Rust port.
