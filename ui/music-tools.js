@@ -79,7 +79,8 @@ window.attachMusicTools = function ({
         (result.items || [])
           .map((t) => {
             const local = localFor(t),
-              ready = local?.available;
+              ready = local?.available,
+              stored = data().entries.some((entry) => entry.uri === t.uri);
             return (
               '<article class="music-search-row"><img src="' +
               esc(t.thumbnail) +
@@ -115,10 +116,13 @@ window.attachMusicTools = function ({
                   "</button>") +
               '<button data-action="search_add" data-uri="' +
               esc(t.uri) +
-              '" aria-label="Adicionar ' +
+              '" ' +
+              (stored || busy ? "disabled " : "") +
+              'aria-label="' +
+              (stored ? "Já na biblioteca: " : "Adicionar ") +
               esc(t.title) +
               ' à biblioteca">' +
-              icon("plus") +
+              icon(stored ? "check" : "plus") +
               "</button></article>"
             );
           })
