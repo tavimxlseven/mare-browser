@@ -582,7 +582,8 @@ impl Browser {
             // to WebView2 so media does not receive a hidden-page pause transition.
             let selected = id == active && remote;
             let playing = self.media_tabs.contains(&id) || self.audio_tabs.contains(&id);
-            let visible = selected || playing;
+            let realtime = self.state.tabs.iter().any(|tab| tab.id == id && tab.app_id.as_deref() == Some("discord"));
+            let visible = selected || playing || realtime;
             let bounds = [viewport.x, viewport.y, viewport.width, viewport.height];
             if selected && self.view_bounds.get(&id) != Some(&bounds) {
                 let _ = view.set_bounds(viewport.rect());
@@ -595,7 +596,7 @@ impl Browser {
                 composition::cover(view);
             }
             self.resources
-                .set_background(id, view, !selected && !playing);
+                .set_background(id, view, !selected && !playing && !realtime);
         }
         if remote && !app_active {
             if let Some(view) = self.views.get(&active) {
@@ -729,7 +730,8 @@ impl Browser {
                 view,
                 id != self.state.active_id
                     && !self.media_tabs.contains(&id)
-                    && !self.audio_tabs.contains(&id),
+                    && !self.audio_tabs.contains(&id)
+                    && !self.state.tabs.iter().any(|tab| tab.id == id && tab.app_id.as_deref() == Some("discord")),
             );
         }
     }

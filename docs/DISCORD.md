@@ -20,4 +20,6 @@ O cliente web não disponibiliza o servidor IPC local do Discord desktop. Para p
 
 ## Consumo
 
+A aba Discord permanece ativa em segundo plano para conservar mensagens e chamadas; ela é excluída da suspensão automática de abas ociosas. Feche a aba quando não quiser mantê-la aberta.
+
 A aba compartilha o runtime WebView2 do navegador e não inicia Electron, Zig ou um worker Discord separado. Isso evita um segundo runtime de cliente; o consumo real ainda depende dos servidores, chamadas e conteúdo abertos. Consulte o botão de performance do Maré para os valores da sessão. Não foi feito benchmark comparativo.
