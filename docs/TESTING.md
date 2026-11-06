@@ -91,6 +91,7 @@ Registro de **5 de novembro de 2026**, fuso **America/Sao_Paulo**. Ambiente loca
 | Sintaxe de `ui/app.js` | Aprovada |
 | Build release Windows GNU | Concluída; executável de 1.574.400 bytes e loader de 160.880 bytes |
 | Inspeção da janela nativa | Página inicial e navegação real para `https://example.com` confirmadas |
+| Leitor no tema escuro | Texto e controles conferidos visualmente em uma página da documentação oficial do Rust |
 | Smoke de integração nativo | 7 verificações aprovadas |
 
 As sete verificações aprovadas pelo smoke foram:
