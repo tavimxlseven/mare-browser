@@ -41,14 +41,18 @@ jobs:
           node --check ui/music-queue.js
           node --check ui/music-layout.js
           node scripts/music-queue-smoke.cjs
-          node --check ui/music-layout.js
-          node scripts/music-queue-smoke.cjs
       - name: Build executable
         run: cargo build --release --locked
       - name: Verify workers
         run: |
           node scripts/worker-smoke.mjs --exe=target/release/mare-browser.exe
           node scripts/spotify-smoke.mjs --exe=target/release/mare-browser.exe
+      - name: Prepare original music helpers
+        shell: pwsh
+        run: ./scripts/music-components.ps1 -Destination target/release/components/music
+      - name: Verify independent music search online
+        continue-on-error: true
+        run: node scripts/spotify-smoke.mjs --exe=target/release/mare-browser.exe --catalog
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: mare-implementation-windows-x64

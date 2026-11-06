@@ -12,10 +12,10 @@ Os dados do usuário pertencem ao perfil, e não à pasta do executável. O inst
 | `web-profile/` | Perfil WebView2 dos sites: cookies, armazenamento local, IndexedDB, permissões e dados de login mantidos pelo runtime |
 | `interface/` | Perfil separado dos controles locais do Maré |
 | `apps/spotify/` | Biblioteca, áudio baixado, capas e preferências de presença |
-| `apps/discord/config/` | Configuração e índice de contas do cliente incorporado |
+| `apps/discord/` | Dados legados do antigo adaptador, preservados sem migração de credenciais |
 | `extensions/` | Pacotes de extensões instaladas |
 
-As credenciais do larperCord, quando a opção de lembrar a conta está ativa, são mantidas pelo próprio cliente no Gerenciador de Credenciais do Windows. O Maré não coleta tokens de outro Discord instalado. O adaptador converte caminhos canônicos do Windows antes de passá-los ao cliente para que o salvamento funcione.
+Na 0.3.3, o Discord usa o site oficial no perfil público `web-profile/`. Entre normalmente na primeira abertura; os dados de sessão são mantidos pelo WebView2. A atualização não importa tokens do larperCord nem de outro Discord instalado e não apaga os dados antigos. As regras de expiração da sessão continuam sendo do Discord.
 
 ## Atualizar sem perder o perfil
 

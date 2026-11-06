@@ -15,7 +15,7 @@ A [licença própria do Sunnify](https://github.com/sunnypatell/sunnify-spotify-
 
 O Maré invoca somente a CLI documentada e não incorpora código-fonte modificado. O pacote original inclui Python, Qt, yt-dlp, FFmpeg e outros componentes, com seus próprios termos. Não se deve apresentar todo o conjunto de terceiros como código MIT ou um port integral para Rust.
 
-## larperCord
+## larperCord — integração histórica (até 0.3.2)
 
 O README upstream informa que a licença do código principal ainda está **“Not decided yet”**. O script público adquire o binário original diretamente do autor; os artefatos públicos do Maré não devem redistribuir esse binário sem esclarecer a licença/permissão com o autor. O código MIT do adaptador e o script de aquisição ficam disponíveis no repositório. A CI do Maré gera um instalador com o host Rust, o Sunnify original e o bootstrapper oficial do WebView2. O larperCord adaptado não é incluído no instalador público.
 
@@ -33,3 +33,14 @@ SHA256 do executável local: `23bbdd6459c8c2d408f027673d44c8be937a8c34b0b81cf123
 O adaptador do Maré usa o mesmo diretório de perfil em todas as aberturas e dá até 2,5 segundos para saída normal do cliente. Variáveis herdadas de QA e token não são fornecidas ao cliente. Demonstração só é permitida em build debug, perfil explicitamente QA e configuração de teste. A persistência de uma conta autenticada precisa de validação manual; o teste não acessa o cofre de credenciais do usuário.
 
 A adaptação local 0.3.2 usa uma superfície opaca no modo incorporado, além de retirar os estilos de janela de aplicativo/layered no reparenting. Isso evita misturar a renderização do cliente com a página por baixo. Essa adaptação continua restrita à instalação de desenvolvimento.
+
+## Componentes de busca da 0.3.3
+
+| Componente | Versão | SHA256 do executável |
+| --- | --- | --- |
+| yt-dlp original Windows | 2026.10.26 | f5389d3698ecde4ef06f4e6b1ce0294fe9ac1396228c8990b8d3416d6d177a7d |
+| Deno original Windows | 2.9.8 | 924397800533d3eb0ed0c889b20ad70e18b970d93acd8135bc043f425e528266 |
+
+O script music-components.ps1 adquire artefatos e licenças de tags fixas oficiais, valida hashes e prepara components/music. O setup inclui os originais sem modificação. yt-dlp e Deno possuem termos próprios; os textos e avisos originais acompanham o pacote. A consulta inicia um processo sem janela, com prazo e tamanho de resposta limitados; downloads iniciam apenas sob solicitação e o Job Object encerra descendentes ao cancelar/fechar. Não são usados cookies de outro cliente, login Spotify ou extração de token Discord.
+
+Na 0.3.3, o catálogo usa o Discord web oficial; scripts/components.ps1 não adquire mais larperCord. Arquivos locais legados não são apagados. Nenhum binário Discord é redistribuído.

@@ -1,4 +1,5 @@
 param([string]$Destination = (Join-Path $PSScriptRoot '..\dist\Mare\components\music'))
+$ErrorActionPreference = 'Stop'
 . "$PSScriptRoot\environment.ps1"
 $Destination=[IO.Path]::GetFullPath($Destination)
 New-Item -ItemType Directory -Path $Destination -Force | Out-Null
@@ -21,3 +22,5 @@ Invoke-WebRequest 'https://raw.githubusercontent.com/yt-dlp/yt-dlp/2026.10.26/LI
 Invoke-WebRequest 'https://raw.githubusercontent.com/yt-dlp/yt-dlp/2026.10.26/THIRD_PARTY_LICENSES.txt' -OutFile (Join-Path $Destination 'yt-dlp-THIRD-PARTY-LICENSES.txt')
 Invoke-WebRequest 'https://raw.githubusercontent.com/denoland/deno/v2.9.8/LICENSE.md' -OutFile (Join-Path $Destination 'deno-LICENSE.txt')
 Write-Host 'Componentes de busca preparados; nenhum aplicativo foi instalado no sistema.'
+
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot "..\docs\MUSIC-SOURCES.txt") -Destination (Join-Path $Destination "SOURCE-CODE.txt") -Force

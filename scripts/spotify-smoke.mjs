@@ -64,6 +64,16 @@ try {
   state = await call("list");
   assert.equal(state.entries[0].favorite, true);
   assert.equal(state.entries[0].collection, 1);
+  await call("create_collection", { name: "Second playlist" });
+  state = await call("set_collection", { uri, collection: 2 });
+  assert.ok(state.collections.find((c) => c.id === 1).uris.includes(uri));
+  assert.ok(state.collections.find((c) => c.id === 2).uris.includes(uri));
+  state = await call("remove_from_collection", { uri, id: 2 });
+  assert.ok(state.collections.find((c) => c.id === 1).uris.includes(uri));
+  assert.ok(!state.collections.find((c) => c.id === 2).uris.includes(uri));
+  state = await call("rename_collection", { id: 1, name: "Renamed playlist" });
+  assert.equal(state.collections[0].name, "Renamed playlist");
+  await call("delete_collection", { id: 2 });
   const delta = await call("playback_status", {
     revision: state.library_revision,
   });
@@ -170,6 +180,40 @@ try {
     );
     console.log(
       "PASS confirmed download survives restart and plays without starting another downloader",
+    );
+  }
+  if (process.argv.includes("--catalog")) {
+    await assert.rejects(call("search", { query: "x".repeat(121) }));
+    await assert.rejects(
+      call("import_search", { uri: "youtube:video:BaW_jenozKc" }),
+    );
+    state = await call("search", { query: "Musopen Chopin" });
+    const deadline = Date.now() + 50000;
+    while (state.search.state === "loading" && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      state = await call("playback_status", {
+        revision: state.library_revision,
+      });
+    }
+    assert.equal(
+      state.search.state,
+      "ready",
+      state.search.error || "Search timed out",
+    );
+    assert.ok(state.search.items.length > 0 && state.search.items.length <= 25);
+    const found = state.search.items[0];
+    assert.match(found.uri, /^youtube:video:[A-Za-z0-9_-]{11}$/);
+    assert.equal(new URL(found.thumbnail).hostname, "i.ytimg.com");
+    await call("import_search", { uri: found.uri });
+    await stop();
+    start();
+    state = await call("list");
+    const stored = state.entries.find((entry) => entry.uri === found.uri);
+    assert.equal(stored.title, found.title);
+    assert.equal(stored.artists, found.artists);
+    await call("remove", { uri: found.uri });
+    console.log(
+      "PASS live public music search and selected result persistence (no audio downloaded)",
     );
   }
   await call("remove", { uri });

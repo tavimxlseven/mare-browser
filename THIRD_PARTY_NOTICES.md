@@ -232,3 +232,5 @@ Ao atualizar dependências, toolchain, arquitetura ou loader, regenere os avisos
 ## Componentes externos opcionais
 
 O inventário Rust acima não concede a licença MIT aos componentes de música/chat. O pacote local completo também contém o Sunnify CLI original 2.6.0, de Sunny Patel, sob licença própria sem permissão de modificação e com restrição comercial. O texto original acompanha `components/sunnify/LICENSE.txt`. O larperCord 0.6.0 é adquirido diretamente do autor para a integração local; o README upstream ainda não define uma licença para o código principal, portanto seus binários não fazem parte dos artefatos públicos do Maré. Consulte [origem e termos dos componentes](docs/COMPONENTS.md).
+
+The 0.3.3 music package also includes the original yt-dlp Windows binary 2026.10.26 (Unlicense and bundled dependencies under their own terms) and Deno 2.9.8 (MIT and third-party notices). Their original license texts are distributed in components/music. Discord is loaded from the official website; no Discord or larperCord binary is distributed by this release.

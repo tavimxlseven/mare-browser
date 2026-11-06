@@ -1,4 +1,4 @@
-//! Independent local Spotify library. No account credentials, embedded player or audio decoding.
+//! Music library, public catalog search and native playback orchestration.
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
@@ -164,7 +164,7 @@ impl Spotify {
         let installed = |variable: &str, suffix: &str| {
             std::env::var_os(variable).is_some_and(|p| PathBuf::from(p).join(suffix).is_file())
         };
-        let mut result = json!({"entries":self.library.entries,"collections":self.library.collections,"playback_available":false,"local_playback_available":true,"spotify_installed":installed("APPDATA","Spotify/Spotify.exe"),"spicetify_installed":installed("LOCALAPPDATA","spicetify/spicetify.exe"),"mode":"local_library","account_connected":false});
+        let mut result = json!({"entries":self.library.entries,"collections":self.library.collections,"playback_available":false,"local_playback_available":true,"spotify_installed":installed("APPDATA","Spotify/Spotify.exe"),"search_available":crate::components::executable("yt-dlp").is_some(),"spicetify_installed":installed("LOCALAPPDATA","spicetify/spicetify.exe"),"mode":"local_library","account_connected":false});
         if let (Some(result), Some(music)) =
             (result.as_object_mut(), self.music.snapshot().as_object())
         {

@@ -487,7 +487,7 @@
       state.tabs
         .map(
           (tab) =>
-            `<div class="tab${tab.private ? " private" : ""}${tab.pinned ? " pinned" : ""}${tab.loading ? " loading" : ""}" role="tab" aria-selected="${!state.apps?.active_id && tab.id === state.active_id}" tabindex="${!state.apps?.active_id && tab.id === state.active_id ? 0 : -1}" data-tab="${tab.id}" draggable="true" title="${esc(tab.title || hostname(tab.url))}${tab.private ? " (privada)" : ""}\n${esc(tab.url)}"><span class="tab-icon">${tab.loading ? icon("reload") : tab.private ? icon("private") : isStart(tab) ? icon("compass") : siteImage(tab)}</span><span class="tab-title">${esc(tab.title || hostname(tab.url))}</span>${tab.pinned ? "" : `<button class="tab-close" data-close-tab="${tab.id}" aria-label="Fechar ${esc(tab.title || "aba")}" tabindex="-1">${icon("close")}</button>`}</div>`,
+            `<div class="tab${tab.private ? " private" : ""}${tab.pinned ? " pinned" : ""}${tab.loading ? " loading" : ""}" role="tab" aria-selected="${!state.apps?.active_id && tab.id === state.active_id}" tabindex="${!state.apps?.active_id && tab.id === state.active_id ? 0 : -1}" data-tab="${tab.id}" draggable="true" title="${esc(tab.title || hostname(tab.url))}${tab.private ? " (privada)" : ""}\n${esc(tab.url)}"><span class="tab-icon">${tab.loading ? icon("reload") : tab.private ? icon("private") : isStart(tab) ? icon("compass") : tab.app_id === "discord" ? icon("discord") : siteImage(tab)}</span><span class="tab-title">${esc(tab.title || hostname(tab.url))}</span>${tab.pinned ? "" : `<button class="tab-close" data-close-tab="${tab.id}" aria-label="Fechar ${esc(tab.title || "aba")}" tabindex="-1">${icon("close")}</button>`}</div>`,
         )
         .join("") +
       openAppTabs()

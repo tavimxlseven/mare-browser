@@ -1,8 +1,8 @@
 # Apps do Maré
 
-O catálogo inicial contém **Notas**, **Calculadora** e o **app de música Spotify**. O catálogo também oferece o adaptador **larperCord**. Seus componentes Rust são distribuídos junto do Maré. Instalar um desses apps registra sua disponibilidade; não baixa outro executável. A interface roda dentro da janela do navegador, e o processamento acontece em um processo Rust separado, criado ao abrir o app.
+O catálogo inicial contém **Notas**, **Calculadora** e o **app de música Spotify**. O catálogo também oferece o **Discord web oficial**, aberto em uma aba do Maré. Seus componentes Rust são distribuídos junto do Maré. Instalar um desses apps registra sua disponibilidade; não baixa outro executável. A interface roda dentro da janela do navegador, e o processamento acontece em um processo Rust separado, criado ao abrir o app.
 
-O app de música também reproduz arquivos locais e integra o Sunnify CLI sob demanda. O adaptador Discord incorpora a janela original do larperCord (Zig/SDL) na área do app, com um worker Rust de supervisão e um processo adicional do cliente. Consulte [SPOTIFY.md](SPOTIFY.md) e [COMPONENTS.md](COMPONENTS.md) para funcionalidades, configuração de mantenedor e limites.
+O app de música também reproduz arquivos locais e integra o Sunnify CLI sob demanda. O Discord reaproveita o WebView2 do navegador e não inicia larperCord, Electron ou um worker próprio. Consulte [SPOTIFY.md](SPOTIFY.md) e [COMPONENTS.md](COMPONENTS.md) para funcionalidades, configuração de mantenedor e limites.
 
 ## Ciclo de vida
 
@@ -17,7 +17,7 @@ Fechar a aba Notas             Maré.exe + worker calculator
 Fechar a aba Calculadora       Maré.exe
 ```
 
-Cada app aberto corresponde a uma aba e a um worker Rust. Trocar entre uma aba web e um app, ou entre dois apps, conserva os processos e o estado dos outros apps. Selecionar novamente o mesmo app reutiliza o PID existente. O worker termina somente ao fechar sua aba, desinstalar o app ou encerrar o navegador.
+Cada app Rust aberto corresponde a uma aba e a um worker. Discord é uma aba web com login normal; veja [Discord no Maré](DISCORD.md). Trocar entre uma aba web e um app, ou entre dois apps, conserva os processos e o estado dos outros apps. Selecionar novamente o mesmo app reutiliza o PID existente. O worker termina somente ao fechar sua aba, desinstalar o app ou encerrar o navegador.
 
 ![Abas de apps no Maré](screenshots/apps.png)
 
@@ -68,7 +68,7 @@ Operações de Notas retornam `{notes:[{id,title,body,updated_at}],selected_id}`
 
 ## Modelo de confiança
 
-O catálogo embutido permite executar somente os IDs `notes`, `calculator`, `spotify` e `discord`. Um manifesto não pode escolher caminhos de executáveis, argumentos de shell ou diretórios arbitrários. Os componentes externos são preparados por um script de montagem com URLs e hashes fixos; nenhum manifesto escolhe outro executável. Apps nativos executam com as permissões do usuário do Windows; um processo separado não equivale a uma sandbox de segurança.
+O runtime permite executar somente os workers `notes`, `calculator` e `spotify`. O item `discord` abre uma URL oficial fixa. Um manifesto não pode escolher caminhos de executáveis, argumentos de shell ou diretórios arbitrários. Os componentes externos são preparados por um script de montagem com URLs e hashes fixos; nenhum manifesto escolhe outro executável. Apps nativos executam com as permissões do usuário do Windows; um processo separado não equivale a uma sandbox de segurança.
 
 Uma loja aberta a desenvolvedores externos ainda exige assinatura e verificação de pacotes, versionamento, atualização, permissões, isolamento, revisão de código e uma política de publicação. Esses mecanismos não estão implementados pelo catálogo inicial.
 

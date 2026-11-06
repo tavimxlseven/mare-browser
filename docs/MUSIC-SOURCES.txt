@@ -1,0 +1,17 @@
+Original, unmodified music helper source and build information:
+
+yt-dlp Windows 2026.10.26 is a PyInstaller combined GPLv3+ distribution.
+Original source: https://github.com/yt-dlp/yt-dlp/archive/refs/tags/2026.10.26.zip
+Release and build inputs: https://github.com/yt-dlp/yt-dlp/releases/tag/2026.10.26
+Dependencies, licenses and source locations: https://github.com/yt-dlp/yt-dlp/blob/2026.10.26/THIRD_PARTY_LICENSES.txt
+Build instructions: https://github.com/yt-dlp/yt-dlp/tree/2026.10.26#compile
+The full original third-party license document accompanies this binary.
+
+Deno 2.9.8 original source and dependency lock:
+https://github.com/denoland/deno/archive/refs/tags/v2.9.8.zip
+https://github.com/denoland/deno/blob/v2.9.8/Cargo.lock
+https://github.com/denoland/deno/releases/tag/v2.9.8
+
+No source modifications were made to these helper executables. Maré communicates
+with them through command-line arguments and pipes. Maré original source remains
+under its own license; original helper/dependency licenses remain applicable.

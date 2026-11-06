@@ -11,7 +11,7 @@ Para compartilhar uma música:
 3. No app de música do Maré, abra as configurações e habilite **Mostrar música no meu perfil**.
 4. Reproduza uma faixa baixada. Pausar, parar ou fechar o app limpa a atividade.
 
-O cliente envia atividade do tipo Listening, artista, faixa, duração e a capa da música quando disponível. A forma exata do cartão e o nome do aplicativo são controlados pelo Discord. Esta integração não recebe o selo oficial do Spotify. O larperCord incorporado é separado e não substitui o servidor IPC do Discord desktop.
+O cliente envia atividade do tipo Listening, artista, faixa, duração e a capa da música quando disponível. A forma exata do cartão e o nome do aplicativo são controlados pelo Discord. Esta integração não recebe o selo oficial do Spotify. O Discord web incorporado não substitui o servidor IPC do Discord desktop.
 
 ### Configurar uma distribuição própria
 
@@ -29,7 +29,7 @@ As preferências locais de presença ficam em `apps/spotify/presence.json`; um o
 
 ## Spotify — login adiado nesta versão
 
-O login de conta está fora da interface da release 0.3.2 por decisão do mantenedor. Nenhum Client ID Spotify foi incluído como padrão. Importação por links públicos, playlists, downloads e áudio local continuam disponíveis sem conectar uma conta.
+O login de conta está fora da interface da release 0.3.3 por decisão do mantenedor. Nenhum Client ID Spotify foi incluído como padrão. Importação por links públicos, playlists, downloads e áudio local continuam disponíveis sem conectar uma conta.
 
 O código experimental de autorização usa Authorization Code com PKCE, sem Client Secret. Para uma futura build que volte a expor essa integração:
 

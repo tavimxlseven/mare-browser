@@ -21,10 +21,10 @@ Maré is a Windows browser built with Rust, Tao and Wry. Web content runs in Mic
 - Private tabs with separate WebView2 storage and no persisted browsing history.
 - Light, dark and system themes, keyboard navigation and reduced-motion support.
 - A curated app catalog. Notes, Calculator and the music app run in separate Rust workers, each with its own tab. Switching tabs keeps apps running; closing an app tab stops only its worker.
-- A music workspace with public Spotify metadata, local favorites/collections, native local audio and an on-demand Sunnify CLI download component. Account import requires a registered Spotify client ID. Discord Rich Presence uses the registered Maré application ID.
+- A music workspace with independent music/artist search, public Spotify playlist imports, editable local playlists, a full playback queue and adjustable panels. Search and downloads use bundled helpers on demand; Spotify account login remains deferred. Discord Rich Presence uses the registered Maré application ID.
 - Chrome Web Store installation for compatible Manifest V3 extensions, with signature verification, permission review and profile management.
 - An on-demand task monitor accounts for browser, WebView2 and native app processes with private RAM, committed memory and CPU.
-- An experimental larperCord adapter that hosts the original Zig/SDL client inside an app tab.
+- Official Discord web client in a persistent Maré tab, with normal login and explicit camera/microphone permissions.
 
 ## Download
 
@@ -47,7 +47,7 @@ cd mare-browser
 
 The portable output is written to `dist\Mare`. When the local D: toolchain is available, scripts use `D:\DevTools` and `D:\DevCache`; otherwise they use Cargo from `PATH`.
 
-For a complete local music/chat build, run `scripts/components.ps1` to prepare the original external components before packaging. The public installer includes the original Sunnify CLI; the locally adapted larperCord build is excluded until its license is clarified. See [component provenance and terms](docs/COMPONENTS.md). Features documented on `main` may be newer than the latest tagged release.
+For a complete local music build, run `scripts/components.ps1` to prepare the original external components before packaging. The installer includes Sunnify, yt-dlp and Deno. Discord uses its official web client without an additional desktop client. See [component provenance and terms](docs/COMPONENTS.md). Features documented on `main` may be newer than the latest tagged release.
 
 ## Architecture
 
@@ -69,7 +69,7 @@ Shield implements a subset of browser privacy features. It does not provide all 
 
 ## Data
 
-User data is stored in `D:\MareBrowserData` when D: exists, or in `mare-data` beside the executable otherwise. Set `MARE_DATA_DIR` to choose a different location. Profiles and app data are excluded from Git.
+User data is stored in `D:\MareBrowserData` when D: exists, or in `%LOCALAPPDATA%\MareBrowser\User Data` otherwise. Set `MARE_DATA_DIR` to choose a different location. Profiles and app data are excluded from Git.
 
 ## Contributing
 
