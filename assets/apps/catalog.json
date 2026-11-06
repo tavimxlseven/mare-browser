@@ -1,0 +1,42 @@
+[
+  {
+    "id": "notes",
+    "name": "Notas",
+    "description": "Anotações locais com salvamento em disco. O processo Rust inicia ao abrir o app.",
+    "version": "0.1.0",
+    "status": "available",
+    "kind": "native",
+    "icon": "notes",
+    "installable": true
+  },
+  {
+    "id": "calculator",
+    "name": "Calculadora",
+    "description": "Cálculos com parênteses e precedência, executados em um processo Rust sob demanda.",
+    "version": "0.1.0",
+    "status": "available",
+    "kind": "native",
+    "icon": "calculator",
+    "installable": true
+  },
+  {
+    "id": "spotify",
+    "name": "Spotify",
+    "description": "Integração em estudo. Ainda não há um cliente Spotify Rust disponível no Maré.",
+    "version": null,
+    "status": "planned",
+    "kind": "native",
+    "icon": "music",
+    "installable": false
+  },
+  {
+    "id": "discord",
+    "name": "Discord",
+    "description": "Cliente Rust em estudo. Ainda não há um app Discord disponível no Maré.",
+    "version": null,
+    "status": "planned",
+    "kind": "native",
+    "icon": "chat",
+    "installable": false
+  }
+]

@@ -64,6 +64,26 @@ Esses casos são critérios de verificação, não uma declaração de auditoria
 
 As inspeções efetivamente executadas estão em [REA.md](REA.md) e `research/`. Incluem diretório do WebView2 e a tabela de imports PE de um snapshot de desenvolvimento do Maré. Nenhum desses comandos iniciou o executável. O hash da evidência identifica aquela build específica e pode mudar após correções.
 
+## Testes de apps e proteção
+
+Depois de abrir uma instância com perfil descartável e endpoint CDP local, execute os scripts sequencialmente:
+
+```powershell
+node scripts/smoke.mjs --cdp=http://127.0.0.1:9240 --profile=D:\DevCache\mare-v020-tabs-qa
+node scripts/platform-smoke.mjs --cdp=http://127.0.0.1:9240 --profile=D:\DevCache\mare-v020-tabs-qa
+```
+
+O segundo script verifica bloqueio de solicitação antes de alcançar o servidor HTTP, controles por site/global, coexistência de workers Rust, trabalho em segundo plano, fechamento de uma aba sem encerrar outra, notas persistentes e conservação do documento da aba web. Ele requer um perfil exclusivo de QA e restaura configurações e apps instalados ao terminar.
+
+Para verificar o caminho de execução dos workers no binário otimizado, sem abrir janela:
+
+```powershell
+.\scripts\build.ps1 -Release
+node scripts/worker-smoke.mjs --exe=dist/Mare/Mare.exe
+```
+
+Esse teste usa processos reais, pipes e um diretório temporário próprio. Verifica protocolo, cálculos, erros recuperáveis, persistência das notas e saída por EOF. A CI executa essa etapa após compilar a versão MSVC.
+
 ## Smoke automatizado da janela nativa
 
 O script `scripts/smoke.mjs` usa Node 24+ sem pacotes npm. Ele se conecta ao CDP de uma instância já aberta do Maré, cria um servidor HTTP loopback com fixtures e verifica o motor nativo, estado persistido e bytes de download. Deve usar um perfil descartável exclusivo, pois limpa cookies/dados dos sites durante a verificação.
@@ -79,7 +99,30 @@ node .\scripts\smoke.mjs --cdp=http://127.0.0.1:9227 --profile=D:\DevCache\mare-
 
 O script exige endereço CDP loopback e caminho absoluto de perfil identificado como QA/smoke. A ajuda pode ser consultada com `node .\scripts\smoke.mjs --help`. Essa execução aciona o host por comandos da interface via CDP; não representa uma cobertura de todos os cliques, sites ou estados visuais.
 
-## Resultados da sessão
+## Validação 0.2.0
+
+Windows x64, Rust 1.99.1, toolchain GNU local e WebView2 156.0.4314.58. A verificação integrada usou o perfil descartável `D:\DevCache\mare-v020-tabs-qa` e CDP em `127.0.0.1:9240`.
+
+| Verificação | Resultado |
+| --- | --- |
+| Formatação e Clippy `-D warnings` | Aprovados |
+| Testes Rust | 21 aprovados |
+| Smoke do navegador | 7 grupos aprovados |
+| Smoke de apps e proteção | 5 grupos aprovados |
+| Workers no executável release | 4 grupos aprovados, com processos e pipes reais |
+| Regressões da interface em fixtures | 20 aprovadas, sem exceções JavaScript |
+| Interações na janela nativa | 7 aprovadas, incluindo Ctrl+Tab e fechamento isolado |
+| Pacote GNU otimizado | Executável de 8.018.944 bytes; DLL de 160.880 bytes |
+
+O servidor HTTP de teste não recebeu `/ads/cbr.js` com proteção ativa e recebeu a solicitação após a exceção por site. Os testes também verificaram controles globais, persistência da configuração e resposta de requests permitidos.
+
+Os apps Notas e Calculadora mantiveram dois PIDs reais simultâneos. Pedidos em segundo plano não alteraram o app selecionado; selecionar uma aba existente reutilizou seu PID. Fechar Notas manteve Calculadora em execução e conservou a última gravação. Selecionar uma aba web manteve o worker aberto e retomou o mesmo documento, verificado por heartbeat e contagem de solicitações HTML. Fechar todas as abas de apps levou o contador de workers a zero.
+
+As capturas em `screenshots/` foram feitas na interface nativa com o host Rust e workers reais. As 20 regressões em fixtures complementam essas verificações; não são apresentadas como testes de rede ou de processos.
+
+Não foi feito benchmark comparativo de consumo com Spotify, Discord ou outros navegadores. A CI remota da versão 0.2.0 será registrada após o envio do commit.
+
+## Validação 0.1.0
 
 Registro de **5 de novembro de 2026**, fuso **America/Sao_Paulo**. Ambiente local: Windows x64, Rust **1.99.1**, target **x86_64-pc-windows-gnu**, WebView2 Runtime **156.0.4314.58**. O perfil do smoke final foi `D:\DevCache\mare-native-qa-final`.
 
@@ -105,4 +148,3 @@ As sete verificações aprovadas pelo smoke foram:
 7. Limpeza assíncrona de cookies e dados dos sites no perfil comum.
 
 A inspeção REA permanece vinculada ao snapshot debug e ao hash documentados em [REA.md](REA.md), não ao executável otimizado final. A CI Windows hospedada no GitHub foi concluída com sucesso para o código no commit `a059ae7b32bdd09a2a14d3d85ee9f31932251972` (`a059ae7`), tanto na [execução da branch main](https://github.com/tavimxlseven/mare-browser/actions/runs/42136216044) quanto na [execução da tag v0.1.0](https://github.com/tavimxlseven/mare-browser/actions/runs/42136247073). Ambas terminaram com `completed / success`, cobrindo formatação, Clippy, testes, sintaxe JavaScript, build release MSVC e upload do artefato. Builds macOS/Linux não foram verificadas nesta sessão. O roteiro manual mais amplo deste documento continua útil para ampliar a cobertura; os resultados acima não implicam que cada linha desse roteiro foi exercitada.
-

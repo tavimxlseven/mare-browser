@@ -1,4 +1,4 @@
-# Arquitetura do Maré 0.1.0
+# Arquitetura do Maré
 
 ## Componentes
 
@@ -7,6 +7,10 @@
 | `src/main.rs` | Janela Tao, ciclo de eventos, WebViews Wry, navegação, downloads e comandos do host |
 | `src/model.rs` | Estado de abas e biblioteca, normalização/validação de URLs e preparação da sessão persistida |
 | `src/storage.rs` | Leitura e escrita do estado JSON local |
+| `src/protection.rs` | Motor de filtros, interceptação de rede e política por site |
+| `src/apps.rs` | Catálogo local e ciclo de vida de processos de apps |
+| `src/native_app.rs` | Workers Rust de Notas e Calculadora e protocolo JSON-lines |
+| `src/resource_control.rs` | Suspensão e retomada de WebViews em segundo plano |
 | `src/reader.js` | Extração textual e apresentação do modo de leitura na página carregada |
 | `ui/index.html` | Estrutura da interface local |
 | `ui/styles.css` | Temas, barra de ferramentas, abas, sidebar e página inicial |
@@ -21,14 +25,26 @@ A interface é incorporada no executável com `include_str!`: CSS e JavaScript s
 
 Uma WebView local exibe a interface. Cada aba que navega para um site ganha sua própria WebView filha nativa na região de conteúdo da janela. A página inicial é renderizada na interface local. Assim, o navegador não depende de iframes, nem das permissões de incorporação de sites em iframes.
 
-Só a WebView da aba ativa é visível. Ao abrir menus ou diálogos que precisam cobrir a página, a interface comunica o layout e o host oculta temporariamente o conteúdo remoto. Abas inativas mantêm suas WebViews em memória; não existe suspensão automática própria do Maré nesta versão.
+Só a WebView da aba ativa é visível. Ao abrir menus ou diálogos que precisam cobrir a página, a interface comunica o layout e o host oculta temporariamente o conteúdo remoto. Abas inativas mantêm seus documentos; o host solicita `TrySuspend` ao WebView2 depois de ocultá-las e chama `Resume` ao reativá-las. O motor pode recusar a suspensão, por exemplo durante reprodução de mídia. Uma suspensão pendente que conclui depois da reativação é revertida pelo callback.
+
+Ao abrir um app, todas as páginas remotas ficam ocultas e recebem a mesma solicitação de suspensão. A interface do app reutiliza a WebView local. O worker Rust entra por um caminho de execução anterior à criação de Tao/Wry, sem instanciar outro motor web. Apps aparecem como abas próprias. Trocar para uma aba de site ou outro app mantém os workers abertos; fechar uma aba de app encerra somente seu worker. A aba de site retoma o mesmo documento ao voltar ao primeiro plano. Veja o [protocolo de apps](APPS.md).
+
+```mermaid
+flowchart LR
+    UI[Interface local] --> Host[Host Rust]
+    Host --> Shield[Motor de filtros]
+    Shield --> Web[Páginas WebView2]
+    Host --> Runtime[Runtime de apps]
+    Runtime --> Worker[Worker Rust sob demanda]
+    Worker --> Data[Dados locais do app]
+```
 
 ## Fluxo de eventos
 
 1. Uma ação da interface gera uma mensagem JSON para o host.
 2. O host processa a ação no ciclo de eventos Tao e aplica as mudanças ao modelo/WebView.
 3. Callbacks de navegação, carregamento, título e downloads retornam eventos ao host.
-4. O host publica um snapshot serializado do estado para atualizar a interface.
+4. O host publica um snapshot serializado do estado para atualizar a interface. Assinaturas por seção evitam reconstruir abas e biblioteca quando apenas contadores ou métricas mudam.
 5. Alterações persistentes são salvas localmente.
 
 As WebViews remotas não recebem o documento da interface nem seu dispatcher de comandos. A ponte de eventos de páginas deve ser tratada como entrada não confiável. O host valida navegação, mensagens e caminhos; esse isolamento é parte central da revisão e dos testes, não uma alegação de auditoria completa.
@@ -71,6 +87,6 @@ A versão mínima declarada de Rust é 1.88. A toolchain local desta sessão é 
 
 O pacote portátil contém o executável com os assets da interface incorporados. WebView2 é um componente externo do sistema. REA é ferramenta de pesquisa separada, fora do runtime e do `Cargo.toml` do Maré.
 
-O código usa licença MIT. A interface é uma implementação independente inspirada nos fluxos públicos do Safari; serviços privados da Apple e paridade integral não estão no escopo da versão 0.1.0.
+O código original usa licença MIT. A interface é independente e mantém fluxos familiares de navegadores desktop. O motor de bloqueio mantém MPL-2.0; as listas de filtros mantêm a licença alternativa CC BY-SA 3.0, com atribuição e fontes preservadas.
 
 Os avisos de licenças das dependências, da biblioteca padrão e do WebView2Loader acompanham a distribuição em THIRD_PARTY_NOTICES.md e THIRD_PARTY_LICENSES.txt.

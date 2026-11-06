@@ -1,89 +1,74 @@
-# Maré Browser
+<div align="center">
+  <img src="docs/assets/mare-wordmark.svg" width="220" alt="Maré">
+  <p>A desktop browser and an on-demand Rust app platform.</p>
+  <p>
+    <a href="https://github.com/tavimxlseven/mare-browser/actions/workflows/ci.yml"><img alt="Windows CI" src="https://github.com/tavimxlseven/mare-browser/actions/workflows/ci.yml/badge.svg"></a>
+    <a href="https://github.com/tavimxlseven/mare-browser/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/tavimxlseven/mare-browser"></a>
+    <a href="LICENSE"><img alt="License MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
+  </p>
+  <p><a href="https://github.com/tavimxlseven/mare-browser/releases/latest">Download</a> · <a href="docs/README.md">Documentation</a> · <a href="CONTRIBUTING.md">Contributing</a> · <a href="https://github.com/tavimxlseven/mare-browser/issues">Issues</a> · <a href="README.pt-BR.md">Português</a></p>
+</div>
 
-**Maré 0.1.0** é um navegador desktop de código aberto em Rust, com uma interface inspirada no Safari do Mac. A versão inicial foi desenvolvida e testada no Windows e usa o WebView2 para acessar sites reais.
+Maré is a Windows browser built with Rust, Tao and Wry. Web content runs in Microsoft WebView2; the browser interface and app workspace share a local UI. The project is in active development.
 
-É uma implementação independente, sem vínculo com a Apple. Não inclui código ou recursos proprietários do Safari e não promete equivalência completa com o navegador da Apple.
+![Maré on Windows](docs/screenshots/start-light.png)
 
-![Página inicial do Maré, capturada no aplicativo Windows](docs/screenshots/start-light.png)
+## Features
 
-## Recursos implementados
+- Tabs, pinned tabs, session restore, bookmarks, history and a reading list.
+- Built-in ad and tracker blocking powered by Brave's `adblock-rust`, EasyList and EasyPrivacy, with site exceptions and request counters.
+- Reader mode, downloads, find in page, zoom, printing and developer tools.
+- Private tabs with separate WebView2 storage and no persisted browsing history.
+- Light, dark and system themes, keyboard navigation and reduced-motion support.
+- A curated app catalog. Notes and Calculator run in separate Rust workers, each with its own tab. Switching tabs keeps apps running; closing an app tab stops only its worker.
 
-- Navegação HTTP/HTTPS, campo único para endereço e pesquisa, sugestões locais de favoritos/histórico e escolha entre DuckDuckGo, Google e Bing.
-- Abas com criação, fechamento, duplicação, fixação, reordenação por arraste, reabertura de abas comuns fechadas e visão geral em cartões.
-- Voltar, avançar, recarregar, interromper carregamento, zoom, busca de texto na página e impressão pelo motor nativo.
-- Modo de leitura textual para a página carregada, com ajuste do tamanho do texto.
-- Favoritos com edição e remoção, histórico pesquisável e Lista de Leitura com marcação de lido/não lido.
-- Downloads com estado de conclusão/falha e acesso à pasta de destino pelo Explorador.
-- Abas privadas via modo incógnito do WebView2; essas abas e seu histórico não entram na sessão JSON persistida.
-- Restauração opcional de abas comuns, temas claro/escuro/sistema, quatro fundos próprios para a página inicial e barra lateral.
-- Atalhos de teclado, menus e controles próprios de janela.
+## Download
 
-A visão geral usa cartões com títulos e ícones, não capturas reais dos sites. O modo de leitura extrai texto da página carregada e não salva uma cópia offline; a seleção do conteúdo pode variar entre sites. A Lista de Leitura salva links; não baixa páginas para leitura offline. Downloads ainda não têm pausa, retomada nem medição de progresso por bytes. Arquivos baixados em abas privadas continuam existindo no disco.
+Download the Windows x64 ZIP from [Releases](https://github.com/tavimxlseven/mare-browser/releases/latest), extract it and run `Mare.exe`. Keep the included DLL and license files beside the executable. Windows 10/11 and [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) are required.
 
-## Executar no Windows
+## Build
 
-Requisitos: Windows 10/11, [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) e uma toolchain Rust estável 1.88 ou posterior. O caminho convencional usa MSVC, Visual Studio Build Tools com desenvolvimento desktop em C++ e Windows SDK.
-
-Neste ambiente, a compilação local usa `x86_64-pc-windows-gnu` com MinGW, pois MSVC não estava instalado. O projeto, toolchain, cache e dados foram colocados em D: para reduzir a ocupação do disco C:.
+Install stable Rust (1.88 or newer), the MSVC C++ build tools and Windows SDK. A MinGW/GNU toolchain is also supported by the PowerShell scripts.
 
 ```powershell
-Set-Location D:\Projetos\mare-browser
+git clone https://github.com/tavimxlseven/mare-browser.git
+cd mare-browser
 .\scripts\run.ps1
 ```
-
-Os scripts detectam `D:\DevTools\cargo`, `D:\DevTools\rustup` e MinGW em `D:\DevTools\mingw\mingw64\bin` quando disponíveis, com build em `D:\DevCache\mare-target`. Em outras máquinas, usam o Cargo encontrado no `PATH`. Eles não instalam a toolchain automaticamente.
-
-Para compilar e executar a versão otimizada:
-
-```powershell
-.\scripts\build.ps1 -Release
-.\scripts\run.ps1 -Release
-```
-
-A pasta portátil é `dist\Mare`, com `Mare.exe` e, quando necessário para a build GNU, `WebView2Loader.dll`. Essa pasta é gerada localmente e não entra no Git. O executável incorpora a interface; não precisa de Node ou de um servidor frontend para funcionar. WebView2 continua sendo um requisito do sistema.
-
-Se já tiver as ferramentas no `PATH`, os comandos Cargo também funcionam:
-
-```powershell
-cargo run --locked
-cargo build --release --locked
-```
-
-## Dados locais
-
-No Windows com disco D: disponível, o padrão é **`D:\MareBrowserData`**. Para escolher outro diretório antes de iniciar:
-
-```powershell
-$env:MARE_DATA_DIR = 'D:\MeusDados\Mare'
-.\scripts\run.ps1
-```
-
-Sem D: e sem variável configurada, o fallback é `mare-data` ao lado do executável. O diretório contém `state.json`, os dados do WebView e `Downloads`. Favoritos, histórico, lista de leitura, configurações e sessão comum são armazenados localmente em JSON sem criptografia própria. Não envie essa pasta ao GitHub.
-
-Abas privadas não são restauradas. Favoritos ou itens de leitura salvos explicitamente continuam disponíveis. O modo privado não torna a conexão anônima para sites ou provedores de rede.
-
-## Desenvolvimento e verificação
 
 ```powershell
 .\scripts\check.ps1
+.\scripts\build.ps1 -Release
 ```
 
-Esse script verifica formatação e Clippy, compila/executa testes Rust e verifica a sintaxe de `ui/app.js`. Consulte [docs/TESTING.md](docs/TESTING.md) para os testes manuais e os resultados registrados.
+The portable output is written to `dist\Mare`. When the local D: toolchain is available, scripts use `D:\DevTools` and `D:\DevCache`; otherwise they use Cargo from `PATH`.
 
-O workflow do GitHub executa as verificações e a build em Windows com MSVC e disponibiliza um artefato de release da execução. Um artefato de CI não é um instalador assinado. O workflow só pode ser observado após o código ser enviado ao GitHub.
+## Architecture
 
-## Arquitetura e investigação
+| Component | Responsibility |
+| --- | --- |
+| Rust host | Window lifecycle, tab management, storage and trusted IPC |
+| WebView2 | Site rendering, cookies, downloads and private profiles |
+| Maré Shield | Native network filtering and cosmetic rules |
+| App runtime | Allowlisted Rust workers, JSON-lines IPC and on-demand lifecycle |
+| Local UI | Browser controls, app catalog and app views |
 
-O host usa Rust + Tao + Wry. A interface HTML/CSS/JavaScript local fica separada das WebViews das páginas. No Windows, o motor é Microsoft Edge WebView2; não é um motor de renderização inteiramente escrito em Rust. Veja [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+See [architecture](docs/ARCHITECTURE.md), [native apps](docs/APPS.md), [protection](docs/PROTECTION.md) and the [roadmap](docs/ROADMAP.md).
 
-O [REA](https://github.com/morluto/rea) foi usado por CLI para inspeções estáticas reais do WebView2 e de um executável de desenvolvimento do Maré. Evidências sanitizadas, comandos e limitações estão em [docs/REA.md](docs/REA.md). Não havia Safari para Mac disponível neste ambiente; não foi feita engenharia reversa binária desse aplicativo.
+## Project status
 
-## Limites desta versão
+Windows x64 is the supported development target. macOS and Linux have not been validated. The app catalog currently contains bundled apps; third-party package distribution and a Spotify client are planned. No performance comparison with Spotify or other browsers is claimed.
 
-Ainda não há integração com iCloud, Chaves/Keychain, Apple Pay, Handoff, Private Relay ou Apple Intelligence. Também não há gerenciador próprio de senhas, extensões de Safari/Chrome, páginas offline, grupos de abas ou múltiplos perfis de usuário.
+Shield implements a subset of browser privacy features. It does not provide all Brave Shields features, and filter lists can miss ads or break pages. Its controls and data sources are documented in [PROTECTION.md](docs/PROTECTION.md).
 
-A compatibilidade de sites, mídia, permissões e recursos web depende do WebView2. macOS e Linux não foram validados nesta versão. A versão 0.1.0 é uma base funcional em evolução, sem auditoria independente de segurança.
+## Data
 
-## Código aberto
+User data is stored in `D:\MareBrowserData` when D: exists, or in `mare-data` beside the executable otherwise. Set `MARE_DATA_DIR` to choose a different location. Profiles and app data are excluded from Git.
 
-[Repositório público](https://github.com/tavimxlseven/mare-browser). Licença [MIT](LICENSE). As dependências e o loader possuem seus [avisos de terceiros](THIRD_PARTY_NOTICES.md), com textos completos em [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt). Para colaborar, leia [CONTRIBUTING.md](CONTRIBUTING.md) e [SECURITY.md](SECURITY.md).
+## Contributing
+
+Use the issue templates for reproducible bugs and feature proposals. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Report security issues through the process in [SECURITY.md](SECURITY.md).
+
+## License
+
+Original Maré code is [MIT](LICENSE). Dependencies and bundled filter data retain their own licenses; see [third-party notices](THIRD_PARTY_NOTICES.md). Maré is an independent project and is not affiliated with Apple, Brave or Spotify.

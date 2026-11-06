@@ -17,4 +17,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Código do leitor inválido.' }
     node --check scripts/smoke.mjs
     if ($LASTEXITCODE -ne 0) { throw 'Script de integração inválido.' }
+    node --check scripts/platform-smoke.mjs
+    if ($LASTEXITCODE -ne 0) { throw 'Script da plataforma inválido.' }
+    node --check scripts/worker-smoke.mjs
+    if ($LASTEXITCODE -ne 0) { throw 'Script dos workers inválido.' }
 } finally { Pop-Location }

@@ -1,6 +1,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+mod apps;
 mod icon;
 mod model;
+mod native_app;
+mod protection;
+mod resource_control;
 mod storage;
 
 use model::{normalize_input, BrowserState, Download, Settings, Tab, START_URL};
@@ -35,6 +39,9 @@ enum BrowserEvent {
     DownloadStarted(String, PathBuf, bool),
     DownloadFinished(String, Option<PathBuf>, bool),
     Shortcut(u64, u64, String, bool),
+    App(apps::AppEvent),
+    ProtectionChanged(u64),
+    Cosmetics(u64, u64, String, String),
 }
 
 #[derive(Clone, Copy)]
@@ -54,6 +61,9 @@ impl Viewport {
 }
 
 struct Browser {
+    apps: apps::AppManager,
+    resources: resource_control::ResourceControl,
+    protection: protection::Protection,
     views: HashMap<u64, WebView>,
     view_generations: HashMap<u64, u64>,
     next_generation: u64,
@@ -176,6 +186,8 @@ impl Browser {
         self.view_generations.get(&id) == Some(&generation) && self.views.contains_key(&id)
     }
     fn remove_view(&mut self, id: u64) {
+        self.resources.remove(id);
+        self.protection.remove_tab(id);
         self.view_generations.remove(&id);
         self.views.remove(&id);
     }
@@ -191,13 +203,31 @@ impl Browser {
                 tab.can_go_forward = view.can_go_forward().unwrap_or(false);
             }
         }
-        let title = self
-            .state
-            .active_tab()
-            .map(|t| t.title.as_str())
+        let app_state = self.apps.snapshot();
+        let app_title = app_state["catalog"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .find(|app| app["id"] == app_state["active_id"] && app_state["active_id"].is_string())
+            .and_then(|app| app["name"].as_str());
+        let title = app_title
+            .or_else(|| self.state.active_tab().map(|tab| tab.title.as_str()))
             .unwrap_or("Maré");
         self.window.set_title(&format!("{title} — Maré"));
-        if let Ok(snapshot) = serde_json::to_string(&self.state) {
+        if let Ok(mut snapshot) = serde_json::to_value(&self.state) {
+            snapshot["apps"] = app_state;
+            let active_url = self
+                .state
+                .active_tab()
+                .map(|tab| tab.url.as_str())
+                .unwrap_or(START_URL);
+            snapshot["protection"] =
+                json!(self.protection.snapshot(self.state.active_id, active_url));
+            snapshot["runtime"] = json!({
+                "open_tabs": self.state.tabs.len(),
+                "loaded_tabs": self.views.len(),
+                "suspended_tabs": self.resources.suspended_count(&self.views),
+            });
             let _ = self
                 .chrome
                 .evaluate_script(&format!("window.mare?.receive({snapshot});"));
@@ -224,6 +254,7 @@ impl Browser {
             return Ok(());
         }
         let nav = self.proxy.clone();
+        let navigation_protection = self.protection.clone();
         let load = self.proxy.clone();
         let title = self.proxy.clone();
         let popup = self.proxy.clone();
@@ -241,7 +272,7 @@ impl Browser {
             .with_bounds(self.viewport.rect())
             .with_visible(false)
             .with_focused(false)
-            .with_url(&tab.url)
+            .with_url("about:blank")
             .with_incognito(private)
             .with_devtools(true)
             .with_background_color((255, 255, 255, 255))
@@ -272,13 +303,20 @@ impl Browser {
                 }
             })
             .with_navigation_handler(move |url| {
+                if url == "about:blank" {
+                    return true;
+                }
                 let allowed = allowed_navigation(&url);
                 if allowed {
+                    navigation_protection.begin_navigation(id, &url);
                     let _ = nav.send_event(BrowserEvent::Navigation(id, generation, url));
                 }
                 allowed
             })
             .with_on_page_load_handler(move |event, url| {
+                if url == "about:blank" {
+                    return;
+                }
                 let _ = load.send_event(BrowserEvent::Loaded(
                     id,
                     generation,
@@ -287,6 +325,9 @@ impl Browser {
                 ));
             })
             .with_document_title_changed_handler(move |text| {
+                if text.is_empty() || text == "about:blank" {
+                    return;
+                }
                 let _ = title.send_event(BrowserEvent::Title(id, generation, text));
             })
             .with_new_window_req_handler(move |url, _| {
@@ -308,19 +349,29 @@ impl Browser {
             builder = builder
                 .with_additional_browser_args("--disable-features=msWebOOUI,msPdfOOUI")
                 .with_browser_accelerator_keys(false)
+                .with_scroll_bar_style(wry::ScrollBarStyle::FluentOverlay)
                 .with_default_context_menus(true);
         }
         let view = builder
             .build_as_child(&self.window)
             .map_err(|e| e.to_string())?;
         let _ = view.zoom(self.zoom);
-        let _ = view.zoom(self.zoom);
+        let blocked_proxy = self.proxy.clone();
+        self.protection.attach(&view, id, move |tab_id| {
+            let _ = blocked_proxy.send_event(BrowserEvent::ProtectionChanged(tab_id));
+        })?;
         self.view_generations.insert(id, generation);
         self.views.insert(id, view);
+        self.views
+            .get(&id)
+            .unwrap()
+            .load_url(&tab.url)
+            .map_err(|error| error.to_string())?;
         Ok(())
     }
     fn arrange(&mut self) {
         let active = self.state.active_id;
+        let app_active = self.apps.snapshot()["active_id"].as_str().is_some();
         let remote = self.state.active_tab().is_some_and(|t| t.url != START_URL);
         if remote {
             if let Err(error) = self.create_view(active) {
@@ -328,11 +379,13 @@ impl Browser {
             }
         }
         for (&id, view) in &self.views {
-            let visible = id == active && remote && !self.overlay;
+            let visible = id == active && remote && !self.overlay && !app_active;
             if visible {
                 let _ = view.set_bounds(self.viewport.rect());
             }
             let _ = view.set_visible(visible);
+            self.resources
+                .set_background(id, view, id != active || app_active);
         }
     }
     fn navigate(&mut self, input: &str) {
@@ -384,8 +437,9 @@ impl Browser {
                 .with_incognito(false);
             #[cfg(windows)]
             {
-                builder =
-                    builder.with_additional_browser_args("--disable-features=msWebOOUI,msPdfOOUI");
+                builder = builder
+                    .with_additional_browser_args("--disable-features=msWebOOUI,msPdfOOUI")
+                    .with_scroll_bar_style(wry::ScrollBarStyle::FluentOverlay);
             }
             match builder.build_as_child(&self.window) {
                 Ok(view) => self.maintenance_view = Some(view),
@@ -412,7 +466,80 @@ impl Browser {
         let cmd = value["cmd"].as_str().unwrap_or("");
         let id = value["id"].as_u64().unwrap_or(self.state.active_id);
         let url = value["url"].as_str().unwrap_or(START_URL);
+        if [
+            "navigate",
+            "new_tab",
+            "activate",
+            "reopen_tab",
+            "duplicate_tab",
+        ]
+        .contains(&cmd)
+        {
+            self.apps.deactivate();
+        }
         match cmd {
+            "shield_toggle" => {
+                self.state.settings.shield_enabled = value["enabled"]
+                    .as_bool()
+                    .unwrap_or(!self.state.settings.shield_enabled);
+                self.refresh_protection(true);
+            }
+            "shield_site_toggle" => {
+                if let Some(host) = self
+                    .state
+                    .active_tab()
+                    .and_then(|tab| protection::host_for_url(&tab.url))
+                {
+                    let enabled = value["enabled"]
+                        .as_bool()
+                        .unwrap_or(self.state.settings.shield_exceptions.contains(&host));
+                    self.state
+                        .settings
+                        .shield_exceptions
+                        .retain(|item| item != &host);
+                    if !enabled {
+                        self.state.settings.shield_exceptions.push(host);
+                    }
+                    self.refresh_protection(true);
+                }
+            }
+            "apps_install" | "apps_uninstall" | "apps_open" => {
+                let app_id = value["id"].as_str().unwrap_or("");
+                let result = match cmd {
+                    "apps_install" => self.apps.install(app_id),
+                    "apps_uninstall" => self.apps.uninstall(app_id),
+                    _ => self.apps.start(app_id),
+                };
+                if let Err(error) = result {
+                    self.notify(&error);
+                }
+                self.arrange();
+            }
+            "apps_close" => {
+                let active = self.apps.snapshot()["active_id"]
+                    .as_str()
+                    .map(str::to_owned);
+                if let Some(app_id) = value["id"].as_str().map(str::to_owned).or(active) {
+                    self.apps.close(&app_id);
+                }
+                self.arrange();
+            }
+            "apps_background" => {
+                self.apps.deactivate();
+                self.arrange();
+            }
+            "apps_request" => {
+                let result = self.apps.request_with_id(
+                    value["id"].as_str().unwrap_or(""),
+                    value["request_id"].as_u64().unwrap_or(0),
+                    value["method"].as_str().unwrap_or(""),
+                    value["params"].clone(),
+                );
+                if let Err(error) = result {
+                    self.notify(&error);
+                }
+                return;
+            }
             "layout" => {
                 self.viewport = Viewport {
                     x: value["x"].as_f64().unwrap_or(0.0).max(0.0),
@@ -558,6 +685,10 @@ impl Browser {
                 self.clear_browsing_data();
             }
             "settings" => {
+                let protection_before = (
+                    self.state.settings.shield_enabled,
+                    self.state.settings.shield_exceptions.clone(),
+                );
                 let mut merged = serde_json::to_value(&self.state.settings).unwrap_or(json!({}));
                 if let (Some(target), Some(incoming)) =
                     (merged.as_object_mut(), value["settings"].as_object())
@@ -569,6 +700,14 @@ impl Browser {
                 if let Ok(mut settings) = serde_json::from_value::<Settings>(merged) {
                     settings.sanitize();
                     self.state.settings = settings;
+                }
+                if protection_before
+                    != (
+                        self.state.settings.shield_enabled,
+                        self.state.settings.shield_exceptions.clone(),
+                    )
+                {
+                    self.refresh_protection(true);
                 }
             }
             "zoom" => {
@@ -600,6 +739,7 @@ impl Browser {
                 "minimize" => self.window.set_minimized(true),
                 "maximize" => self.window.set_maximized(!self.window.is_maximized()),
                 "close" => {
+                    self.apps.shutdown();
                     self.save();
                     *control_flow = ControlFlow::Exit;
                 }
@@ -659,8 +799,73 @@ impl Browser {
             let _ = (open, safe_document);
         }
     }
+    fn refresh_protection(&mut self, reload: bool) {
+        self.state.settings.sanitize();
+        self.protection.configure(
+            self.state.settings.shield_enabled,
+            &self.state.settings.shield_exceptions,
+        );
+        for tab in &self.state.tabs {
+            if let Some(view) = self.views.get(&tab.id) {
+                let script = self.protection.cosmetics_script(tab.id, &tab.url, &[], &[]);
+                let _ = view.evaluate_script(&script);
+            }
+        }
+        if reload {
+            if let Some(view) = self.views.get(&self.state.active_id) {
+                let _ = view.reload();
+            }
+        }
+    }
     fn handle(&mut self, event: BrowserEvent, control_flow: &mut ControlFlow) {
         match event {
+            BrowserEvent::ProtectionChanged(id) => {
+                if id != self.state.active_id {
+                    return;
+                }
+            }
+            BrowserEvent::Cosmetics(id, generation, url, result) => {
+                if !self.current_view(id, generation)
+                    || !self
+                        .state
+                        .tabs
+                        .iter()
+                        .any(|tab| tab.id == id && tab.url == url)
+                {
+                    return;
+                }
+                if let Ok(data) = serde_json::from_str::<Value>(&result) {
+                    let strings = |key: &str| -> Vec<String> {
+                        data[key]
+                            .as_array()
+                            .into_iter()
+                            .flatten()
+                            .filter_map(Value::as_str)
+                            .take(4000)
+                            .map(str::to_owned)
+                            .collect()
+                    };
+                    let script = self.protection.cosmetics_script(
+                        id,
+                        &url,
+                        &strings("classes"),
+                        &strings("ids"),
+                    );
+                    if let Some(view) = self.views.get(&id) {
+                        let _ = view.evaluate_script(&script);
+                    }
+                }
+                return;
+            }
+            BrowserEvent::App(event) => {
+                if !self.apps.handle_event(&event) {
+                    return;
+                }
+                let _ = self
+                    .chrome
+                    .evaluate_script(&format!("window.mare?.appsEvent?.({});", json!(event)));
+                self.arrange();
+            }
             BrowserEvent::Command(value) => {
                 self.command(value, control_flow);
                 return;
@@ -685,6 +890,19 @@ impl Browser {
                 if finished {
                     self.state.finish_load(id);
                     if let Some(view) = self.views.get(&id) {
+                        let cosmetic_proxy = self.proxy.clone();
+                        let cosmetic_url = url.clone();
+                        let _ = view.evaluate_script_with_callback(
+                            protection::COSMETIC_CANDIDATES_SCRIPT,
+                            move |result| {
+                                let _ = cosmetic_proxy.send_event(BrowserEvent::Cosmetics(
+                                    id,
+                                    generation,
+                                    cosmetic_url.clone(),
+                                    result,
+                                ));
+                            },
+                        );
                         let proxy = self.proxy.clone();
                         let _ =
                             view.evaluate_script_with_callback("document.title", move |result| {
@@ -699,6 +917,7 @@ impl Browser {
                             });
                     }
                     self.save();
+                    self.arrange();
                 }
             }
             BrowserEvent::Title(id, generation, title) => {
@@ -818,6 +1037,16 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     };
     let event_loop = EventLoopBuilder::<BrowserEvent>::with_user_event().build();
     let proxy = event_loop.create_proxy();
+    let app_proxy = proxy.clone();
+    let protection = protection::Protection::new();
+    protection.configure(
+        state.settings.shield_enabled,
+        &state.settings.shield_exceptions,
+    );
+    let apps = apps::AppManager::new(&data_dir, move |event| {
+        let _ = app_proxy.send_event(BrowserEvent::App(event));
+    })
+    .map_err(std::io::Error::other)?;
     let window = WindowBuilder::new()
         .with_title("Maré")
         .with_window_icon(icon::window_icon())
@@ -861,10 +1090,14 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         chrome_builder = chrome_builder
             .with_additional_browser_args("--disable-features=msWebOOUI,msPdfOOUI")
             .with_browser_accelerator_keys(false)
+            .with_scroll_bar_style(wry::ScrollBarStyle::FluentOverlay)
             .with_default_context_menus(false);
     }
     let chrome = chrome_builder.build(&window)?;
     let mut browser = Browser {
+        apps,
+        resources: resource_control::ResourceControl::default(),
+        protection,
         views: HashMap::new(),
         view_generations: HashMap::new(),
         next_generation: 1,
@@ -897,8 +1130,18 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 event: WindowEvent::CloseRequested,
                 ..
             } => {
-                browser.save();
-                *control_flow = ControlFlow::Exit;
+                if browser.apps.snapshot()["open_ids"]
+                    .as_array()
+                    .is_some_and(|ids| ids.iter().any(|id| id.as_str() == Some("notes")))
+                {
+                    let _ = browser
+                        .chrome
+                        .evaluate_script("window.mare?.requestClose?.();");
+                } else {
+                    browser.apps.shutdown();
+                    browser.save();
+                    *control_flow = ControlFlow::Exit;
+                }
             }
             Event::WindowEvent {
                 event: WindowEvent::Resized(_),
@@ -913,6 +1156,13 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     });
 }
 fn main() {
+    if let Some(result) = native_app::run_if_requested() {
+        if let Err(error) = result {
+            eprintln!("{error}");
+            std::process::exit(1);
+        }
+        return;
+    }
     if let Err(error) = run() {
         let path = data_directory().join("startup-error.txt");
         let _ = std::fs::write(&path, error.to_string());

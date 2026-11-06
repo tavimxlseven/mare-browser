@@ -60,6 +60,8 @@ pub struct Settings {
     pub search_engine: String,
     pub restore_session: bool,
     pub home_background: String,
+    pub shield_enabled: bool,
+    pub shield_exceptions: Vec<String>,
 }
 
 impl Default for Settings {
@@ -69,6 +71,8 @@ impl Default for Settings {
             search_engine: "duckduckgo".into(),
             restore_session: true,
             home_background: "aurora".into(),
+            shield_enabled: true,
+            shield_exceptions: Vec::new(),
         }
     }
 }
@@ -84,6 +88,17 @@ impl Settings {
         if !["aurora", "ocean", "dusk", "minimal"].contains(&self.home_background.as_str()) {
             self.home_background = "aurora".into();
         }
+        self.shield_exceptions = self
+            .shield_exceptions
+            .iter()
+            .take(128)
+            .filter(|host| !host.contains(['/', '\\', '@', '?', '#']))
+            .filter_map(|host| Url::parse(&format!("https://{host}")).ok())
+            .filter(|url| url.port().is_none())
+            .filter_map(|url| url.host_str().map(str::to_owned))
+            .collect();
+        self.shield_exceptions.sort();
+        self.shield_exceptions.dedup();
     }
 }
 
@@ -555,11 +570,29 @@ mod tests {
             search_engine: "https://tracking.invalid".into(),
             home_background: "arbitrary-css".into(),
             restore_session: false,
+            ..Settings::default()
         };
         settings.sanitize();
         assert_eq!(settings.theme, "system");
         assert_eq!(settings.search_engine, "duckduckgo");
         assert_eq!(settings.home_background, "aurora");
         assert!(!settings.restore_session);
+    }
+
+    #[test]
+    fn legacy_settings_enable_protection_and_normalize_exceptions() {
+        let mut settings: Settings = serde_json::from_str(r#"{"theme":"dark"}"#).unwrap();
+        assert!(settings.shield_enabled);
+        assert!(settings.shield_exceptions.is_empty());
+        settings.shield_exceptions = vec![
+            "EXAMPLE.com".into(),
+            "example.com".into(),
+            "bad/path".into(),
+            "user@example.net".into(),
+            "example.net:9090".into(),
+        ];
+        settings.sanitize();
+        assert_eq!(settings.shield_exceptions, vec!["example.com"]);
+        assert_eq!(settings.theme, "dark");
     }
 }

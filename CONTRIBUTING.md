@@ -17,6 +17,8 @@ cargo test --all-targets --locked
 
 Teste navegação em sites reais e os fluxos afetados: criação e fechamento de abas, voltar/avançar, downloads, mudança de tamanho, foco de teclado e persistência após reiniciar. Para alterações visuais, inclua uma captura real e informe a resolução e a escala da tela.
 
+Os scripts `scripts/smoke.mjs` e `scripts/platform-smoke.mjs` exercitam o navegador integrado por um endpoint CDP local e um perfil descartável. Veja [TESTING.md](docs/TESTING.md) para os comandos. Alterações no bloqueador precisam de um teste que demonstre a solicitação bloqueada antes de alcançar o servidor; alterações no runtime de apps devem verificar processo, persistência e encerramento.
+
 ## Limites de confiança
 
 A interface interna e páginas remotas devem permanecer separadas. Páginas visitadas não podem receber os comandos privilegiados da interface. Valide URLs, mensagens IPC, caminhos de arquivos e dados lidos do disco antes de usá-los.

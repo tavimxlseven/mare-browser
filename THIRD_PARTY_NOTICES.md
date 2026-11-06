@@ -1,4 +1,4 @@
-# Avisos de terceiros — Maré Browser 0.1.0
+# Avisos de terceiros — Maré Browser 0.2.0
 
 O código original do Maré usa a licença MIT em `LICENSE`. Dependências mantêm suas próprias licenças. Os textos completos de licença, copyright e avisos estão em `THIRD_PARTY_LICENSES.txt` e acompanham a distribuição portátil.
 
@@ -6,14 +6,23 @@ O código original do Maré usa a licença MIT em `LICENSE`. Dependências mant�
 
 | Componente | Versão resolvida | Licença declarada | Origem |
 | --- | --- | --- | --- |
+| adblock | 0.13.5 | MPL-2.0 | [Upstream](https://github.com/brave/adblock-rust/) |
 | getrandom | 0.3.4 | MIT OR Apache-2.0 | [Upstream](https://github.com/rust-random/getrandom) |
 | serde | 1.0.229 | MIT OR Apache-2.0 | [Upstream](https://github.com/serde-rs/serde) |
 | serde_json | 1.0.154 | MIT OR Apache-2.0 | [Upstream](https://github.com/serde-rs/json) |
 | tao | 0.37.2 | Apache-2.0 | [Upstream](https://github.com/tauri-apps/tao) |
 | url | 2.5.8 | MIT OR Apache-2.0 | [Upstream](https://github.com/servo/rust-url) |
+| webview2-com | 0.39.1 | MIT | [Upstream](https://github.com/wravery/webview2-rs) |
+| windows | 0.62.2 | MIT OR Apache-2.0 | [Upstream](https://github.com/microsoft/windows-rs) |
 | wry | 0.57.1 | Apache-2.0 OR MIT | [Upstream](https://github.com/tauri-apps/wry) |
 | Rust Standard Library | 1.99.1 | MIT / Apache-2.0, com avisos de componentes incorporados | [Rust](https://github.com/rust-lang/rust/tree/58cf8f9c35b355199727627d07ae34a4e2846d67) |
 | WebView2Loader.dll x64 | 1.0.3800.47 | Licença Microsoft incluída no SDK | [NuGet oficial](https://www.nuget.org/packages/Microsoft.Web.WebView2/1.0.3800.47) |
+
+## Proteção e dados de filtros
+
+O motor `adblock-rust 0.13.5`, desenvolvido pelos contribuidores do Brave, é usado sem modificações sob MPL-2.0. Fonte correspondente: [crate versionado](https://crates.io/crates/adblock/0.13.5) e [repositório upstream](https://github.com/brave/adblock-rust). A licença MPL-2.0 completa está em `THIRD_PARTY_LICENSES.txt`.
+
+Os snapshots não modificados de EasyList e EasyPrivacy são de **The EasyList authors (https://easylist.to/)** e são distribuídos separadamente sob **CC BY-SA 3.0 Unported**, a alternativa oferecida na [política oficial](https://easylist.to/pages/licence.html). A licença completa acompanha o pacote. Versões, hashes e commits estão em [`assets/filters/provenance.json`](assets/filters/provenance.json); as fontes completas dos filtros estão [no repositório do Maré](https://github.com/tavimxlseven/mare-browser/tree/v0.2.0/assets/filters). Nenhuma modificação foi feita nesses snapshots. Esses termos se aplicam aos dados dos filtros, preservados separadamente do código original do Maré.
 
 ## Microsoft WebView2
 
@@ -27,10 +36,15 @@ Os arquivos `LICENSE.txt` e `NOTICE.txt` desse pacote foram preservados integral
 
 ## Dependências transitivas
 
-A lista abaixo contém os **85 crates externos** alcançáveis a partir do pacote raiz no grafo retornado por Cargo com filtro Windows GNU. Inclui dependências de build/macros para conservar os avisos mesmo quando partes não são ligadas ao executável.
+A lista abaixo contém os **104 crates externos** alcançáveis a partir do pacote raiz no grafo retornado por Cargo com filtro Windows GNU. Inclui dependências de build/macros para conservar os avisos mesmo quando partes não são ligadas ao executável.
 
 | Crate | Versão | Licença declarada |
 | --- | --- | --- |
+| adblock | 0.13.5 | MPL-2.0 |
+| addr | 0.15.6 | MIT/Apache-2.0 |
+| aho-corasick | 1.1.5 | Unlicense OR MIT |
+| arrayvec | 0.7.8 | MIT OR Apache-2.0 |
+| base64 | 0.22.1 | MIT OR Apache-2.0 |
 | bitflags | 2.13.2 | MIT OR Apache-2.0 |
 | bytes | 1.12.1 | MIT |
 | cfg-if | 1.0.5 | MIT OR Apache-2.0 |
@@ -41,6 +55,8 @@ A lista abaixo contém os **85 crates externos** alcançáveis a partir do pacot
 | displaydoc | 0.2.7 | MIT OR Apache-2.0 |
 | dpi | 0.1.2 | Apache-2.0 AND MIT |
 | dunce | 1.0.5 | CC0-1.0 OR MIT-0 OR Apache-2.0 |
+| either | 1.19.0 | MIT OR Apache-2.0 |
+| flatbuffers | 25.12.19 | Apache-2.0 |
 | form_urlencoded | 1.2.2 | MIT OR Apache-2.0 |
 | getrandom | 0.3.4 | MIT OR Apache-2.0 |
 | http | 1.5.0 | MIT OR Apache-2.0 |
@@ -53,6 +69,7 @@ A lista abaixo contém os **85 crates externos** alcançáveis a partir do pacot
 | icu_provider | 2.4.0 | Unicode-3.0 |
 | idna | 1.1.0 | MIT OR Apache-2.0 |
 | idna_adapter | 1.2.2 | Apache-2.0 OR MIT |
+| itertools | 0.14.0 | MIT OR Apache-2.0 |
 | itoa | 1.0.18 | MIT OR Apache-2.0 |
 | libc | 0.2.191 | MIT OR Apache-2.0 |
 | litemap | 0.8.3 | Unicode-3.0 |
@@ -66,9 +83,18 @@ A lista abaixo contém os **85 crates externos** alcançáveis a partir do pacot
 | potential_utf | 0.1.6 | Unicode-3.0 |
 | powerfmt | 0.2.1 | MIT OR Apache-2.0 |
 | proc-macro2 | 1.0.107 | MIT OR Apache-2.0 |
+| psl | 2.1.247 | MIT/Apache-2.0 |
+| psl-types | 2.0.11 | MIT/Apache-2.0 |
 | quote | 1.0.47 | MIT OR Apache-2.0 |
 | raw-window-handle | 0.6.2 | MIT OR Apache-2.0 OR Zlib |
+| regex | 1.13.1 | MIT OR Apache-2.0 |
+| regex-automata | 0.4.18 | MIT OR Apache-2.0 |
+| regex-syntax | 0.8.11 | MIT OR Apache-2.0 |
+| rustc_version | 0.4.1 | MIT OR Apache-2.0 |
+| rustc-hash | 2.1.3 | Apache-2.0 OR MIT |
 | scopeguard | 1.2.0 | MIT OR Apache-2.0 |
+| seahash | 4.1.0 | MIT |
+| semver | 1.0.28 | MIT OR Apache-2.0 |
 | serde | 1.0.229 | MIT OR Apache-2.0 |
 | serde_core | 1.0.229 | MIT OR Apache-2.0 |
 | serde_derive | 1.0.229 | MIT OR Apache-2.0 |
@@ -79,7 +105,9 @@ A lista abaixo contém os **85 crates externos** alcançáveis a partir do pacot
 | syn | 3.0.9 | MIT OR Apache-2.0 |
 | synstructure | 0.14.0 | MIT |
 | tao | 0.37.2 | Apache-2.0 |
+| thiserror | 1.0.69 | MIT OR Apache-2.0 |
 | thiserror | 2.0.21 | MIT OR Apache-2.0 |
+| thiserror-impl | 1.0.69 | MIT OR Apache-2.0 |
 | thiserror-impl | 2.0.21 | MIT OR Apache-2.0 |
 | time | 0.3.55 | MIT OR Apache-2.0 |
 | time-core | 0.1.9 | MIT OR Apache-2.0 |
@@ -119,7 +147,9 @@ A lista abaixo contém os **85 crates externos** alcançáveis a partir do pacot
 
 ## Origem dos textos e atualização
 
-As licenças dos crates vieram dos arquivos `LICENSE`, `COPYING`, `NOTICE` e equivalentes nos pacotes oficiais resolvidos por `Cargo.lock`. Textos idênticos foram agrupados, preservando a associação com todos os crates correspondentes. Os três crates `webview2-com*` omitem o arquivo de licença em seus pacotes; a licença MIT foi obtida do workspace upstream nos commits registrados nos pacotes: [webview2-com e webview2-com-sys](https://github.com/wravery/webview2-rs/blob/edc2caf886175ccaebe86078c9cfe1ae2a187328/LICENSE) e [webview2-com-macros](https://github.com/wravery/webview2-rs/blob/dffa41a8a46d3f5565eefbff2de57d38d399f158/LICENSE). Os textos são idênticos.
+As licenças dos crates vieram dos arquivos `LICENSE`, `COPYING`, `NOTICE` e equivalentes nos pacotes oficiais resolvidos por `Cargo.lock`. Textos idênticos foram agrupados, preservando a associação com todos os crates correspondentes. Os três crates `webview2-com*` omitem o arquivo de licença em seus pacotes; a licença MIT foi obtida do [workspace upstream no commit registrado no pacote](https://github.com/wravery/webview2-rs/blob/edc2caf886175ccaebe86078c9cfe1ae2a187328/LICENSE).
+
+O pacote `flatbuffers 25.12.19` não contém o arquivo de licença; o texto Apache-2.0 foi obtido do [commit upstream registrado no pacote](https://github.com/google/flatbuffers/blob/7e163021e59cca4f8e1e35a7c828b5c6b7915953/LICENSE). `seahash 4.1.0` declara MIT no manifesto e lista ticki e Tom Almeida como autores, mas não inclui um texto de licença no pacote nem em seu commit de publicação; o texto MIT foi preservado do [upstream no commit 74c0218](https://gitlab.redox-os.org/redox-os/seahash/-/blob/74c02182146d1edd7c91a9e6eddefc7390682a70/LICENSE).
 
 Os avisos da biblioteca padrão vieram do `COPYRIGHT-library.html` completo distribuído com a toolchain Rust 1.99.1 usada nesta build. Os textos MIT/Apache e copyright também foram obtidos do commit oficial dessa versão. A build GNU conserva ainda os avisos do runtime MinGW-w64 e a GCC Runtime Library Exception com seu texto GPL acompanhante, conforme os arquivos incluídos com a toolchain de compilação.
 

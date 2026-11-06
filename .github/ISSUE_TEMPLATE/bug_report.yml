@@ -1,0 +1,35 @@
+name: Bug report
+description: Report a reproducible problem in Maré.
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Maré version
+      placeholder: 0.2.0
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: Windows and WebView2 versions
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Use public URLs or a minimal local fixture. Remove private information.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Screenshots or relevant logs
+      description: Do not include profile data, cookies or access tokens.

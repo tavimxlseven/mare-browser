@@ -1,9 +1,9 @@
 [package]
 name = "mare-browser"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 rust-version = "1.88"
-description = "A Rust desktop browser with a calm, Safari-inspired interface"
+description = "A desktop browser and on-demand Rust app platform"
 license = "MIT"
 keywords = ["browser", "webview", "desktop", "rust"]
 categories = ["web-programming", "gui"]
@@ -15,6 +15,11 @@ url = "2"
 getrandom = "0.3"
 tao = "0.37"
 wry = { version = "0.57", features = ["devtools"] }
+adblock = { version = "0.13.5", default-features = false, features = ["embedded-domain-resolver", "full-regex-handling", "debug-info"] }
+
+[target.'cfg(windows)'.dependencies]
+webview2-com = "0.39.1"
+windows = { version = "0.62.2", features = ["Win32_Foundation", "Win32_System_Com"] }
 
 [profile.release]
 lto = "thin"
