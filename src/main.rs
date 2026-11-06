@@ -1,12 +1,16 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod apps;
+mod audio;
 mod components;
 mod composition;
+mod downloads;
 mod icon;
+mod icon_pixels;
 mod larper;
 mod model;
 mod music;
 mod native_app;
+mod playlist;
 mod presence;
 mod protection;
 mod resource_control;
@@ -18,10 +22,9 @@ mod task_manager;
 use model::{normalize_input, BrowserState, Download, Settings, Tab, START_URL};
 use serde_json::{json, Value};
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
     process::Command,
-    sync::atomic::{AtomicU64, Ordering},
 };
 use tao::{
     dpi::LogicalSize,
@@ -44,13 +47,14 @@ enum BrowserEvent {
     Title(u64, u64, String),
     DocumentTitle(u64, u64, String, String),
     Popup(u64, u64, String, bool),
-    DownloadStarted(String, PathBuf, bool),
-    DownloadFinished(String, Option<PathBuf>, bool),
+    DownloadChanged(downloads::Update),
+    DownloadSelected(u64, Result<Option<PathBuf>, String>),
     Shortcut(u64, u64, String, bool),
     App(apps::AppEvent),
     ProtectionChanged(u64),
     Cosmetics(u64, u64, String, String),
     Resources(Value),
+    GuardReady(u64, u64, String, bool),
 }
 
 #[derive(Clone, Copy)]
@@ -103,9 +107,12 @@ struct Browser {
     chrome_panels: Vec<Value>,
     external_viewport: Option<Viewport>,
     last_external_layout: String,
+    external_window: usize,
+    guard_scripts: HashMap<u64, String>,
     closed_tabs: Vec<Tab>,
     private_downloads: HashSet<u64>,
-    download_urls: HashMap<String, VecDeque<u64>>,
+    downloads: downloads::Manager,
+    download_ids: HashMap<u64, u64>,
     zoom: f64,
     startup_error: Option<String>,
 }
@@ -142,23 +149,6 @@ fn random_nonce() -> Result<String, String> {
     getrandom::fill(&mut bytes)
         .map_err(|_| "Não foi possível obter aleatoriedade do sistema.".to_string())?;
     Ok(bytes.iter().map(|byte| format!("{byte:02x}")).collect())
-}
-
-static DOWNLOAD_SEQUENCE: AtomicU64 = AtomicU64::new(1);
-
-fn unique_download_path(directory: &Path, suggested: &Path) -> PathBuf {
-    let filename = download_filename(suggested);
-    loop {
-        let sequence = DOWNLOAD_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-        let path = directory.join(format!(
-            "{}-{}-{sequence}-{filename}",
-            model::now_ms(),
-            std::process::id()
-        ));
-        if !path.exists() {
-            return path;
-        }
-    }
 }
 
 fn download_filename(path: &Path) -> String {
@@ -216,6 +206,7 @@ impl Browser {
     }
     fn remove_view(&mut self, id: u64) {
         self.resources.remove(id);
+        self.guard_scripts.remove(&id);
         self.protection.remove_tab(id);
         self.view_generations.remove(&id);
         self.views.remove(&id);
@@ -301,8 +292,7 @@ impl Browser {
         let load = self.proxy.clone();
         let title = self.proxy.clone();
         let popup = self.proxy.clone();
-        let start = self.proxy.clone();
-        let finish = self.proxy.clone();
+
         let shortcut = self.proxy.clone();
         let private = tab.private;
         let generation = self.next_generation;
@@ -320,6 +310,7 @@ impl Browser {
             .with_devtools(true)
             .with_background_color((255, 255, 255, 255))
             .with_initialization_script_for_main_only(shortcuts, true)
+            .with_initialization_script_for_main_only(include_str!("youtube.js").replace("__MARE_YOUTUBE_POLICY__",&json!({"enabled":self.state.settings.shield_enabled,"exceptions":self.state.settings.shield_exceptions}).to_string()),true)
             .with_ipc_handler(move |request| {
                 // Remote pages cannot reach the privileged chrome command dispatcher.
                 if request.body().len() > 1_024 {
@@ -398,14 +389,6 @@ impl Browser {
                     let _ = popup.send_event(BrowserEvent::Popup(id, generation, url, private));
                 }
                 NewWindowResponse::Deny
-            })
-            .with_download_started_handler(move |url, path| {
-                *path = unique_download_path(&downloads, path);
-                let _ = start.send_event(BrowserEvent::DownloadStarted(url, path.clone(), private));
-                true
-            })
-            .with_download_completed_handler(move |url, path, success| {
-                let _ = finish.send_event(BrowserEvent::DownloadFinished(url, path, success));
             });
         #[cfg(windows)]
         {
@@ -418,6 +401,22 @@ impl Browser {
         let view = builder
             .build_as_child(&self.window)
             .map_err(|e| e.to_string())?;
+        {
+            use tao::platform::windows::WindowExtWindows;
+            let changes = self.proxy.clone();
+            let selected = self.proxy.clone();
+            self.downloads.attach(
+                &view,
+                self.window.hwnd() as usize,
+                private,
+                std::rc::Rc::new(move |update| {
+                    let _ = changes.send_event(BrowserEvent::DownloadChanged(update));
+                }),
+                std::sync::Arc::new(move |token, result| {
+                    let _ = selected.send_event(BrowserEvent::DownloadSelected(token, result));
+                }),
+            )?;
+        }
         let _ = view.zoom(self.zoom);
         let blocked_proxy = self.proxy.clone();
         self.protection.attach(&view, id, move |tab_id| {
@@ -468,7 +467,12 @@ impl Browser {
             if visible {
                 let _ = view.set_bounds(viewport.rect());
             }
-            let _ = view.set_visible(visible);
+            if composition::visible(view) != visible {
+                let _ = view.set_visible(visible);
+            }
+            if visible && app_active {
+                composition::cover(view);
+            }
             self.resources.set_background(id, view, id != active);
         }
         let external_active = app_state["active_id"] == "discord";
@@ -503,18 +507,15 @@ impl Browser {
         #[cfg(windows)]
         if external_active {
             use tao::platform::windows::WindowExtWindows;
-            composition::raise_external(
-                self.window.hwnd() as usize,
-                app_state["responses"]["discord"]["payload"]["result"]["window"]
-                    .as_u64()
-                    .unwrap_or(0) as usize,
-            );
+            composition::raise_external(self.window.hwnd() as usize, self.external_window);
         }
         composition::arrange(
             &self.chrome,
             [cutout.x, cutout.y, cutout.width, cutout.height],
             &self.chrome_panels,
-            (!external_active && (!remote || app_active)) || self.overlay,
+            (!external_active && (!remote || app_active))
+                || self.overlay
+                || (external_active && self.external_window == 0),
             self.window.scale_factor(),
             (size.width, size.height),
         );
@@ -975,6 +976,14 @@ impl Browser {
                     self.notify("Link do Spotify inválido.");
                 }
             }
+            "cancel_download" | "resume_download" => {
+                if let Some((&token, _)) = self.download_ids.iter().find(|(_, value)| **value == id)
+                {
+                    if let Err(e) = self.downloads.command(token, cmd == "resume_download") {
+                        self.notify(&e);
+                    }
+                }
+            }
             "open_download" | "reveal_download" => self.open_download(id, cmd == "open_download"),
             "window" => match value["action"].as_str().unwrap_or("") {
                 "minimize" => self.window.set_minimized(true),
@@ -1009,13 +1018,6 @@ impl Browser {
             self.notify("O arquivo não está mais neste local.");
             return;
         };
-        let Ok(directory) = self.data_dir.join("Downloads").canonicalize() else {
-            return;
-        };
-        if !path.starts_with(directory) {
-            self.notify("O arquivo não pertence à pasta de downloads do Maré.");
-            return;
-        }
         let extension = path
             .extension()
             .and_then(|s| s.to_str())
@@ -1050,16 +1052,56 @@ impl Browser {
             if let Some(view) = self.views.get(&tab.id) {
                 let script = self.protection.cosmetics_script(tab.id, &tab.url, &[], &[]);
                 let _ = view.evaluate_script(&script);
-            }
-        }
-        if reload {
-            if let Some(view) = self.views.get(&self.state.active_id) {
-                let _ = view.reload();
+                use webview2_com::AddScriptToExecuteOnDocumentCreatedCompletedHandler;
+                use windows::core::HSTRING;
+                use wry::WebViewExtWindows;
+                let config = format!(
+                    "window.__mareYoutubeShield?.configure({});",
+                    json!({"enabled":self.state.settings.shield_enabled,"exceptions":self.state.settings.shield_exceptions})
+                );
+                let _ = view.evaluate_script(&config);
+                let proxy = self.proxy.clone();
+                let id = tab.id;
+                let generation = self.view_generations[&id];
+                unsafe {
+                    let _ = view.webview().AddScriptToExecuteOnDocumentCreated(
+                        &HSTRING::from(config),
+                        &AddScriptToExecuteOnDocumentCreatedCompletedHandler::create(Box::new(
+                            move |result, token| {
+                                if result.is_ok() {
+                                    let _ = proxy.send_event(BrowserEvent::GuardReady(
+                                        id, generation, token, reload,
+                                    ));
+                                }
+                                Ok(())
+                            },
+                        )),
+                    );
+                }
             }
         }
     }
     fn handle(&mut self, event: BrowserEvent, control_flow: &mut ControlFlow) {
         match event {
+            BrowserEvent::GuardReady(id, generation, token, reload) => {
+                if !self.current_view(id, generation) {
+                    return;
+                }
+                if let Some(old) = self.guard_scripts.insert(id, token) {
+                    use wry::WebViewExtWindows;
+                    unsafe {
+                        let _ = self.views[&id]
+                            .webview()
+                            .RemoveScriptToExecuteOnDocumentCreated(&windows::core::HSTRING::from(
+                                old,
+                            ));
+                    }
+                }
+                if reload && id == self.state.active_id {
+                    let _ = self.views[&id].reload();
+                }
+                return;
+            }
             BrowserEvent::Resources(result) => {
                 let _ = self
                     .chrome
@@ -1107,6 +1149,15 @@ impl Browser {
             BrowserEvent::App(event) => {
                 if !self.apps.handle_event(&event) {
                     return;
+                }
+                if event.app_id == "discord" {
+                    if event.kind == "exited" {
+                        self.external_window = 0;
+                        self.last_external_layout.clear();
+                    } else if event.payload["result"]["attached"] == true {
+                        self.external_window =
+                            event.payload["result"]["window"].as_u64().unwrap_or(0) as usize;
+                    }
                 }
                 let _ = self
                     .chrome
@@ -1195,64 +1246,66 @@ impl Browser {
                     self.new_tab(&url, private);
                 }
             }
-            BrowserEvent::DownloadStarted(url, path, private) => {
-                let id = self.state.allocate_id();
-                if private {
-                    self.private_downloads.insert(id);
-                }
-                self.download_urls.entry(url).or_default().push_back(id);
-                self.state.downloads.insert(
-                    0,
-                    Download {
-                        id,
-                        filename: path
-                            .file_name()
-                            .unwrap_or_default()
-                            .to_string_lossy()
-                            .into(),
-                        path: path.to_string_lossy().into(),
-                        status: "downloading".into(),
-                    },
-                );
-                self.notify("Download iniciado.");
-            }
-            BrowserEvent::DownloadFinished(url, path, success) => {
-                let matched_id = path
-                    .as_ref()
-                    .and_then(|path| {
-                        self.state
-                            .downloads
-                            .iter()
-                            .find(|item| {
-                                Path::new(&item.path) == path && item.status == "downloading"
-                            })
-                            .map(|item| item.id)
-                    })
-                    .or_else(|| {
-                        self.download_urls
-                            .get(&url)
-                            .and_then(|ids| (ids.len() == 1).then(|| ids[0]))
-                    });
-                if let Some(id) = matched_id {
-                    if let Some(ids) = self.download_urls.get_mut(&url) {
-                        ids.retain(|other| *other != id);
-                        if ids.is_empty() {
-                            self.download_urls.remove(&url);
-                        }
-                    }
-                    if let Some(item) = self.state.downloads.iter_mut().find(|d| d.id == id) {
-                        item.status = if success { "completed" } else { "failed" }.into();
-                        if let Some(path) = path {
-                            item.path = path.to_string_lossy().into();
-                        }
-                    }
-                    self.save();
-                }
-                self.notify(if success {
-                    "Download concluído."
+            BrowserEvent::DownloadChanged(update) => {
+                let id = if let Some(id) = self.download_ids.get(&update.token) {
+                    *id
                 } else {
-                    "O download não foi concluído."
-                });
+                    let id = self.state.allocate_id();
+                    self.download_ids.insert(update.token, id);
+                    if update.private {
+                        self.private_downloads.insert(id);
+                    }
+                    self.state.downloads.insert(
+                        0,
+                        Download {
+                            id,
+                            filename: update.filename.clone(),
+                            path: String::new(),
+                            status: "choosing".into(),
+                            received: 0,
+                            total: None,
+                            error: None,
+                            resumable: false,
+                        },
+                    );
+                    id
+                };
+                if let Some(item) = self.state.downloads.iter_mut().find(|d| d.id == id) {
+                    if !update.path.is_empty() {
+                        item.path = update.path;
+                        item.filename = update.filename;
+                    }
+                    let changed = item.status != update.status;
+                    item.status = update.status;
+                    item.received = update.received;
+                    item.total = update.total;
+                    item.error = update.error;
+                    item.resumable = update.resumable;
+                    if changed {
+                        self.save();
+                    }
+                }
+            }
+            BrowserEvent::DownloadSelected(token, result) => {
+                match self.downloads.selected(token, result) {
+                    Ok(Some(path)) => {
+                        if let Some(id) = self.download_ids.get(&token) {
+                            if let Some(item) =
+                                self.state.downloads.iter_mut().find(|d| d.id == *id)
+                            {
+                                item.path = path.to_string_lossy().into();
+                                item.filename = path
+                                    .file_name()
+                                    .unwrap_or_default()
+                                    .to_string_lossy()
+                                    .into();
+                                item.status = "downloading".into();
+                            }
+                        }
+                    }
+                    Ok(None) => {}
+                    Err(e) => self.notify(&format!("Não foi possível salvar: {e}")),
+                }
             }
             BrowserEvent::Shortcut(id, generation, key, shift) => {
                 if id != self.state.active_id || !self.current_view(id, generation) {
@@ -1279,6 +1332,12 @@ impl Browser {
 }
 
 fn run() -> Result<(), Box<dyn std::error::Error>> {
+    #[cfg(windows)]
+    unsafe {
+        let _ = windows::Win32::UI::Shell::SetCurrentProcessExplicitAppUserModelID(
+            windows::core::w!("Mare.Browser"),
+        );
+    }
     let data_dir = data_directory();
     std::fs::create_dir_all(&data_dir)?;
     let (state, startup_error) = match storage::load(&data_dir) {
@@ -1376,9 +1435,12 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         chrome_panels: Vec::new(),
         external_viewport: None,
         last_external_layout: String::new(),
+        external_window: 0,
+        guard_scripts: HashMap::new(),
         closed_tabs: Vec::new(),
         private_downloads: HashSet::new(),
-        download_urls: HashMap::new(),
+        downloads: downloads::Manager::default(),
+        download_ids: HashMap::new(),
         zoom: 1.0,
         startup_error,
     };

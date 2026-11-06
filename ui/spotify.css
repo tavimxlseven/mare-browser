@@ -936,3 +936,275 @@
     animation: none;
   }
 }
+/* Playlist navigation and compact, user-controlled download activity. */
+.music-sidebar-art img {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+.music-album-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 18px;
+  padding: 5px 0 25px;
+}
+.spotify-app .music-album-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  text-align: left;
+  gap: 9px;
+  border-radius: 8px;
+  padding: 12px;
+  min-width: 0;
+  transition:
+    background 0.18s,
+    transform 0.18s;
+}
+.music-album-card > span {
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  background: #272727;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.music-album-card > span > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.music-album-card > span > svg {
+  width: 48px;
+  height: 48px;
+}
+.music-album-card strong {
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #fff;
+}
+.music-album-card small {
+  font-size: 12px;
+}
+.music-album-card .music-downloads-cover {
+  background: linear-gradient(145deg, #155545, #179c69);
+}
+.music-playlist-heading {
+  position: relative;
+  justify-content: flex-start;
+  align-items: flex-end;
+  gap: 22px;
+  min-height: 220px;
+  padding-top: 45px;
+}
+.music-playlist-cover {
+  width: 150px;
+  height: 150px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  background: #282828;
+  box-shadow: 0 8px 28px #0004;
+}
+.music-playlist-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.music-playlist-cover > svg {
+  width: 60px;
+  height: 60px;
+}
+.music-playlist-heading h2 {
+  font-size: clamp(25px, 3.3vw, 50px);
+  margin: 8px 0 12px;
+  line-height: 1.08;
+  overflow-wrap: anywhere;
+}
+.music-playlist-heading p {
+  font-size: 12px;
+  color: #bbb;
+}
+.music-playlist-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 18px;
+}
+.spotify-app .music-cover-back {
+  position: absolute;
+  left: 0;
+  top: 4px;
+  background: #0007;
+  width: 32px;
+  height: 32px;
+}
+.music-collections > button > div {
+  text-align: left;
+  min-width: 0;
+}
+.music-collections strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.music-collections {
+  overflow: auto;
+  min-height: 0;
+}
+.music-availability {
+  white-space: nowrap;
+}
+.spotify-app .music-row-play:disabled {
+  opacity: 0.65;
+}
+.spotify-app .music-row-play > span {
+  font-size: 12px;
+}
+.spotify-app .music-list-heading[hidden] {
+  display: none;
+}
+.music-main {
+  position: relative;
+}
+.spotify-app .music-download {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  width: min(460px, calc(100% - 28px));
+  padding: 8px 42px 8px 8px;
+  display: block;
+  border: 1px solid #ffffff20;
+  border-radius: 29px;
+  background: #0b0b0bf5;
+  box-shadow: 0 12px 45px #0009;
+  z-index: 5;
+  animation: music-island-in 0.25s cubic-bezier(0.2, 0.7, 0.25, 1);
+}
+.spotify-app .music-download[hidden] {
+  display: none;
+}
+.spotify-app .music-download-toggle {
+  width: 100%;
+  border-radius: 22px;
+  display: flex;
+  gap: 12px;
+  text-align: left;
+  justify-content: flex-start;
+  padding: 0;
+  min-height: 52px;
+}
+.music-download-toggle > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.music-download-toggle strong {
+  font-size: 12px;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.music-download-toggle small {
+  font-size: 11px;
+  color: #b3b3b3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.music-island-art {
+  width: 48px;
+  height: 48px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  background: #202522;
+  border-radius: 17px;
+  overflow: hidden;
+}
+.music-island-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.music-download progress {
+  display: block;
+  width: 100%;
+  height: 4px;
+  accent-color: #1ed760;
+  border: 0;
+}
+.music-download progress::-webkit-progress-bar {
+  background: #ffffff20;
+  border-radius: 3px;
+}
+.music-download progress::-webkit-progress-value {
+  background: #1ed760;
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+.spotify-app .music-island-close {
+  position: absolute;
+  right: 7px;
+  top: 17px;
+  width: 27px;
+  min-width: 27px;
+  height: 27px;
+  min-height: 27px;
+}
+.music-island-detail {
+  padding: 15px 8px 10px 12px;
+  border-top: 1px solid #ffffff18;
+  margin-top: 8px;
+}
+.music-island-detail strong {
+  font-size: 11px;
+  color: #aaa;
+}
+.music-island-detail p {
+  font-size: 13px;
+  margin: 8px 0 12px;
+}
+.music-island-detail small {
+  font-size: 11px;
+  color: #aaa;
+  line-height: 1.5;
+}
+.music-scroll {
+  padding-bottom: 110px;
+}
+@keyframes music-island-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spotify-app .music-download {
+    animation: none;
+  }
+  .music-download progress::-webkit-progress-value {
+    transition: none;
+  }
+}
+@media (max-width: 900px) {
+  .music-playlist-cover {
+    width: 110px;
+    height: 110px;
+  }
+  .music-playlist-heading {
+    gap: 15px;
+  }
+}

@@ -1,4 +1,4 @@
-# Avisos de terceiros — Maré Browser 0.3.0
+# Avisos de terceiros — Maré Browser 0.3.2
 
 O código original do Maré usa a licença MIT em `LICENSE`. Dependências mantêm suas próprias licenças. Os textos completos de licença, copyright e avisos estão em `THIRD_PARTY_LICENSES.txt` e acompanham a distribuição portátil.
 
@@ -15,6 +15,10 @@ O código original do Maré usa a licença MIT em `LICENSE`. Dependências mant�
 | webview2-com | 0.39.1 | MIT | [Upstream](https://github.com/wravery/webview2-rs) |
 | windows | 0.62.2 | MIT OR Apache-2.0 | [Upstream](https://github.com/microsoft/windows-rs) |
 | wry | 0.57.1 | Apache-2.0 OR MIT | [Upstream](https://github.com/tauri-apps/wry) |
+| rodio | 0.21.1 | MIT OR Apache-2.0 | [Upstream](https://github.com/RustAudio/rodio) |
+| cpal | 0.16.0 | Apache-2.0 | [Upstream](https://github.com/RustAudio/cpal) |
+| symphonia | 0.5.5 | MPL-2.0 | [Upstream](https://github.com/pdeljanov/Symphonia) |
+| winresource | 0.1.34 | MIT | [Upstream](https://github.com/BenjaminRi/winresource) |
 | Rust Standard Library | 1.99.1 | MIT / Apache-2.0, com avisos de componentes incorporados | [Rust](https://github.com/rust-lang/rust/tree/58cf8f9c35b355199727627d07ae34a4e2846d67) |
 | WebView2Loader.dll x64 | 1.0.3800.47 | Licença Microsoft incluída no SDK | [NuGet oficial](https://www.nuget.org/packages/Microsoft.Web.WebView2/1.0.3800.47) |
 
@@ -36,7 +40,7 @@ Os arquivos `LICENSE.txt` e `NOTICE.txt` desse pacote foram preservados integral
 
 ## Dependências transitivas
 
-A lista abaixo contém os **111 crates externos** alcançáveis a partir do pacote raiz no grafo retornado por Cargo com filtro Windows GNU. Inclui dependências de build/macros para conservar os avisos mesmo quando partes não são ligadas ao executável.
+A lista abaixo contém os **154 crates externos** alcançáveis a partir do pacote raiz no grafo retornado por Cargo com filtro Windows GNU. Inclui dependências de build/macros para conservar os avisos mesmo quando partes não são ligadas ao executável.
 
 | Crate | Versão | Licença declarada |
 | --- | --- | --- |

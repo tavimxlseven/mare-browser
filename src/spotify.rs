@@ -32,6 +32,7 @@ pub struct Spotify {
     library: Library,
     music: crate::music::Music,
     account: crate::spotify_account::Account,
+    playlists: crate::playlist::Catalog,
 }
 
 pub fn normalize_link(input: &str) -> Result<(String, String, String), String> {
@@ -96,6 +97,7 @@ impl Spotify {
             library,
             music: crate::music::Music::new(directory)?,
             account: crate::spotify_account::Account::new(),
+            playlists: crate::playlist::Catalog::new(directory),
         })
     }
     fn merge_account(&mut self, items: Vec<Value>) -> Result<(), String> {
@@ -158,17 +160,26 @@ impl Spotify {
         {
             result.extend(music.clone());
         }
+        result["playlist"] = self.playlists.snapshot();
         let account = self.account.snapshot();
         result["account_connected"] = account["connected"].clone();
         result["account"] = account;
         result
     }
     pub fn handle(&mut self, method: &str, params: &Value) -> Result<Value, String> {
+        if method == "open_playlist" {
+            self.playlists.open(
+                params["uri"].as_str().unwrap_or(""),
+                params["refresh"].as_bool().unwrap_or(false),
+            )?;
+            return Ok(self.snapshot());
+        }
         if method == "playback_status" {
             if self.account.has_imports() {
                 return Ok(self.snapshot());
             }
             let mut result = self.music.snapshot_since(params["revision"].as_u64());
+            result["playlist"] = self.playlists.snapshot();
             let account = self.account.snapshot();
             result["account_connected"] = account["connected"].clone();
             result["account"] = account;
@@ -320,7 +331,7 @@ impl Spotify {
         Ok(self.snapshot())
     }
 }
-fn safe_artwork(input: &str) -> bool {
+pub(crate) fn safe_artwork(input: &str) -> bool {
     url::Url::parse(input).is_ok_and(|u| {
         u.scheme() == "https"
             && matches!(

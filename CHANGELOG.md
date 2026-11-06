@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.2 — 2026-11-06
+
+- Add a Windows installer with runtime detection, Microsoft WebView2 setup and shortcuts.
+- Ask for a download destination, retain original names, and expose byte progress, errors and transfer controls.
+- Replace MCI playback with native Rust decoding, a dedicated WASAPI thread and multimedia scheduling.
+- Add real playlist track pages, a standalone-music collection and compact download activity with completed-file availability.
+- Add artist status display and cover assets to Discord activity.
+- Refine native window composition, taskbar resources and website icons.
+- Add YouTube-specific response filtering with per-site/global Shield controls.
+
 ## 0.3.1 — 2026-11-06
 
 - Explicitly resize chrome and content controllers after child WebView destruction and while layout events are pending.

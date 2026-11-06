@@ -3022,3 +3022,34 @@ button {
     font-size: 20px;
   }
 }
+.favorite-tile,
+.library-icon,
+.tab-icon {
+  position: relative;
+}
+.site-image {
+  position: absolute;
+  width: 60%;
+  height: 60%;
+  inset: 20%;
+  object-fit: contain;
+}
+.site-loaded > .site-fallback {
+  visibility: hidden;
+}
+.tab-icon .site-image {
+  width: 16px;
+  height: 16px;
+  inset: 0;
+}
+.tab-icon .site-fallback {
+  font-size: 11px;
+}
+.site-fallback {
+  display: inline-block;
+}
+.library-icon .site-image {
+  width: 22px;
+  height: 22px;
+  inset: calc(50% - 11px);
+}

@@ -51,6 +51,14 @@ pub struct Download {
     pub filename: String,
     pub path: String,
     pub status: String,
+    #[serde(default)]
+    pub received: u64,
+    #[serde(default)]
+    pub total: Option<u64>,
+    #[serde(default)]
+    pub error: Option<String>,
+    #[serde(default)]
+    pub resumable: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -341,7 +349,11 @@ impl BrowserState {
             tab.can_go_forward = false;
         }
         for download in &mut self.downloads {
-            if download.status == "downloading" || download.status == "pending" {
+            download.resumable = false;
+            if download.status == "downloading"
+                || download.status == "pending"
+                || download.status == "choosing"
+            {
                 download.status = "interrupted".into();
             }
         }

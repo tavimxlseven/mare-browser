@@ -19,11 +19,17 @@ pub struct Track {
     path: PathBuf,
     #[serde(default)]
     source_uri: String,
+    #[serde(default)]
+    track_uri: String,
+    #[serde(default)]
+    artwork: String,
 }
 #[derive(Default)]
 struct Progress {
     events: Vec<Value>,
     last: Value,
+    done: u64,
+    latest: Value,
 }
 struct Download {
     child: Child,
@@ -40,6 +46,7 @@ pub struct Music {
     download: Option<Download>,
     last_download: Value,
     current: Option<u64>,
+    audio: Option<crate::audio::Player>,
     volume: u32,
     revision: u64,
     completed: BTreeSet<String>,
@@ -85,6 +92,7 @@ impl Music {
             download: None,
             last_download: json!({"state":"idle"}),
             current: None,
+            audio: None,
             volume: 80,
             revision: 0,
             completed: match fs::read(directory.join("completed-downloads.json")) {
@@ -151,6 +159,8 @@ impl Music {
             artists: artists.chars().take(200).collect(),
             path,
             source_uri: String::new(),
+            track_uri: String::new(),
+            artwork: String::new(),
         });
         self.revision = self.revision.saturating_add(1);
         true
@@ -168,19 +178,16 @@ impl Music {
             }
         }
         let (events, last) = if let Ok(mut progress) = download.progress.lock() {
-            (
-                if finished.is_some() {
-                    std::mem::take(&mut progress.events)
-                } else {
-                    Vec::new()
-                },
-                progress.last.clone(),
-            )
+            (std::mem::take(&mut progress.events), progress.last.clone())
         } else {
             (Vec::new(), Value::Null)
         };
         if !last.is_null() {
             self.last_download["event"] = last;
+        }
+        if let Ok(progress) = download.progress.lock() {
+            self.last_download["completed_tracks"] = json!(progress.done);
+            self.last_download["last_track"] = progress.latest.clone();
         }
         let mut changed = false;
         for event in events {
@@ -244,19 +251,11 @@ impl Music {
     }
     pub fn snapshot_since(&mut self, known_revision: Option<u64>) -> Value {
         self.poll_download();
-        let mode = if self.current.is_some() {
-            mci("status mare_audio mode").unwrap_or_else(|_| "stopped".into())
-        } else {
-            "stopped".into()
-        };
-        let position = mci("status mare_audio position")
-            .ok()
-            .and_then(|s| s.parse::<u64>().ok())
-            .unwrap_or(0);
-        let duration = mci("status mare_audio length")
-            .ok()
-            .and_then(|s| s.parse::<u64>().ok())
-            .unwrap_or(0);
+        let (mode, position, duration) = self
+            .audio
+            .as_ref()
+            .map(|p| p.snapshot())
+            .unwrap_or(("stopped", 0, 0));
         let track = self
             .current
             .and_then(|id| self.tracks.iter().find(|t| t.id == id));
@@ -265,11 +264,12 @@ impl Music {
             mode == "playing",
             position,
             duration,
+            track.map(|t| t.artwork.as_str()).unwrap_or(""),
         );
         let mut snapshot = json!({"library_revision":self.revision,"player":{"track_id":self.current,"state":mode,"position_ms":position,"duration_ms":duration,"volume":self.volume},"download":self.last_download,"sunnify_available":crate::components::executable("sunnify").is_some(),"downloader_pid":self.download.as_ref().map(|d|d.child.id()),"presence":self.presence.snapshot()});
         if known_revision != Some(self.revision) {
             snapshot["completed_sources"] = json!(self.completed);
-            snapshot["local_tracks"]=json!(self.tracks.iter().map(|t|json!({"id":t.id,"title":t.title,"artists":t.artists,"source_uri":t.source_uri,"available":t.path.is_file()})).collect::<Vec<_>>());
+            snapshot["local_tracks"]=json!(self.tracks.iter().map(|t|json!({"id":t.id,"title":t.title,"artists":t.artists,"source_uri":t.source_uri,"track_uri":t.track_uri,"artwork":t.artwork,"available":t.path.is_file()})).collect::<Vec<_>>());
         }
         snapshot
     }
@@ -359,13 +359,15 @@ impl Music {
                                 ) && state.events.len() < 2000
                                 {
                                     state.events.push(event.clone());
+                                    state.done = state.done.saturating_add(1);
+                                    state.latest = event.clone();
                                 }
                                 state.last = event;
                             }
                         }
                     }
                 });
-                self.last_download = json!({"state":"running","url":url});
+                self.last_download = json!({"state":"running","url":url,"completed_tracks":0,"total_tracks":params["total_tracks"].as_u64().unwrap_or(0).min(2000)});
                 self.download = Some(Download {
                     child,
                     progress,
@@ -438,27 +440,34 @@ impl Music {
                 ) {
                     return Err("Arquivo fora da biblioteca local.".into());
                 }
-                let _ = mci("close mare_audio");
-                mci(&format!(
-                    "open \"{}\" type mpegvideo alias mare_audio",
-                    path.display()
-                ))?;
-                mci("set mare_audio time format milliseconds")?;
-                mci(&format!(
-                    "setaudio mare_audio volume to {}",
-                    self.volume * 10
-                ))?;
-                mci("play mare_audio")?;
+                let audio = crate::audio::Player::open(&path, self.volume)?;
+                self.audio = Some(audio);
                 self.current = Some(id);
+                if let Some(track) = self.tracks.iter_mut().find(|t| t.id == id) {
+                    if let Some(art) = params["artwork"]
+                        .as_str()
+                        .filter(|url| crate::spotify::safe_artwork(url))
+                    {
+                        track.artwork = art.into();
+                    }
+                    if let Some(uri) = params["track_uri"].as_str().filter(|uri| {
+                        crate::spotify::normalize_link(uri)
+                            .is_ok_and(|(_, _, kind)| kind == "track")
+                    }) {
+                        track.track_uri = uri.into();
+                    }
+                }
+                self.revision = self.revision.saturating_add(1);
+                let _ = self.save();
             }
             "pause" => {
-                mci("pause mare_audio")?;
+                self.audio.as_ref().ok_or("Selecione uma faixa.")?.pause();
             }
             "resume" => {
-                mci("play mare_audio")?;
+                self.audio.as_ref().ok_or("Selecione uma faixa.")?.resume();
             }
             "stop" => {
-                let _ = mci("close mare_audio");
+                self.audio = None;
                 self.current = None;
             }
             "seek" => {
@@ -466,19 +475,15 @@ impl Music {
                     .as_u64()
                     .ok_or("Posição inválida.")?
                     .min(86_400_000);
-                let playing = mci("status mare_audio mode")? == "playing";
-                mci(&format!("seek mare_audio to {position}"))?;
-                if playing {
-                    mci("play mare_audio")?;
-                }
+                self.audio
+                    .as_ref()
+                    .ok_or("Selecione uma faixa.")?
+                    .seek(position)?;
             }
             "volume" => {
                 self.volume = params["value"].as_u64().ok_or("Volume inválido.")?.min(100) as u32;
-                if self.current.is_some() {
-                    mci(&format!(
-                        "setaudio mare_audio volume to {}",
-                        self.volume * 10
-                    ))?;
+                if let Some(audio) = &self.audio {
+                    audio.volume(self.volume);
                 }
             }
             "presence_config" => self.presence.configure(params)?,
@@ -489,41 +494,10 @@ impl Music {
 }
 impl Drop for Music {
     fn drop(&mut self) {
-        let _ = mci("close mare_audio");
+        self.audio = None;
         if let Some(mut download) = self.download.take() {
             let _ = download.child.kill();
             let _ = download.child.wait();
         }
-    }
-}
-fn mci(command: &str) -> Result<String, String> {
-    use windows::{
-        core::HSTRING,
-        Win32::Media::Multimedia::{mciGetErrorStringW, mciSendStringW},
-    };
-    unsafe {
-        let mut response = [0u16; 512];
-        let code = mciSendStringW(&HSTRING::from(command), Some(&mut response), None);
-        if code != 0 {
-            let mut message = [0u16; 256];
-            let _ = mciGetErrorStringW(code, &mut message);
-            return Err(format!(
-                "Áudio: {}",
-                String::from_utf16_lossy(
-                    &message[..message
-                        .iter()
-                        .position(|c| *c == 0)
-                        .unwrap_or(message.len())]
-                )
-            ));
-        }
-        Ok(String::from_utf16_lossy(
-            &response[..response
-                .iter()
-                .position(|c| *c == 0)
-                .unwrap_or(response.len())],
-        )
-        .trim()
-        .into())
     }
 }

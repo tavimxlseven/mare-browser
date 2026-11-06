@@ -15,6 +15,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'JavaScript do navegador inválido.' }
     node --check ui/spotify.js
     if ($LASTEXITCODE -ne 0) { throw 'JavaScript inválido.' }
+    node scripts/youtube-smoke.mjs
+    if ($LASTEXITCODE -ne 0) { throw 'Regressão YouTube falhou.' }
     node --check src/reader.js
     if ($LASTEXITCODE -ne 0) { throw 'Código do leitor inválido.' }
     node --check scripts/smoke.mjs

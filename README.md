@@ -27,7 +27,7 @@ Maré is a Windows browser built with Rust, Tao and Wry. Web content runs in Mic
 
 ## Download
 
-Download the Windows x64 ZIP from [Releases](https://github.com/tavimxlseven/mare-browser/releases/latest), extract it and run `Mare.exe`. Keep the included DLL and license files beside the executable. Windows 10/11 and [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) are required.
+Download `Mare-Setup-<version>-x64.exe` from [Releases](https://github.com/tavimxlseven/mare-browser/releases/latest), run it and open Maré from the new shortcut. The installer checks for WebView2 and runs the bundled Microsoft bootstrapper when the runtime is missing. That step requires an internet connection. No manual extraction, Rust toolchain or Python installation is needed. Windows 10/11 x64 is the supported target.
 
 ## Build
 
@@ -46,7 +46,7 @@ cd mare-browser
 
 The portable output is written to `dist\Mare`. When the local D: toolchain is available, scripts use `D:\DevTools` and `D:\DevCache`; otherwise they use Cargo from `PATH`.
 
-For a complete local music/chat build, run `scripts/components.ps1` to prepare the original external components before packaging. CI artifacts contain the Rust host. External components are not redistributed in the public artifact; see [component provenance and terms](docs/COMPONENTS.md). Features documented on `main` may be newer than the latest tagged release.
+For a complete local music/chat build, run `scripts/components.ps1` to prepare the original external components before packaging. The public installer includes the original Sunnify CLI; the locally adapted larperCord build is excluded until its license is clarified. See see [component provenance and terms](docs/COMPONENTS.md). Features documented on `main` may be newer than the latest tagged release.
 
 ## Architecture
 

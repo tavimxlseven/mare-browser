@@ -477,7 +477,7 @@
       state.tabs
         .map(
           (tab) =>
-            `<div class="tab${tab.private ? " private" : ""}${tab.pinned ? " pinned" : ""}${tab.loading ? " loading" : ""}" role="tab" aria-selected="${!state.apps?.active_id && tab.id === state.active_id}" tabindex="${!state.apps?.active_id && tab.id === state.active_id ? 0 : -1}" data-tab="${tab.id}" draggable="true" title="${esc(tab.title || hostname(tab.url))}${tab.private ? " (privada)" : ""}\n${esc(tab.url)}"><span class="tab-icon">${icon(tab.loading ? "reload" : tab.private ? "private" : isStart(tab) ? "compass" : "globe")}</span><span class="tab-title">${esc(tab.title || hostname(tab.url))}</span>${tab.pinned ? "" : `<button class="tab-close" data-close-tab="${tab.id}" aria-label="Fechar ${esc(tab.title || "aba")}" tabindex="-1">${icon("close")}</button>`}</div>`,
+            `<div class="tab${tab.private ? " private" : ""}${tab.pinned ? " pinned" : ""}${tab.loading ? " loading" : ""}" role="tab" aria-selected="${!state.apps?.active_id && tab.id === state.active_id}" tabindex="${!state.apps?.active_id && tab.id === state.active_id ? 0 : -1}" data-tab="${tab.id}" draggable="true" title="${esc(tab.title || hostname(tab.url))}${tab.private ? " (privada)" : ""}\n${esc(tab.url)}"><span class="tab-icon">${tab.loading ? icon("reload") : tab.private ? icon("private") : isStart(tab) ? icon("compass") : siteImage(tab)}</span><span class="tab-title">${esc(tab.title || hostname(tab.url))}</span>${tab.pinned ? "" : `<button class="tab-close" data-close-tab="${tab.id}" aria-label="Fechar ${esc(tab.title || "aba")}" tabindex="-1">${icon("close")}</button>`}</div>`,
         )
         .join("") +
       openAppTabs()
@@ -622,6 +622,37 @@
               ? "#6d7180"
               : "#4b72a6";
   };
+  const failedSiteIcons = new Set();
+  function siteImage(item) {
+    let src = "";
+    try {
+      const url = new URL(item.url);
+      if (["https:", "http:"].includes(url.protocol))
+        src = url.origin + "/favicon.ico";
+    } catch {}
+    const fallback = `<span class="site-fallback">${esc(letter(item))}</span>`;
+    return !src || failedSiteIcons.has(src)
+      ? fallback
+      : `${fallback}<img class="site-image" src="${esc(src)}" alt="" loading="lazy" referrerpolicy="no-referrer">`;
+  }
+  document.addEventListener(
+    "error",
+    (event) => {
+      if (event.target.matches?.("img.site-image")) {
+        failedSiteIcons.add(event.target.src);
+        event.target.remove();
+      }
+    },
+    true,
+  );
+  document.addEventListener(
+    "load",
+    (event) => {
+      if (event.target.matches?.("img.site-image"))
+        event.target.parentElement.classList.add("site-loaded");
+    },
+    true,
+  );
   const letter = (item) =>
     (item.title || hostname(item.url))
       .trim()
@@ -630,7 +661,7 @@
   const emptyCard = (glyph, title, text) =>
     `<div class="home-empty"><div class="empty-glyph">${icon(glyph)}</div><div><strong>${esc(title)}</strong><p>${esc(text)}</p></div></div>`;
   function homeRow(item) {
-    return `<button class="home-row" data-go="${esc(item.url)}" title="${esc(item.url)}"><div class="library-icon">${esc(letter(item))}</div><div><span class="item-title">${esc(item.title || hostname(item.url))}</span><span class="item-subtitle">${esc(hostname(item.url))}</span></div></button>`;
+    return `<button class="home-row" data-go="${esc(item.url)}" title="${esc(item.url)}"><div class="library-icon">${siteImage(item)}</div><div><span class="item-title">${esc(item.title || hostname(item.url))}</span><span class="item-subtitle">${esc(hostname(item.url))}</span></div></button>`;
   }
   function renderHome() {
     $("#favorites").innerHTML = state.bookmarks.length
@@ -638,7 +669,7 @@
           .slice(0, 16)
           .map(
             (item) =>
-              `<div class="favorite-wrap" style="position:relative;min-width:0"><button class="favorite" data-go="${esc(item.url)}" title="${esc(item.url)}" style="width:100%"><span class="favorite-tile" style="--tile-color:${tileColor(item.url)}">${esc(letter(item))}</span><span class="favorite-name">${esc(item.title || hostname(item.url))}</span></button></div>`,
+              `<div class="favorite-wrap" style="position:relative;min-width:0"><button class="favorite" data-go="${esc(item.url)}" title="${esc(item.url)}" style="width:100%"><span class="favorite-tile" style="--tile-color:${tileColor(item.url)}">${siteImage(item)}</span><span class="favorite-name">${esc(item.title || hostname(item.url))}</span></button></div>`,
           )
           .join("")
       : '<div class="favorites-empty">Seus sites favoritos ficam aqui. Use + para adicionar o primeiro.</div>';
@@ -725,7 +756,7 @@
           .slice(0, 250)
           .map(
             (item, index) =>
-              `<div class="library-item" role="button" tabindex="0" data-library-index="${index}" title="${esc(item.url)}"><span class="library-icon">${esc(letter(item))}</span><div class="item-copy"><span class="item-title">${item.read ? "✓ " : ""}${esc(item.title || hostname(item.url))}</span><span class="item-subtitle">${esc(ui.section === "history" ? `${hostname(item.url)} · ${formatDate(item.visited_at)}` : hostname(item.url))}</span></div>${ui.section !== "history" ? `<button class="item-action" data-library-remove="${index}" title="Remover" aria-label="Remover ${esc(item.title)}">${icon("close")}</button>` : ""}</div>`,
+              `<div class="library-item" role="button" tabindex="0" data-library-index="${index}" title="${esc(item.url)}"><span class="library-icon">${siteImage(item)}</span><div class="item-copy"><span class="item-title">${item.read ? "✓ " : ""}${esc(item.title || hostname(item.url))}</span><span class="item-subtitle">${esc(ui.section === "history" ? `${hostname(item.url)} · ${formatDate(item.visited_at)}` : hostname(item.url))}</span></div>${ui.section !== "history" ? `<button class="item-action" data-library-remove="${index}" title="Remover" aria-label="Remover ${esc(item.title)}">${icon("close")}</button>` : ""}</div>`,
           )
           .join("")
       : `<div class="library-empty">${icon(q ? "search" : empty[0])}<p>${esc(q ? "Nenhum resultado" : empty[1])}</p>${esc(q ? "Tente outro título ou endereço." : empty[2])}</div>`;
@@ -1310,11 +1341,19 @@
             .slice(0, 20)
             .map(
               (item) =>
-                `<div class="download-entry"><span>${icon("download")}</span><div><span class="item-title">${esc(item.filename)}</span><span class="item-subtitle">${esc(downloadStatus(item.status))}</span></div>${item.status === "completed" || item.status === "concluído" ? `<button data-open-download="${item.id}" title="Abrir arquivo" aria-label="Abrir ${esc(item.filename)}">${icon("external")}</button><button data-reveal-download="${item.id}" title="Mostrar na pasta" aria-label="Mostrar na pasta">${icon("folder")}</button>` : ""}</div>`,
+                `<div class="download-entry"><span>${icon("download")}</span><div><span class="item-title" title="${esc(item.path || item.filename)}">${esc(item.filename.replace(/^\d{13}-\d+-\d+-/, ""))}</span><span class="item-subtitle">${esc(item.error || downloadStatus(item.status))}${item.total ? ` · ${Math.floor((item.received / item.total) * 100)}%` : ""}${item.received ? ` · ${(item.received / 1048576).toFixed(1)} MB` : ""}</span></div>${item.status === "downloading" ? `<button data-transfer="cancel_download" data-transfer-id="${item.id}" aria-label="Cancelar download">${icon("close")}</button>` : ""}${item.resumable ? `<button data-transfer="resume_download" data-transfer-id="${item.id}" aria-label="Retomar download">${icon("reload")}</button>` : ""}${item.status === "completed" || item.status === "concluído" ? `<button data-open-download="${item.id}" title="Abrir arquivo" aria-label="Abrir ${esc(item.filename)}">${icon("external")}</button><button data-reveal-download="${item.id}" title="Mostrar na pasta" aria-label="Mostrar na pasta">${icon("folder")}</button>` : ""}</div>`,
             )
             .join("")
         : `<div class="download-empty">${icon("download")}Seus downloads aparecem aqui.<br>Baixe um arquivo para começar.</div>`
     }`;
+    $$("[data-transfer]", target).forEach(
+      (el) =>
+        (el.onclick = () =>
+          send({
+            cmd: el.dataset.transfer,
+            id: Number(el.dataset.transferId),
+          })),
+    );
     $$("[data-open-download]", target).forEach((el) =>
       el.addEventListener("click", () =>
         send({ cmd: "open_download", id: Number(el.dataset.openDownload) }),
@@ -1329,6 +1368,8 @@
   function downloadStatus(status) {
     return (
       {
+        choosing: "Escolha onde salvar…",
+        missing: "Arquivo não encontrado",
         completed: "Concluído",
         downloading: "Baixando…",
         failed: "Falha no download",

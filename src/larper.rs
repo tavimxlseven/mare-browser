@@ -122,6 +122,13 @@ impl Larper {
             let coord = |i: usize| rect[i].as_i64().unwrap_or(0).clamp(0, 32000) as i32;
             unsafe {
                 if !self.attached {
+                    let extended = GetWindowLongPtrW(self.window, GWL_EXSTYLE) as u32;
+                    SetWindowLongPtrW(
+                        self.window,
+                        GWL_EXSTYLE,
+                        ((extended & !(WS_EX_APPWINDOW.0 | WS_EX_TOPMOST.0 | WS_EX_LAYERED.0))
+                            | WS_EX_TOOLWINDOW.0) as isize,
+                    );
                     let style = GetWindowLongPtrW(self.window, GWL_STYLE) as u32;
                     SetWindowLongPtrW(
                         self.window,
