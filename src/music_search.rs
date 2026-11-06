@@ -166,6 +166,6 @@ impl Search {
             .flatten()
             .find(|entry| entry["uri"] == uri)
             .cloned()
-            .ok_or("Pesquise e selecione uma música válida.")
+            .ok_or_else(|| "Pesquise e selecione uma música válida.".into())
     }
 }

@@ -530,9 +530,9 @@ impl Music {
                         track.artwork = art.into();
                     }
                     if let Some(uri) = params["track_uri"].as_str().filter(|uri| {
-                        (crate::music_search::video_id(uri).is_some()
+                        crate::music_search::video_id(uri).is_some()
                             || crate::spotify::normalize_link(uri)
-                                .is_ok_and(|(_, _, kind)| kind == "track"))
+                                .is_ok_and(|(_, _, kind)| kind == "track")
                     }) {
                         track.track_uri = uri.into();
                     }

@@ -139,7 +139,7 @@ struct Browser {
 fn embedded_ui() -> String {
     include_str!("../ui/index.html")
         .replace("<link rel=\"stylesheet\" href=\"styles.css\">", &format!("<style>{}</style><style>{}</style>", include_str!("../ui/styles.css"), include_str!("../ui/spotify.css")))
-        .replace("<script src=\"app.js\"></script>", &format!("<script>{}</script><script>{}</script>", format!("{}{}{}",include_str!("../ui/music-queue.js"),include_str!("../ui/music-layout.js"),include_str!("../ui/spotify.js")), include_str!("../ui/app.js")))
+        .replace("<script src=\"app.js\"></script>", &format!("<script>{}</script><script>{}</script>", format!("{}{}{}{}",include_str!("../ui/music-queue.js"),include_str!("../ui/music-layout.js"), include_str!("../ui/music-tools.js"),include_str!("../ui/spotify.js")), include_str!("../ui/app.js")))
         .replace("<head>", "<head><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: https: http:; connect-src 'none'; base-uri 'none'; form-action 'none'\">")
 }
 

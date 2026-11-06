@@ -13,6 +13,7 @@ foreach($file in @('LICENSE','README.md','THIRD_PARTY_NOTICES.md','THIRD_PARTY_L
 $icon=Get-ChildItem -Path (Join-Path $BinaryDirectory 'build\mare-browser-*\out\mare.ico') | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 if(-not $icon){throw 'Ícone compilado ausente.'};Copy-Item -LiteralPath $icon.FullName -Destination (Join-Path $payload 'mare.ico') -Force
 $sunnify=Join-Path $app 'components\sunnify';New-Item -ItemType Directory -Force -Path $sunnify | Out-Null
+& "$PSScriptRoot\music-components.ps1" -Destination (Join-Path $app 'components\music')
 $exe=Join-Path $sunnify 'Sunnify.exe';$hash='abb16d22cabebf99d82c3eaf8ca60a0b5511dd99eb86b17f16d53d7077fb57ba'
 if(-not(Test-Path -LiteralPath $exe)){Invoke-WebRequest 'https://github.com/sunnypatell/sunnify-spotify-downloader/releases/download/v2.6.0/Sunnify-Windows-CLI.exe' -OutFile $exe}
 if((Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash -ne $hash){throw 'Hash do Sunnify inesperado.'}

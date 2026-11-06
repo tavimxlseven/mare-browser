@@ -1762,21 +1762,39 @@
       send({ cmd: "apps_request", id, method, params, request_id: requestId });
     });
   }
-  const pendingPermissions=[];
-  let activePermission=null;
+  const pendingPermissions = [];
+  let activePermission = null;
   function permissionRequest(value) {
     pendingPermissions.push(value);
     if (!activePermission) showNextPermission();
   }
   function showNextPermission() {
-    activePermission=pendingPermissions.shift();
+    activePermission = pendingPermissions.shift();
     if (!activePermission) return;
-    const p=activePermission;
-    showOverlay("permission","Permitir acesso ao "+p.permission+"?",'<p><strong>'+esc(p.origin)+'</strong> está solicitando acesso ao '+esc(p.permission)+'.</p><label class="permission-remember"><input type="checkbox" id="permission-remember"> Lembrar para este site</label><div class="dialog-actions"><button class="button" data-permission-deny>Bloquear</button><button class="button primary" data-permission-allow>Permitir</button></div>');
-    const answer=allow=>{send({cmd:"permission_answer",id:p.id,allow,remember:!!$("#permission-remember")?.checked});activePermission=null;closeTransient();showNextPermission();};
-    $("[data-permission-allow]").onclick=()=>answer(true);
-    $("[data-permission-deny]").onclick=()=>answer(false);
-    $("[data-dialog-close]").onclick=()=>answer(false);
+    const p = activePermission;
+    showOverlay(
+      "permission",
+      "Permitir acesso ao " + p.permission + "?",
+      "<p><strong>" +
+        esc(p.origin) +
+        "</strong> está solicitando acesso ao " +
+        esc(p.permission) +
+        '.</p><label class="permission-remember"><input type="checkbox" id="permission-remember"> Lembrar para este site</label><div class="dialog-actions"><button class="button" data-permission-deny>Bloquear</button><button class="button primary" data-permission-allow>Permitir</button></div>',
+    );
+    const answer = (allow) => {
+      send({
+        cmd: "permission_answer",
+        id: p.id,
+        allow,
+        remember: !!$("#permission-remember")?.checked,
+      });
+      activePermission = null;
+      closeTransient();
+      showNextPermission();
+    };
+    $("[data-permission-allow]").onclick = () => answer(true);
+    $("[data-permission-deny]").onclick = () => answer(false);
+    $("[data-dialog-close]").onclick = () => answer(false);
   }
   function appsRequestFailed(id, message) {
     const pending = appRequests.get(id);
