@@ -42,6 +42,8 @@ jobs:
           node --check scripts/platform-smoke.mjs
           node --check scripts/worker-smoke.mjs
           node --check scripts/spotify-smoke.mjs
+          node --check scripts/release-smoke.mjs
+          node --check scripts/lib/cdp.mjs
       - name: Build release
         run: cargo build --release --locked
       - name: Verify native app workers
@@ -76,6 +78,10 @@ jobs:
       contents: write
       actions: read
     steps:
+      - name: Checkout release notes
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - name: Download tested installer
         env:
           GH_TOKEN: ${{ github.token }}
@@ -86,4 +92,9 @@ jobs:
         shell: pwsh
         run: |
           $tag='${{ github.ref_name }}'
-          gh release create $tag --repo '${{ github.repository }}' --title "Maré $tag" --generate-notes release/*.exe release/SHA256SUMS.txt
+          $notes="docs/releases/$tag.md"
+          if(Test-Path -LiteralPath $notes){
+            gh release create $tag --repo '${{ github.repository }}' --title "Maré $tag" --notes-file $notes release/*.exe release/SHA256SUMS.txt
+          }else{
+            gh release create $tag --repo '${{ github.repository }}' --title "Maré $tag" --generate-notes release/*.exe release/SHA256SUMS.txt
+          }

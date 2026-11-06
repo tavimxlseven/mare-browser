@@ -156,7 +156,18 @@ try {
     assert.equal(state.downloader_pid, null);
     assert.equal(state.player.state, "playing");
     assert.deepEqual(state.completed_sources, [uri]);
-    await call("stop");
+    await assert.rejects(call("delete_local", { id: 999999 }));
+    const deletedId = state.local_tracks[0].id;
+    state = await call("delete_local", { id: deletedId });
+    assert.equal(state.local_tracks.length, 0);
+    assert.equal(state.player.track_id, null);
+    assert.deepEqual(state.completed_sources, []);
+    await stop();
+    start();
+    assert.equal((await call("list")).local_tracks.length, 0);
+    console.log(
+      "PASS deleting a playing completed download stops playback and persists an empty index",
+    );
     console.log(
       "PASS confirmed download survives restart and plays without starting another downloader",
     );

@@ -21,7 +21,7 @@ O README upstream informa que a licença do código principal ainda está **“N
 
 O cliente usa Zig, SDL3 e Dear ImGui. A interface é uma janela nativa incorporada na área do app por HWND/SetParent; não é um iframe, uma cópia em HTML nem um cliente reescrito em Rust. O worker e o cliente permanecem abertos enquanto sua aba existir e são encerrados ao fechá-la.
 
-O perfil do cliente fica em `MARE_DATA_DIR/apps/discord/config/` e o cache em `apps/discord/cache/`. O Maré não importa tokens de outro Discord instalado. Login é realizado manualmente dentro do próprio cliente. A validação desta integração usou `--demo --no-live`, com dados do modo de teste explicitamente identificados, sem autenticar uma conta real.
+O perfil do cliente fica em `MARE_DATA_DIR/apps/discord/config/` e o cache em `apps/discord/cache/`. O Maré não importa tokens de outro Discord instalado. Login é realizado manualmente dentro do próprio cliente, que pode guardar a sessão no cofre de credenciais do Windows. O adaptador remove o prefixo de caminho verbatim antes de passar as pastas ao cliente; sem isso, o salvamento do perfil falhava ao acrescentar separadores. A validação desta integração usou `--demo --no-live`, com dados do modo de teste explicitamente identificados, sem autenticar uma conta real.
 
 O upstream informa que clientes de terceiros violam os termos do Discord e podem provocar restrições na conta. Essa limitação pertence ao cliente escolhido e deve ser considerada antes de fazer login. [Documentação original](https://github.com/RshaCuDeVidro/larperCord).
 ## Adaptação local do cliente de chat

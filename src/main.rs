@@ -3,7 +3,9 @@ mod apps;
 mod audio;
 mod components;
 mod composition;
+mod covers;
 mod downloads;
+mod extensions;
 mod icon;
 mod icon_pixels;
 mod larper;
@@ -54,7 +56,14 @@ enum BrowserEvent {
     ProtectionChanged(u64),
     Cosmetics(u64, u64, String, String),
     Resources(Value),
+    Favicon(u64, u64, String, String),
     GuardReady(u64, u64, String, bool),
+    Media(u64, u64, bool),
+    Audio(u64, u64, bool),
+    StorageError(String),
+    ExtensionPrepared(Result<extensions::Prepared, String>),
+    Extensions(Value),
+    ExtensionChanged(Result<(), String>),
 }
 
 #[derive(Clone, Copy)]
@@ -89,6 +98,13 @@ struct Browser {
     apps: apps::AppManager,
     resources: resource_control::ResourceControl,
     monitor: task_manager::Monitor,
+    writer: storage::Writer,
+    media_tabs: HashSet<u64>,
+    audio_tabs: HashSet<u64>,
+    view_bounds: HashMap<u64, [f64; 4]>,
+    extension_root: PathBuf,
+    pending_extension: Option<extensions::Prepared>,
+    extension_busy: bool,
     protection: protection::Protection,
     views: HashMap<u64, WebView>,
     view_generations: HashMap<u64, u64>,
@@ -121,7 +137,7 @@ fn embedded_ui() -> String {
     include_str!("../ui/index.html")
         .replace("<link rel=\"stylesheet\" href=\"styles.css\">", &format!("<style>{}</style><style>{}</style>", include_str!("../ui/styles.css"), include_str!("../ui/spotify.css")))
         .replace("<script src=\"app.js\"></script>", &format!("<script>{}</script><script>{}</script>", include_str!("../ui/spotify.js"), include_str!("../ui/app.js")))
-        .replace("<head>", "<head><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: https://i.scdn.co https://mosaic.scdn.co https://image-cdn-ak.spotifycdn.com https://image-cdn-fa.spotifycdn.com; connect-src 'none'; base-uri 'none'; form-action 'none'\">")
+        .replace("<head>", "<head><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: https: http:; connect-src 'none'; base-uri 'none'; form-action 'none'\">")
 }
 
 fn data_directory() -> PathBuf {
@@ -132,16 +148,18 @@ fn data_directory() -> PathBuf {
     if Path::new("D:\\").exists() {
         return PathBuf::from("D:\\MareBrowserData");
     }
-    std::env::current_exe()
-        .ok()
-        .and_then(|p| p.parent().map(|p| p.join("mare-data")))
+    std::env::var_os("LOCALAPPDATA")
+        .map(|base| PathBuf::from(base).join("MareBrowser").join("User Data"))
         .unwrap_or_else(|| PathBuf::from("mare-data"))
 }
 
 fn allowed_navigation(url: &str) -> bool {
     url == "about:blank"
-        || url::Url::parse(url)
-            .is_ok_and(|u| matches!(u.scheme(), "https" | "http") && u.host_str().is_some())
+        || url::Url::parse(url).is_ok_and(|u| {
+            (matches!(u.scheme(), "https" | "http") && u.host_str().is_some())
+                || (u.scheme() == "chrome-extension"
+                    && u.host_str().is_some_and(extensions::valid_id))
+        })
 }
 
 fn random_nonce() -> Result<String, String> {
@@ -180,6 +198,9 @@ const PAGE_SHORTCUTS: &str = r#"
   if (window.top !== window) return;
   const send = window.ipc.postMessage.bind(window.ipc);
   const nonce = __MARE_NONCE__;
+  const media = () => send(JSON.stringify({nonce, media_active: Array.from(document.querySelectorAll('video,audio')).some(m => !m.paused && !m.ended && m.readyState >= 2)}));
+  for (const event of ['playing','pause','ended','emptied']) document.addEventListener(event, () => setTimeout(media, 0), true);
+  addEventListener('DOMContentLoaded', media, {once:true});
   const publish = (key, shift) => send('{"nonce":"' + nonce + '","key":"' + key + '","shift":' + (shift ? 'true' : 'false') + '}');
   addEventListener('pointerdown', e => { if(e.isTrusted) publish('dismiss',false); }, true);
   addEventListener('keydown', e => {
@@ -205,6 +226,9 @@ impl Browser {
         self.view_generations.get(&id) == Some(&generation) && self.views.contains_key(&id)
     }
     fn remove_view(&mut self, id: u64) {
+        self.media_tabs.remove(&id);
+        self.audio_tabs.remove(&id);
+        self.view_bounds.remove(&id);
         self.resources.remove(id);
         self.guard_scripts.remove(&id);
         self.protection.remove_tab(id);
@@ -272,9 +296,7 @@ impl Browser {
         public
             .downloads
             .retain(|d| !self.private_downloads.contains(&d.id));
-        if let Err(error) = storage::save(&self.data_dir, &public) {
-            self.notify(&format!("Não foi possível salvar os dados: {error}"));
-        }
+        self.writer.queue(public);
     }
     fn create_view(&mut self, id: u64) -> Result<(), String> {
         let tab = self
@@ -294,6 +316,7 @@ impl Browser {
         let popup = self.proxy.clone();
 
         let shortcut = self.proxy.clone();
+        let media = self.proxy.clone();
         let private = tab.private;
         let generation = self.next_generation;
         self.next_generation += 1;
@@ -318,6 +341,10 @@ impl Browser {
                 }
                 if let Ok(value) = serde_json::from_str::<Value>(request.body()) {
                     if value["nonce"].as_str() != Some(nonce.as_str()) {
+                        return;
+                    }
+                    if let Some(playing) = value["media_active"].as_bool() {
+                        let _ = media.send_event(BrowserEvent::Media(id, generation, playing));
                         return;
                     }
                     let key = value["key"].as_str().unwrap_or("");
@@ -394,6 +421,7 @@ impl Browser {
         {
             builder = builder
                 .with_additional_browser_args("--disable-features=msWebOOUI,msPdfOOUI")
+                .with_browser_extensions_enabled(true)
                 .with_browser_accelerator_keys(false)
                 .with_scroll_bar_style(wry::ScrollBarStyle::FluentOverlay)
                 .with_default_context_menus(true);
@@ -418,7 +446,73 @@ impl Browser {
             )?;
         }
         let _ = view.zoom(self.zoom);
+        {
+            use webview2_com::{
+                take_pwstr, FaviconChangedEventHandler,
+                Microsoft::Web::WebView2::Win32::ICoreWebView2_15,
+            };
+            use windows::core::{Interface, PWSTR};
+            use wry::WebViewExtWindows;
+            if let Ok(native) = view.webview().cast::<ICoreWebView2_15>() {
+                let proxy = self.proxy.clone();
+                unsafe {
+                    let _ = native.add_FaviconChanged(
+                        &FaviconChangedEventHandler::create(Box::new(move |sender, _| {
+                            if let Some(sender) = sender {
+                                if let Ok(native) = sender.cast::<ICoreWebView2_15>() {
+                                    let (mut uri, mut source) = (PWSTR::null(), PWSTR::null());
+                                    if native.FaviconUri(&mut uri).is_ok()
+                                        && sender.Source(&mut source).is_ok()
+                                    {
+                                        let _ = proxy.send_event(BrowserEvent::Favicon(
+                                            id,
+                                            generation,
+                                            take_pwstr(source),
+                                            take_pwstr(uri),
+                                        ));
+                                    }
+                                }
+                            }
+                            Ok(())
+                        })),
+                        &mut 0,
+                    );
+                }
+            }
+        }
         let blocked_proxy = self.proxy.clone();
+        {
+            use webview2_com::{
+                IsDocumentPlayingAudioChangedEventHandler,
+                Microsoft::Web::WebView2::Win32::ICoreWebView2_8,
+            };
+            use windows::core::Interface;
+            if let Ok(native) = view.webview().cast::<ICoreWebView2_8>() {
+                let proxy = self.proxy.clone();
+                unsafe {
+                    let _ = native.add_IsDocumentPlayingAudioChanged(
+                        &IsDocumentPlayingAudioChangedEventHandler::create(Box::new(
+                            move |sender, _| {
+                                if let Some(sender) = sender {
+                                    if let Ok(native) = sender.cast::<ICoreWebView2_8>() {
+                                        let mut playing = windows::core::BOOL::default();
+                                        if native.IsDocumentPlayingAudio(&mut playing).is_ok() {
+                                            let _ = proxy.send_event(BrowserEvent::Audio(
+                                                id,
+                                                generation,
+                                                playing.as_bool(),
+                                            ));
+                                        }
+                                    }
+                                }
+                                Ok(())
+                            },
+                        )),
+                        &mut 0,
+                    );
+                }
+            }
+        }
         self.protection.attach(&view, id, move |tab_id| {
             let _ = blocked_proxy.send_event(BrowserEvent::ProtectionChanged(tab_id));
         })?;
@@ -463,17 +557,27 @@ impl Browser {
         for (&id, view) in &self.views {
             // An app tab covers the web surface; keep the selected document visible
             // to WebView2 so media does not receive a hidden-page pause transition.
-            let visible = id == active && remote;
-            if visible {
+            let selected = id == active && remote;
+            let playing = self.media_tabs.contains(&id) || self.audio_tabs.contains(&id);
+            let visible = selected || playing;
+            let bounds = [viewport.x, viewport.y, viewport.width, viewport.height];
+            if selected && self.view_bounds.get(&id) != Some(&bounds) {
                 let _ = view.set_bounds(viewport.rect());
+                self.view_bounds.insert(id, bounds);
             }
             if composition::visible(view) != visible {
                 let _ = view.set_visible(visible);
             }
-            if visible && app_active {
+            if visible && (!selected || app_active) {
                 composition::cover(view);
             }
-            self.resources.set_background(id, view, id != active);
+            self.resources
+                .set_background(id, view, !selected && !playing);
+        }
+        if remote && !app_active {
+            if let Some(view) = self.views.get(&active) {
+                composition::raise_content(view);
+            }
         }
         let external_active = app_state["active_id"] == "discord";
         let external_open = app_state["open_ids"]
@@ -560,6 +664,48 @@ impl Browser {
         self.remove_view(id);
         self.arrange();
     }
+    fn ensure_maintenance_view(&mut self) -> Result<(), String> {
+        if self.maintenance_view.is_none() {
+            let view = WebViewBuilder::new_with_web_context(&mut self.context)
+                .with_url("about:blank")
+                .with_visible(false)
+                .with_focused(false)
+                .with_additional_browser_args("--disable-features=msWebOOUI,msPdfOOUI")
+                .with_browser_extensions_enabled(true)
+                .with_scroll_bar_style(wry::ScrollBarStyle::FluentOverlay)
+                .build_as_child(&self.window)
+                .map_err(|e| e.to_string())?;
+            self.maintenance_view = Some(view);
+        }
+        Ok(())
+    }
+    fn list_extensions(&mut self) {
+        if let Err(error) = self.ensure_maintenance_view() {
+            self.notify(&error);
+            return;
+        }
+        let proxy = self.proxy.clone();
+        if let Err(error) = extensions::list(
+            self.maintenance_view.as_ref().unwrap(),
+            self.extension_root.clone(),
+            move |value| {
+                let _ = proxy.send_event(BrowserEvent::Extensions(value));
+            },
+        ) {
+            self.notify(&error);
+        }
+    }
+    fn maintain_background_tabs(&mut self) {
+        for (&id, view) in &self.views {
+            self.resources.set_background(
+                id,
+                view,
+                id != self.state.active_id
+                    && !self.media_tabs.contains(&id)
+                    && !self.audio_tabs.contains(&id),
+            );
+        }
+    }
     fn clear_browsing_data(&mut self) {
         if self.maintenance_view.is_none() {
             let mut builder = WebViewBuilder::new_with_web_context(&mut self.context)
@@ -571,6 +717,7 @@ impl Browser {
             {
                 builder = builder
                     .with_additional_browser_args("--disable-features=msWebOOUI,msPdfOOUI")
+                    .with_browser_extensions_enabled(true)
                     .with_scroll_bar_style(wry::ScrollBarStyle::FluentOverlay);
             }
             match builder.build_as_child(&self.window) {
@@ -610,6 +757,138 @@ impl Browser {
             self.apps.deactivate();
         }
         match cmd {
+            "extensions_list" => {
+                self.list_extensions();
+                return;
+            }
+            "extensions_prepare" => {
+                if self.extension_busy || self.pending_extension.is_some() {
+                    self.notify("Conclua ou cancele a instalação atual.");
+                    return;
+                }
+                match extensions::store_id(value["url"].as_str().unwrap_or("")) {
+                    Ok(id) => {
+                        if self.extension_root.join(&id).exists() {
+                            self.notify("Esta extensão já foi preparada. Remova a instalação anterior antes de instalar novamente.");
+                            return;
+                        }
+                        self.extension_busy = true;
+                        let root = self.extension_root.clone();
+                        let proxy = self.proxy.clone();
+                        std::thread::spawn(move || {
+                            let result = extensions::prepare(&root, &id);
+                            let _ = proxy.send_event(BrowserEvent::ExtensionPrepared(result));
+                        });
+                        let _ = self.chrome.evaluate_script(
+                            "window.mare?.extensionsEvent({state:'downloading'});",
+                        );
+                    }
+                    Err(error) => self.notify(&error),
+                }
+                return;
+            }
+            "extensions_cancel" => {
+                if let Some(prepared) = self.pending_extension.take() {
+                    std::thread::spawn(move || {
+                        let _ = std::fs::remove_dir_all(prepared.folder);
+                    });
+                }
+                self.list_extensions();
+                return;
+            }
+            "extensions_install" => {
+                if let Some(prepared) = self.pending_extension.take() {
+                    if let Err(error) = self.ensure_maintenance_view() {
+                        self.notify(&error);
+                        return;
+                    }
+                    let target = self.extension_root.join(&prepared.id);
+                    if let Err(error) = std::fs::rename(&prepared.folder, &target) {
+                        self.notify(&error.to_string());
+                        return;
+                    }
+                    let proxy = self.proxy.clone();
+                    let rollback = prepared.folder.clone();
+                    let failed = target.clone();
+                    if let Err(error) = extensions::install(
+                        self.maintenance_view.as_ref().unwrap(),
+                        &target,
+                        move |result| {
+                            if result.is_err() {
+                                let _ = std::fs::rename(&failed, &rollback);
+                            }
+                            let _ = proxy.send_event(BrowserEvent::ExtensionChanged(result));
+                        },
+                    ) {
+                        let _ = std::fs::rename(&target, &prepared.folder);
+                        self.notify(&error);
+                        let _ = self.chrome.evaluate_script(&format!(
+                            "window.mare?.extensionsEvent({});",
+                            json!({"state":"error","error":error})
+                        ));
+                    }
+                }
+                return;
+            }
+            "extensions_enable" | "extensions_remove" => {
+                let id = value["id"].as_str().unwrap_or("").to_string();
+                if !extensions::valid_id(&id)
+                    || !self
+                        .extension_root
+                        .join(&id)
+                        .join("manifest.json")
+                        .is_file()
+                {
+                    return;
+                }
+                if let Err(error) = self.ensure_maintenance_view() {
+                    self.notify(&error);
+                    return;
+                }
+                let enabled = if cmd == "extensions_enable" {
+                    Some(value["enabled"].as_bool().unwrap_or(true))
+                } else {
+                    None
+                };
+                let proxy = self.proxy.clone();
+                let root = self.extension_root.clone();
+                let remove = id.clone();
+                if let Err(error) = extensions::change(
+                    self.maintenance_view.as_ref().unwrap(),
+                    id,
+                    enabled,
+                    move |result| {
+                        if result.is_ok() && enabled.is_none() {
+                            let folder = root.join(remove);
+                            std::thread::spawn(move || {
+                                let _ = std::fs::remove_dir_all(folder);
+                            });
+                        }
+                        let _ = proxy.send_event(BrowserEvent::ExtensionChanged(result));
+                    },
+                ) {
+                    self.notify(&error);
+                }
+                return;
+            }
+            "extension_open" => {
+                let id = value["id"].as_str().unwrap_or("");
+                if extensions::valid_id(id) {
+                    let manifest =
+                        std::fs::read(self.extension_root.join(id).join("manifest.json"))
+                            .ok()
+                            .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
+                            .unwrap_or_default();
+                    if let Some(path) = extensions::popup(&manifest) {
+                        self.apps.deactivate();
+                        self.state
+                            .new_tab(format!("chrome-extension://{id}/{path}"), false);
+                        self.arrange();
+                        self.publish();
+                    }
+                }
+                return;
+            }
             "resources_poll" => {
                 let mut seeds = vec![task_manager::Seed {
                     pid: std::process::id(),
@@ -731,7 +1010,11 @@ impl Browser {
                     value["params"].clone(),
                 );
                 if let Err(error) = result {
-                    self.notify(&error);
+                    let _ = self.chrome.evaluate_script(&format!(
+                        "window.mare?.appsRequestFailed({},{});",
+                        value["request_id"].as_u64().unwrap_or(0),
+                        json!(error)
+                    ));
                 }
                 return;
             }
@@ -991,6 +1274,7 @@ impl Browser {
                 "close" => {
                     self.apps.shutdown();
                     self.save();
+                    self.writer.flush();
                     *control_flow = ControlFlow::Exit;
                 }
                 "drag" => {
@@ -1082,7 +1366,107 @@ impl Browser {
         }
     }
     fn handle(&mut self, event: BrowserEvent, control_flow: &mut ControlFlow) {
+        if let BrowserEvent::StorageError(error) = &event {
+            self.notify(&format!("Falha ao salvar o perfil: {error}"));
+            return;
+        }
         match event {
+            BrowserEvent::ExtensionPrepared(result) => {
+                self.extension_busy = false;
+                match result {
+                    Ok(prepared) => {
+                        let _ = self.chrome.evaluate_script(&format!(
+                            "window.mare?.extensionsEvent({});",
+                            json!({"state":"review","prepared":prepared.summary})
+                        ));
+                        self.pending_extension = Some(prepared);
+                    }
+                    Err(error) => {
+                        self.notify(&error);
+                        let _ = self.chrome.evaluate_script(&format!(
+                            "window.mare?.extensionsEvent({});",
+                            json!({"state":"error","error":error})
+                        ));
+                    }
+                }
+                return;
+            }
+            BrowserEvent::Extensions(value) => {
+                let _ = self
+                    .chrome
+                    .evaluate_script(&format!("window.mare?.extensionsEvent({value});"));
+                return;
+            }
+            BrowserEvent::ExtensionChanged(result) => {
+                if let Err(error) = result {
+                    self.notify(&error);
+                    let _ = self.chrome.evaluate_script(&format!(
+                        "window.mare?.extensionsEvent({});",
+                        json!({"state":"error","error":error})
+                    ));
+                } else {
+                    self.notify("Extensões atualizadas. Recarregue as páginas abertas para aplicar as mudanças.");
+                }
+                self.list_extensions();
+                return;
+            }
+            BrowserEvent::StorageError(_) => unreachable!(),
+            BrowserEvent::Media(id, generation, playing) => {
+                if self.current_view(id, generation) {
+                    let changed = if playing {
+                        self.media_tabs.insert(id)
+                    } else {
+                        self.media_tabs.remove(&id)
+                    };
+                    if changed {
+                        self.arrange();
+                    }
+                }
+                return;
+            }
+            BrowserEvent::Audio(id, generation, playing) => {
+                if self.current_view(id, generation) {
+                    let changed = if playing {
+                        self.audio_tabs.insert(id)
+                    } else {
+                        self.audio_tabs.remove(&id)
+                    };
+                    if changed {
+                        self.arrange();
+                    }
+                }
+                return;
+            }
+            BrowserEvent::Favicon(id, generation, url, icon) => {
+                if !self.current_view(id, generation)
+                    || icon.len() > 2048
+                    || !url::Url::parse(&icon).is_ok_and(|u| {
+                        matches!(u.scheme(), "http" | "https")
+                            && u.username().is_empty()
+                            && u.password().is_none()
+                    })
+                {
+                    return;
+                }
+                if let Some(tab) = self
+                    .state
+                    .tabs
+                    .iter_mut()
+                    .find(|t| t.id == id && t.url == url)
+                {
+                    tab.favicon = icon.clone();
+                    if !tab.private {
+                        if let Ok(url) = url::Url::parse(&url) {
+                            self.state
+                                .site_icons
+                                .insert(url.origin().ascii_serialization(), icon);
+                            while self.state.site_icons.len() > 128 {
+                                self.state.site_icons.pop_first();
+                            }
+                        }
+                    }
+                }
+            }
             BrowserEvent::GuardReady(id, generation, token, reload) => {
                 if !self.current_view(id, generation) {
                     return;
@@ -1412,6 +1796,15 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         apps,
         resources: resource_control::ResourceControl::default(),
         monitor: task_manager::Monitor::default(),
+        writer: storage::Writer::new(data_dir.clone(), {
+            let proxy = proxy.clone();
+            move |error| {
+                let _ = proxy.send_event(BrowserEvent::StorageError(error));
+            }
+        }),
+        media_tabs: HashSet::new(),
+        audio_tabs: HashSet::new(),
+        view_bounds: HashMap::new(),
         protection,
         views: HashMap::new(),
         view_generations: HashMap::new(),
@@ -1422,7 +1815,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         context: WebContext::new(Some(data_dir.join("web-profile"))),
         state,
         proxy,
-        data_dir,
+        data_dir: data_dir.clone(),
         viewport: Viewport {
             x: 0.0,
             y: 100.0,
@@ -1433,6 +1826,9 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         chrome_size: (0, 0),
         overlay: false,
         chrome_panels: Vec::new(),
+        extension_root: data_dir.join("extensions"),
+        pending_extension: None,
+        extension_busy: false,
         external_viewport: None,
         last_external_layout: String::new(),
         external_window: 0,
@@ -1444,9 +1840,14 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         zoom: 1.0,
         startup_error,
     };
+    let mut background_tick = std::time::Instant::now() + std::time::Duration::from_secs(5);
     event_loop.run(move |event, _, control_flow| {
         let _ = &ui_context; // Keep the UI context alive until its webview closes.
-        *control_flow = ControlFlow::Wait;
+        if std::time::Instant::now() >= background_tick {
+            browser.maintain_background_tabs();
+            background_tick = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        }
+        *control_flow = ControlFlow::WaitUntil(background_tick);
         match event {
             Event::UserEvent(event) => browser.handle(event, control_flow),
             Event::WindowEvent {
@@ -1463,6 +1864,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 } else {
                     browser.apps.shutdown();
                     browser.save();
+                    browser.writer.flush();
                     *control_flow = ControlFlow::Exit;
                 }
             }

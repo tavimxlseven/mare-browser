@@ -8,6 +8,66 @@ const STATE_FILE: &str = "state.json";
 const MAX_STATE_BYTES: u64 = 16 * 1024 * 1024;
 static RECOVERY_ID: AtomicU64 = AtomicU64::new(1);
 
+enum WriteMessage {
+    State(Box<BrowserState>),
+    Flush(std::sync::mpsc::SyncSender<()>),
+    Close,
+}
+
+/// Coalesce navigation bursts and keep fsync off the window event loop.
+pub struct Writer {
+    sender: std::sync::mpsc::Sender<WriteMessage>,
+    thread: Option<std::thread::JoinHandle<()>>,
+}
+impl Writer {
+    pub fn new(directory: std::path::PathBuf, error: impl Fn(String) + Send + 'static) -> Self {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let thread = std::thread::spawn(move || {
+            let mut latest = None;
+            loop {
+                match receiver.recv_timeout(std::time::Duration::from_millis(250)) {
+                    Ok(WriteMessage::State(state)) => latest = Some(state),
+                    message => {
+                        if let Some(state) = latest.take() {
+                            if let Err(reason) = save(&directory, &state) {
+                                error(reason);
+                            }
+                        }
+                        match message {
+                            Ok(WriteMessage::Flush(done)) => {
+                                let _ = done.send(());
+                            }
+                            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+                            _ => break,
+                        }
+                    }
+                }
+            }
+        });
+        Self {
+            sender,
+            thread: Some(thread),
+        }
+    }
+    pub fn queue(&self, state: BrowserState) {
+        let _ = self.sender.send(WriteMessage::State(Box::new(state)));
+    }
+    pub fn flush(&self) {
+        let (sender, receiver) = std::sync::mpsc::sync_channel(0);
+        if self.sender.send(WriteMessage::Flush(sender)).is_ok() {
+            let _ = receiver.recv();
+        }
+    }
+}
+impl Drop for Writer {
+    fn drop(&mut self) {
+        let _ = self.sender.send(WriteMessage::Close);
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
+        }
+    }
+}
+
 fn preserve_invalid_profile(path: &Path, reason: &str) -> String {
     let backup = path.with_file_name(format!(
         "state-corrupt-{}-{}-{}.json",
@@ -130,6 +190,24 @@ mod tests {
             ));
         fs::create_dir_all(&path).unwrap();
         path
+    }
+
+    #[test]
+    fn queued_profile_updates_flush_the_latest_session_on_shutdown() {
+        let directory = profile_dir();
+        let writer = Writer::new(directory.clone(), |error| panic!("{error}"));
+        let mut state = BrowserState::new();
+        for n in 0..20 {
+            state.new_tab(format!("https://example.com/{n}"), false);
+            writer.queue(state.clone());
+        }
+        writer.flush();
+        assert_eq!(load(&directory).unwrap().tabs.len(), state.tabs.len());
+        state.new_tab("https://last.example/".into(), false);
+        writer.queue(state.clone());
+        drop(writer);
+        assert_eq!(load(&directory).unwrap().tabs.len(), state.tabs.len());
+        fs::remove_dir_all(directory).unwrap();
     }
 
     #[test]

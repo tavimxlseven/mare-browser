@@ -33,6 +33,7 @@ pub struct Spotify {
     music: crate::music::Music,
     account: crate::spotify_account::Account,
     playlists: crate::playlist::Catalog,
+    covers: crate::covers::Covers,
 }
 
 pub fn normalize_link(input: &str) -> Result<(String, String, String), String> {
@@ -98,6 +99,7 @@ impl Spotify {
             music: crate::music::Music::new(directory)?,
             account: crate::spotify_account::Account::new(),
             playlists: crate::playlist::Catalog::new(directory),
+            covers: crate::covers::Covers::new(directory),
         })
     }
     fn merge_account(&mut self, items: Vec<Value>) -> Result<(), String> {
@@ -146,6 +148,7 @@ impl Spotify {
         Ok(())
     }
     fn snapshot(&mut self) -> Value {
+        self.music.sync_artwork(self.covers.poll());
         if let Some(items) = self.account.take_imports() {
             if let Err(error) = self.merge_account(items) {
                 self.account.fail_import(error);
@@ -161,6 +164,9 @@ impl Spotify {
             result.extend(music.clone());
         }
         result["playlist"] = self.playlists.snapshot();
+        if let Some(object) = result.as_object_mut() {
+            object.extend(self.covers.snapshot().as_object().unwrap().clone());
+        }
         let account = self.account.snapshot();
         result["account_connected"] = account["connected"].clone();
         result["account"] = account;
@@ -174,12 +180,24 @@ impl Spotify {
             )?;
             return Ok(self.snapshot());
         }
+        if method == "artwork" {
+            let accepted = self.covers.request(params);
+            let mut result = self.snapshot();
+            result["artwork_requests"] = json!(accepted);
+            return Ok(result);
+        }
         if method == "playback_status" {
+            self.music.sync_artwork(self.covers.poll());
             if self.account.has_imports() {
                 return Ok(self.snapshot());
             }
             let mut result = self.music.snapshot_since(params["revision"].as_u64());
             result["playlist"] = self.playlists.snapshot();
+            if params["artwork_revision"].as_u64() != Some(self.covers.revision()) {
+                if let Some(object) = result.as_object_mut() {
+                    object.extend(self.covers.snapshot().as_object().unwrap().clone());
+                }
+            }
             let account = self.account.snapshot();
             result["account_connected"] = account["connected"].clone();
             result["account"] = account;
@@ -200,6 +218,7 @@ impl Spotify {
             "download"
                 | "cancel_download"
                 | "scan_local"
+                | "delete_local"
                 | "play_local"
                 | "pause"
                 | "resume"
@@ -350,7 +369,7 @@ pub(crate) fn safe_artwork(input: &str) -> bool {
 }
 
 #[cfg(windows)]
-fn fetch_metadata(item_url: &str) -> Result<Value, String> {
+pub(crate) fn fetch_metadata(item_url: &str) -> Result<Value, String> {
     use windows::{
         core::{w, HSTRING, PCWSTR},
         Win32::Networking::WinHttp::*,

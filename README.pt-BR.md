@@ -25,3 +25,6 @@ cd mare-browser
 ```
 
 Consulte o [README principal](README.md) para requisitos, estrutura e licenças.
+
+
+Consulte também: [extensões da Chrome Web Store](docs/EXTENSIONS.md), [permanência do perfil e dos logins nas atualizações](docs/PROFILE.md) e [configuração de IDs de integração](docs/INTEGRATIONS.md). O login Spotify está adiado na 0.3.2; playlists por link e reprodução de músicas baixadas continuam disponíveis.

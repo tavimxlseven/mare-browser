@@ -214,7 +214,7 @@ impl Presence {
             }
         }
     }
-    fn clear(&mut self) {
+    pub fn clear(&mut self) {
         if self.pipe.is_some() {
             self.sequence += 1;
             let _=self.send(1,&json!({"cmd":"SET_ACTIVITY","args":{"pid":std::process::id(),"activity":null},"nonce":self.sequence.to_string()}));
@@ -247,8 +247,10 @@ impl Presence {
         }
         let key = if playing {
             format!(
-                "{}:{}:{}",
+                "{}:{}:{}:{}:{}",
                 track.map(|t| t.0).unwrap_or(""),
+                track.map(|t| t.1).unwrap_or(""),
+                artwork,
                 position / 15000,
                 duration
             )

@@ -11,6 +11,8 @@ pub struct Tab {
     pub title: String,
     pub url: String,
     #[serde(default)]
+    pub favicon: String,
+    #[serde(default)]
     pub loading: bool,
     #[serde(default)]
     pub private: bool,
@@ -112,6 +114,8 @@ impl Settings {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BrowserState {
+    #[serde(default)]
+    pub site_icons: std::collections::BTreeMap<String, String>,
     pub tabs: Vec<Tab>,
     pub active_id: u64,
     #[serde(default)]
@@ -156,6 +160,7 @@ impl Default for BrowserState {
 impl BrowserState {
     pub fn new() -> Self {
         let mut state = Self {
+            site_icons: Default::default(),
             tabs: Vec::new(),
             active_id: 0,
             bookmarks: Vec::new(),
@@ -199,6 +204,7 @@ impl BrowserState {
             id,
             title: page_title(&url),
             url,
+            favicon: String::new(),
             loading,
             private,
             pinned: false,
@@ -247,6 +253,11 @@ impl BrowserState {
             return false;
         };
         tab.title = page_title(&url);
+        if Url::parse(&tab.url).ok().map(|u| u.origin())
+            != Url::parse(&url).ok().map(|u| u.origin())
+        {
+            tab.favicon.clear();
+        }
         tab.loading = url != START_URL;
         tab.url = url;
         true

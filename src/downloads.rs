@@ -268,6 +268,7 @@ impl Manager {
         .map_err(|e| e.to_string())
     }
 }
+#[cfg(debug_assertions)]
 fn available_path(root: &Path, name: &str) -> PathBuf {
     let p = root.join(name);
     if !p.exists() {

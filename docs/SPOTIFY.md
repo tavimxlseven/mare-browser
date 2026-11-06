@@ -1,6 +1,6 @@
 # Música no Maré
 
-O app reúne uma biblioteca de links Spotify, downloads em segundo plano e reprodução de arquivos locais. A interface compartilha a WebView dos controles do navegador; o processamento de biblioteca, IPC e controle de áudio ocorre no worker Rust. A reprodução local usa os componentes multimídia do Windows.
+O app reúne uma biblioteca de links Spotify, downloads em segundo plano e reprodução de arquivos locais. A interface compartilha a WebView dos controles do navegador; o processamento de biblioteca, IPC e controle de áudio ocorre no worker Rust. A reprodução local usa Rodio/Symphonia e saída WASAPI em uma thread dedicada.
 
 ![Música no Maré](screenshots/spotify.png)
 
@@ -16,7 +16,9 @@ O app reúne uma biblioteca de links Spotify, downloads em segundo plano e repro
 
 O Sunnify consulta metadados Spotify e busca o áudio correspondente no YouTube, com seu próprio matcher, yt-dlp, FFmpeg e gravador de tags. Ele **não baixa o fluxo de áudio do Spotify**. O resultado e a disponibilidade dependem da fonte e da rede; falhas são mostradas sem inventar um arquivo ou uma reprodução. Use downloads para conteúdo que você pode baixar. O binário original do Sunnify não foi modificado.
 
-## Conta Spotify opcional
+## Conta Spotify — adiada nesta versão
+
+O botão de login está oculto na 0.3.2, e nenhum Client ID foi embutido. Os detalhes abaixo descrevem o código experimental para uma futura reativação, não uma integração de conta disponível nesta release. Consulte [IDs e configuração](INTEGRATIONS.md).
 
 Há suporte a OAuth Authorization Code com PKCE, callback loopback em `http://127.0.0.1:43821/callback` e permissões somente de leitura: `playlist-read-private`, `playlist-read-collaborative` e `user-library-read`. O login ocorre no site oficial em uma aba privada. A senha nunca entra na interface local do Maré. O callback verifica o estado da sessão e expira após três minutos.
 
@@ -29,6 +31,8 @@ Após autorizar, o worker importa automaticamente playlists e músicas curtidas,
 O worker implementa o protocolo IPC local do Discord, com handshake, atividade do tipo Listening, nome da faixa, artista, timestamps e limpeza ao pausar/parar/sair. Não usa token de usuário nem self-bot. O compartilhamento é opcional nas configurações de música. O Application ID público do Maré é `1568194392156668016`, incluído como padrão. Uma build pode substituí-lo por `MARE_DISCORD_CLIENT_ID`. O nome da atividade depende desse aplicativo registrado; não é o selo oficial do Spotify.
 
 O protocolo foi validado com servidor IPC isolado, faixa WAV silenciosa e o worker real, sem contatar uma conta Discord. O handshake com o Application ID do Maré foi aceito pelo Discord Canary instalado. Essa verificação não publicou uma faixa de teste nem confirmou visualmente a atividade em um perfil real. O Discord desktop precisa estar aberto e o compartilhamento de atividades habilitado. O larperCord é uma integração separada e não é tratado como servidor RPC oficial.
+
+É possível excluir um download pelo ícone de lixeira da faixa. O arquivo de áudio é removido, o player é interrompido se essa música estava tocando, e os metadados da playlist permanecem. A música pode ser baixada novamente. Exclusões são bloqueadas durante um download ativo.
 
 ## Dados e componentes
 

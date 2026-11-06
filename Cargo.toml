@@ -19,6 +19,8 @@ rodio = { version = "0.21.1", default-features = false, features = ["playback", 
 tao = "0.37"
 wry = { version = "0.57", features = ["devtools"] }
 adblock = { version = "0.13.5", default-features = false, features = ["embedded-domain-resolver", "full-regex-handling", "debug-info"] }
+zip = { version = "2", default-features = false, features = ["deflate"] }
+ring = "0.17"
 
 [target.'cfg(windows)'.dependencies]
 cpal = { version = "0.16.0", features = ["audio_thread_priority"] }

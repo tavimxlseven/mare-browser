@@ -75,6 +75,25 @@ impl Drop for Download {
     }
 }
 impl Music {
+    pub fn sync_artwork(&mut self, covers: &std::collections::BTreeMap<String, String>) {
+        let mut changed = false;
+        for t in &mut self.tracks {
+            if let Some(url) = covers.get(if t.track_uri.is_empty() {
+                &t.source_uri
+            } else {
+                &t.track_uri
+            }) {
+                if &t.artwork != url {
+                    t.artwork = url.clone();
+                    changed = true;
+                }
+            }
+        }
+        if changed {
+            self.revision = self.revision.saturating_add(1);
+            let _ = self.save();
+        }
+    }
     pub fn new(directory: &Path) -> Result<Self, String> {
         let root = directory.join("audio");
         fs::create_dir_all(&root).map_err(|e| e.to_string())?;
@@ -276,6 +295,43 @@ impl Music {
     pub fn handle(&mut self, method: &str, params: &Value) -> Result<(), String> {
         self.poll_download();
         match method {
+            "delete_local" => {
+                if self.download.is_some() {
+                    return Err("Aguarde ou cancele o download antes de excluir uma música.".into());
+                }
+                let id = params["id"]
+                    .as_u64()
+                    .ok_or("Selecione uma música baixada.")?;
+                let index = self
+                    .tracks
+                    .iter()
+                    .position(|t| t.id == id)
+                    .ok_or("Música não encontrada.")?;
+                let track = self.tracks[index].clone();
+                let root = self
+                    .directory
+                    .join("audio")
+                    .canonicalize()
+                    .map_err(|e| e.to_string())?;
+                match track.path.canonicalize() {
+                    Ok(path) if path.starts_with(&root) && path.is_file() => {
+                        if self.current == Some(id) {
+                            self.audio = None;
+                            self.current = None;
+                            self.presence.clear();
+                        }
+                        fs::remove_file(path)
+                            .map_err(|e| format!("Não foi possível excluir a música: {e}"))?;
+                    }
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                    _ => return Err("Arquivo fora da biblioteca de áudio.".into()),
+                }
+                self.tracks.remove(index);
+                self.completed.remove(&track.source_uri);
+                self.completed.remove(&track.track_uri);
+                self.revision = self.revision.saturating_add(1);
+                self.save()?;
+            }
             "download" => {
                 let (uri, _, _) =
                     crate::spotify::normalize_link(params["url"].as_str().unwrap_or(""))?;
@@ -444,6 +500,9 @@ impl Music {
                 self.audio = Some(audio);
                 self.current = Some(id);
                 if let Some(track) = self.tracks.iter_mut().find(|t| t.id == id) {
+                    if params["artwork"].as_str() == Some("") {
+                        track.artwork.clear();
+                    }
                     if let Some(art) = params["artwork"]
                         .as_str()
                         .filter(|url| crate::spotify::safe_artwork(url))

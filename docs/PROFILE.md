@@ -1,0 +1,42 @@
+# Perfil, logins e atualizações
+
+Os dados do usuário pertencem ao perfil, e não à pasta do executável. O instalador usa o mesmo AppId e o mesmo diretório de programa entre versões; substituir o programa não apaga o perfil. A desinstalação não remove os dados de navegação.
+
+## Onde ficam os dados
+
+`MARE_DATA_DIR`, quando definido, escolhe a pasta explicitamente. Nesta instalação de desenvolvimento o perfil continua em `D:\MareBrowserData`. Quando D: está disponível, esse é também o destino padrão. Em computadores sem D:, o destino padrão é `%LOCALAPPDATA%\MareBrowser\User Data`, separado da instalação do programa.
+
+| Pasta ou arquivo | Conteúdo |
+| --- | --- |
+| `state.json` | Abas públicas restauráveis, favoritos, histórico, preferências e registros de downloads |
+| `web-profile/` | Perfil WebView2 dos sites: cookies, armazenamento local, IndexedDB, permissões e dados de login mantidos pelo runtime |
+| `interface/` | Perfil separado dos controles locais do Maré |
+| `apps/spotify/` | Biblioteca, áudio baixado, capas e preferências de presença |
+| `apps/discord/config/` | Configuração e índice de contas do cliente incorporado |
+| `extensions/` | Pacotes de extensões instaladas |
+
+As credenciais do larperCord, quando a opção de lembrar a conta está ativa, são mantidas pelo próprio cliente no Gerenciador de Credenciais do Windows. O Maré não coleta tokens de outro Discord instalado. O adaptador converte caminhos canônicos do Windows antes de passá-los ao cliente para que o salvamento funcione.
+
+## Atualizar sem perder o perfil
+
+- Feche o Maré antes de executar o novo setup. O instalador também tenta fechar arquivos em uso.
+- Instale normalmente sobre a versão anterior. Não exclua `web-profile/`, `interface/` ou o diretório de dados.
+- Se usa `MARE_DATA_DIR`, mantenha o mesmo valor ao atualizar e ao abrir pelo atalho.
+- Não use uma pasta que contenha o número da versão como perfil: isso criaria um perfil diferente a cada atualização.
+- Para backup, feche o Maré e aguarde seus processos WebView2 terminarem; copie a pasta de dados inteira para um local privado. Não publique esse backup em issues ou no GitHub.
+
+Os dados de login podem ser vinculados ao usuário do Windows e protegidos pelo sistema. Copiar um perfil para outro computador ou outra conta Windows não garante que as credenciais possam ser usadas. Não compartilhe um único perfil simultaneamente entre processos ou usuários distintos.
+
+## Google e outros sites
+
+Cookies persistentes e armazenamento dos sites ficam no mesmo perfil WebView2 após reiniciar ou atualizar o Maré. O navegador não exige um login Google novo apenas por mudar seu executável. Porém, o serviço pode expirar/revogar uma sessão, pedir autenticação novamente, usar cookies apenas de sessão ou recusar autenticação em navegadores incorporados. Maré não contorna esses controles e não importa logins do Chrome/Edge instalado.
+
+Uma sessão de site salva e uma senha salva são coisas diferentes. O WebView2 gerencia seus próprios recursos de preenchimento e credenciais; não existe sincronização de senhas com uma conta Google no Maré. Abas privadas não entram na sessão pública persistida e não devem ser usadas quando a intenção é manter login.
+
+## Gravação e recuperação
+
+O estado público é gravado em uma fila, agrupando eventos próximos para não executar `fsync` durante cada troca de aba. Ao fechar normalmente, o navegador drena essa fila. A escrita usa arquivo temporário na mesma pasta e substituição atômica. Uma queda abrupta antes da última gravação pode perder as alterações mais recentes, sem transformar abas privadas em histórico público.
+
+Um `state.json` inválido é preservado com nome de recuperação antes de criar um estado novo; erros de gravação são informados na interface. Não apague um perfil para corrigir uma falha sem fazer uma cópia privada primeiro.
+
+Referência: [gerenciamento da pasta de dados do WebView2](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/user-data-folder).

@@ -48,6 +48,10 @@
     pin: '<path d="m15 3 6 6-4 1-4 6-2-2-6 6m6-6-3-3 6-4 1-4Z"/>',
     tab: '<path d="M3 8V5h7l2 3h9v12H3V8Z"/>',
     code: '<path d="m8 6-6 6 6 6m8-12 6 6-6 6m-5 2 2-16"/>',
+    performance:
+      '<path d="M3 17a9 9 0 1 1 18 0M12 12l5-5M5 18h14"/><circle cx="12" cy="12" r="2"/>',
+    extension:
+      '<path d="M9 3h6v4a3 3 0 1 1 4 4h2v10h-8v-3a3 3 0 1 0-6 0v3H3v-8h3a3 3 0 1 0 0-6H3V3h6Z"/>',
     shield:
       '<path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6l8-3Z"/><path d="m8 12 3 3 5-6"/>',
     info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v.1"/>',
@@ -422,7 +426,12 @@
     );
     cached(
       "home",
-      [state.bookmarks, state.reading_list, state.history.slice(0, 8)],
+      [
+        state.bookmarks,
+        state.reading_list,
+        state.history.slice(0, 8),
+        state.site_icons,
+      ],
       renderHome,
     );
     cached(
@@ -434,6 +443,7 @@
         state.bookmarks,
         state.reading_list,
         state.history,
+        state.site_icons,
       ],
       renderSidebar,
     );
@@ -628,7 +638,10 @@
     try {
       const url = new URL(item.url);
       if (["https:", "http:"].includes(url.protocol))
-        src = url.origin + "/favicon.ico";
+        src =
+          item.favicon ||
+          state.site_icons?.[url.origin] ||
+          url.origin + "/favicon.ico";
     } catch {}
     const fallback = `<span class="site-fallback">${esc(letter(item))}</span>`;
     return !src || failedSiteIcons.has(src)
@@ -1047,6 +1060,7 @@
         menuItem("book", "Favoritos", "bookmarks", "Ctrl+B") +
         menuItem("history", "Histórico", "history", "Ctrl+H") +
         menuItem("download", "Downloads", "downloads", "Ctrl+J") +
+        menuItem("extension", "Extensões", "extensions") +
         separator +
         menuItem("reader", "Modo de leitura", "reader", "Ctrl+Shift+R") +
         menuItem("search", "Buscar nesta página…", "find", "Ctrl+F") +
@@ -1063,6 +1077,135 @@
         menuItem("code", "Ferramentas de desenvolvedor", "devtools", "F12"),
       $("#more-button"),
       "more",
+    );
+  }
+  let extensionState = { items: [] };
+  function showExtensions() {
+    showOverlay(
+      "extensions",
+      "Extensões",
+      '<p class="extensions-intro">Instale extensões Manifest V3 pelo link da Chrome Web Store. Algumas APIs do Chrome não estão disponíveis no WebView2.</p><form id="extension-add"><label for="extension-url">Link da Chrome Web Store</label><div><input id="extension-url" type="url" required placeholder="https://chromewebstore.google.com/detail/…"><button class="button primary">Verificar extensão</button></div></form><div id="extension-review" aria-live="polite"></div><div id="extension-items"></div><div class="resource-actions"><button class="button" id="extension-store">Abrir Chrome Web Store</button><button class="button" id="extension-refresh">Atualizar lista</button></div>',
+      "extensions-panel",
+    );
+    if (
+      /^https:\/\/(chromewebstore\.google\.com|chrome\.google\.com)\//.test(
+        active().url,
+      )
+    )
+      $("#extension-url").value = active().url;
+    $("#extension-add").onsubmit = (event) => {
+      event.preventDefault();
+      send({ cmd: "extensions_prepare", url: $("#extension-url").value });
+    };
+    $("#extension-store").onclick = () =>
+      newTab(false, "https://chromewebstore.google.com/");
+    $("#extension-refresh").onclick = () => send({ cmd: "extensions_list" });
+    renderExtensions();
+    send({ cmd: "extensions_list" });
+  }
+  function extensionsEvent(result) {
+    if (result.state === "error") extensionState.prepared = null;
+    if (result.items) extensionState.items = result.items;
+    if (result.state) {
+      extensionState.state = result.state;
+      extensionState.error = result.error;
+    }
+    if (result.prepared) extensionState.prepared = result.prepared;
+    if (result.items && extensionState.state === "installing") {
+      extensionState.state = "ready";
+      extensionState.prepared = null;
+    }
+    if (ui.overlay === "extensions") renderExtensions();
+  }
+  function renderExtensions() {
+    if (ui.overlay !== "extensions") return;
+    const p = extensionState.prepared,
+      busy = ["downloading", "installing"].includes(extensionState.state);
+    $("#extension-add button").disabled = busy || !!p;
+    $("#extension-review").innerHTML = busy
+      ? '<p role="status">' +
+        (extensionState.state === "installing"
+          ? "Instalando extensão…"
+          : "Baixando e verificando a assinatura da extensão…") +
+        "</p>"
+      : p
+        ? '<section class="extension-review"><h3>' +
+          esc(p.name) +
+          "</h3><p>Versão " +
+          esc(p.version) +
+          " · Assinatura verificada</p><h4>Permissões solicitadas</h4><ul>" +
+          (p.permissions.length
+            ? p.permissions
+                .map((value) => "<li>" + esc(value) + "</li>")
+                .join("")
+            : "<li>Nenhuma permissão adicional declarada.</li>") +
+          '</ul><p>Extensões com acesso a sites podem ler ou alterar o conteúdo dessas páginas.</p><button class="button primary" data-extension-confirm>Adicionar ao Maré</button><button class="button" data-extension-cancel>Cancelar</button></section>'
+        : extensionState.error
+          ? '<p role="alert">' + esc(extensionState.error) + "</p>"
+          : "";
+    $("[data-extension-confirm]")?.addEventListener("click", () => {
+      extensionState.state = "installing";
+      renderExtensions();
+      send({ cmd: "extensions_install" });
+    });
+    $("[data-extension-cancel]")?.addEventListener("click", () => {
+      extensionState.prepared = null;
+      extensionState.state = "ready";
+      send({ cmd: "extensions_cancel" });
+      renderExtensions();
+    });
+    $("#extension-items").innerHTML = extensionState.items.length
+      ? extensionState.items
+          .map(
+            (item) =>
+              '<article class="extension-item"><span class="extension-glyph">' +
+              icon("extension") +
+              "</span><div><strong>" +
+              esc(item.name) +
+              "</strong><small>" +
+              esc(item.id) +
+              '</small></div><label class="extension-toggle"><input type="checkbox" data-extension-enable="' +
+              esc(item.id) +
+              '" ' +
+              (item.enabled ? "checked" : "") +
+              "> Ativa</label>" +
+              (item.popup
+                ? '<button class="button" data-extension-open="' +
+                  esc(item.id) +
+                  '">Abrir</button>'
+                : "") +
+              '<button class="icon-button" data-extension-remove="' +
+              esc(item.id) +
+              '" aria-label="Remover ' +
+              esc(item.name) +
+              '">' +
+              icon("trash") +
+              "</button></article>",
+          )
+          .join("")
+      : '<p class="extensions-empty">Nenhuma extensão instalada.</p>';
+    $$("[data-extension-enable]").forEach(
+      (el) =>
+        (el.onchange = () =>
+          send({
+            cmd: "extensions_enable",
+            id: el.dataset.extensionEnable,
+            enabled: el.checked,
+          })),
+    );
+    $$("[data-extension-open]").forEach(
+      (el) =>
+        (el.onclick = () => {
+          closeTransient();
+          send({ cmd: "extension_open", id: el.dataset.extensionOpen });
+        }),
+    );
+    $$("[data-extension-remove]").forEach(
+      (el) =>
+        (el.onclick = () => {
+          el.disabled = true;
+          send({ cmd: "extensions_remove", id: el.dataset.extensionRemove });
+        }),
     );
   }
   let resourceTimer,
@@ -1217,6 +1360,9 @@
         break;
       case "downloads":
         showDownloads();
+        break;
+      case "extensions":
+        showExtensions();
         break;
       case "settings":
         showSettings();
@@ -1418,7 +1564,7 @@
             const stopping = (state.apps?.stopping || []).some(
               (process) => process.id === app.id,
             );
-            return `<article class="store-app" data-app-row="${esc(app.id)}"><div class="store-app-icon app-icon-${esc(app.id)}">${icon(appIcon(app))}</div><div class="store-app-info"><h3>${esc(app.name)}</h3><p>${esc(app.description)}</p><span>${available ? (app.kind === "external-native" ? "Cliente nativo Zig/SDL" : "Aplicativo nativo Rust") : "Em desenvolvimento"}${app.version ? ` · ${esc(app.version)}` : ""}</span></div><div class="store-app-actions">${available ? `<button class="button${app.installed ? "" : " primary"}" data-app-action="${app.installed ? "open" : "install"}" data-app-id="${esc(app.id)}" ${stopping ? "disabled" : ""}>${stopping ? "Encerrando…" : app.running ? "Em execução" : app.installed ? "Abrir" : "Instalar"}</button>${app.installed && !app.running && !stopping ? `<button class="store-remove" data-app-action="uninstall" data-app-id="${esc(app.id)}" aria-label="Remover ${esc(app.name)}" title="Remover aplicativo">${icon("trash")}</button>` : ""}` : '<span class="planned-label">Planejado</span>'}</div></article>`;
+            return `<article class="store-app" data-app-row="${esc(app.id)}"><div class="store-app-icon app-icon-${esc(app.id)}">${icon(appIcon(app))}</div><div class="store-app-info"><h3>${esc(app.name)}</h3><p>${esc(app.description)}</p><span>${available ? (app.kind === "external-native" ? "Cliente nativo Zig/SDL" : "Aplicativo nativo Rust") : "Em desenvolvimento"}${app.version ? ` · ${esc(app.version)}` : ""}</span></div><div class="store-app-actions">${available ? `<button class="button${app.installed ? "" : " primary"}" data-app-action="${app.installed ? "open" : "install"}" data-app-id="${esc(app.id)}" ${stopping ? "disabled" : ""}>${stopping ? "Encerrando…" : app.running ? "Em execução" : app.installed ? "Abrir" : "Instalar"}</button>${app.installed && !app.running && !stopping ? `<button class="store-remove" data-app-action="uninstall" data-app-id="${esc(app.id)}" aria-label="Remover ${esc(app.name)}" title="Remover aplicativo">${icon("trash")}</button>` : ""}` : `<span class="planned-label">${app.status === "component_missing" ? "Não incluído" : "Planejado"}</span>`}</div></article>`;
           })
           .join("")
       : '<div class="store-empty">O catálogo de aplicativos ainda não está disponível.</div>';
@@ -1615,6 +1761,13 @@
       appRequests.set(requestId, { resolve, reject, timer });
       send({ cmd: "apps_request", id, method, params, request_id: requestId });
     });
+  }
+  function appsRequestFailed(id, message) {
+    const pending = appRequests.get(id);
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    appRequests.delete(id);
+    pending.reject(new Error(message));
   }
   function appsEvent(event) {
     if (!event || !event.app_id) return;
@@ -2505,6 +2658,8 @@
   $("#reader-button").onclick = () => send({ cmd: "reader" });
   $("#shield-button").onclick = () =>
     ui.popup === "shield" ? closeTransient() : showShield();
+  $("#performance-button").onclick = showTaskManager;
+  $("#extensions-button").onclick = showExtensions;
   $("#apps-button").onclick = () =>
     ui.overlay === "store" ? closeTransient() : showStore();
   $("#sidebar-toggle").onclick = () => toggleSidebar();
@@ -2698,6 +2853,7 @@
   window.mare = {
     receive,
     resources,
+    extensionsEvent,
     showTaskManager,
     dismiss: () => closeTransient(true),
     notify,
@@ -2706,6 +2862,7 @@
     showSettings,
     showStore,
     appsEvent,
+    appsRequestFailed,
     requestClose,
     copy,
   };

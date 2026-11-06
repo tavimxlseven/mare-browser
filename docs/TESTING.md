@@ -185,3 +185,23 @@ A inspeção REA permanece vinculada ao snapshot debug e ao hash documentados em
 - Cliente larperCord local incorporado com HWND pai real e sem barras extras. A ordem das janelas foi conferida visualmente sobre uma página web mantida viva.
 
 Não houve login automatizado nem leitura de credenciais. Login persistente do larperCord e importação de uma conta Spotify real permanecem verificações manuais. Não foi realizado benchmark de consumo nem download integral de áudio externo.
+
+
+## Validação 0.3.2
+
+- 32 testes Rust, formatação, Clippy sem warnings e verificação JavaScript aprovados; um teste de rede opt-in também verificou um CRX3 público da Chrome Web Store.
+- Pacote sintético assinado: identidade da extensão, rejeição de arquivo adulterado, extração e manutenção do ID foram verificadas sem executar código externo.
+- Smoke integrado: favicons, mídia em segundo plano, exclusão de áudio, alternância rápida de abas, fechamento de app e botão de desempenho.
+- Instalação real de Google Translate em perfil isolado, persistência após reabrir, desativação e remoção aprovadas. Isso valida a instalação; não equivale a testar todas as funções da extensão ou todas as APIs do Chrome.
+- Abas públicas, cookie persistente HttpOnly próprio, localStorage e IndexedDB sobreviveram à reabertura com o executável em outra pasta. Não foram lidos cookies, senhas ou tokens de contas reais.
+- Áudio local da build otimizada e exclusão de download durante reprodução aprovados com WAV silencioso próprio.
+- IPC Discord isolado: Application ID compartilhado, Listening, artista, capa, timestamps e limpeza ao pausar aprovados. O teste não publicou atividade em perfil real.
+- O caminho verbatim do Windows reproduziu a falha de salvamento do cliente de chat; o caminho convertido e uma credencial sintética no cofre Windows passaram. Reautenticação com conta real continua sendo validação manual.
+
+Para repetir o smoke integrado, use Node 24+, WebView2 instalado, uma build local e um perfil descartável novo. Ele baixa e instala uma extensão pública apenas nesse perfil, remove-a no fim e não autentica contas:
+
+```powershell
+node scripts/release-smoke.mjs --exe=dist/Mare/Mare.exe --profile=D:\DevCache\mare-release-smoke-qa
+```
+
+A porta local 9260 precisa estar livre. O teste usa áudio silencioso e não mede o sinal sonoro nem FPS. A continuidade foi verificada em uma página própria que pausa ao ficar oculta; não representa uma cobertura de todas as condições de YouTube, Twitch e Kick. Não há benchmark comparativo de desempenho.

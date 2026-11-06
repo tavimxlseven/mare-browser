@@ -106,7 +106,16 @@ if (!notices.includes("| rodio |"))
     "| Rust Standard Library |",
     "| rodio | 0.21.1 | MIT OR Apache-2.0 | [Upstream](https://github.com/RustAudio/rodio) |\n| cpal | 0.16.0 | Apache-2.0 | [Upstream](https://github.com/RustAudio/cpal) |\n| symphonia | 0.5.5 | MPL-2.0 | [Upstream](https://github.com/pdeljanov/Symphonia) |\n| winresource | 0.1.34 | MIT | [Upstream](https://github.com/BenjaminRi/winresource) |\n| Rust Standard Library |",
   );
-notices = notices.replace(/111/g, String(packages.length));
+const inventory = `A lista abaixo contém os **${packages.length} crates externos** alcançáveis a partir do pacote raiz no grafo retornado por Cargo com filtro Windows GNU. Inclui dependências de build/macros para conservar os avisos mesmo quando partes não são ligadas ao executável.\n\n| Crate | Versão | Licença declarada |\n| --- | --- | --- |\n${packages.map((p) => `| ${p.name} | ${p.version} | ${p.license || "see upstream"} |`).join("\n")}\n\n`;
+notices = notices.replace(
+  /A lista abaixo contém os \*\*\d+ crates externos\*\*[\s\S]*?(?=## Origem dos textos)/,
+  () => inventory,
+);
+if (!notices.includes("| ring |"))
+  notices = notices.replace(
+    "| Rust Standard Library |",
+    "| ring | 0.17.14 | ISC AND MIT AND OpenSSL | [Upstream](https://github.com/briansmith/ring) |\n| zip | 2.6.1 | MIT | [Upstream](https://github.com/zip-rs/zip2) |\n| Rust Standard Library |",
+  );
 fs.writeFileSync("THIRD_PARTY_NOTICES.md", notices);
 console.log(
   JSON.stringify({ resolvedCrates: packages.length, added: added.length }),

@@ -2,6 +2,13 @@
 
 ## 0.3.2 — 2026-11-06
 
+- Install compatible Manifest V3 extensions from Chrome Web Store URLs, verify CRX3 publisher/developer signatures and review permissions before installation.
+- Preserve active media across tab switches, delay idle-tab suspension and coalesce profile writes outside the UI thread.
+- Add a performance button beside Shield and persistent extension management.
+- Delete downloaded music safely while retaining playlist metadata; refresh per-track artwork and refine the music workspace.
+- Correct Windows profile paths used by embedded Discord login persistence.
+- Document upgrade/login persistence and shared Discord application IDs. Defer Spotify account login in this release.
+
 - Add a Windows installer with runtime detection, Microsoft WebView2 setup and shortcuts.
 - Ask for a download destination, retain original names, and expose byte progress, errors and transfer controls.
 - Replace MCI playback with native Rust decoding, a dedicated WASAPI thread and multimedia scheduling.

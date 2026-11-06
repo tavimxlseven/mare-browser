@@ -19,6 +19,7 @@ struct TabActivity {
     background: Rc<Cell<bool>>,
     pending: Rc<Cell<bool>>,
     attempted: Instant,
+    background_since: Instant,
 }
 
 /// Ask the engine to suspend hidden tabs without destroying their documents.
@@ -49,13 +50,22 @@ impl ResourceControl {
                 background: Rc::new(Cell::new(false)),
                 pending: Rc::new(Cell::new(false)),
                 attempted: Instant::now() - Duration::from_secs(3),
+                background_since: Instant::now(),
             });
-            activity.background.set(background);
+            let was_background = activity.background.replace(background);
+            if background && !was_background {
+                activity.background_since = Instant::now();
+            }
             if !background {
                 // Also resume inside the completion callback if a pending suspension races this.
-                unsafe {
-                    let _ = native.Resume();
+                if was_background {
+                    unsafe {
+                        let _ = native.Resume();
+                    }
                 }
+                return;
+            }
+            if activity.background_since.elapsed() < Duration::from_secs(30) {
                 return;
             }
             if activity.pending.get() || activity.attempted.elapsed() < Duration::from_secs(2) {

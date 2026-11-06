@@ -3053,3 +3053,89 @@ button {
   height: 22px;
   inset: calc(50% - 11px);
 }
+
+.extensions-panel {
+  max-width: 780px;
+}
+.extensions-intro {
+  color: var(--text-secondary, #bbb);
+  line-height: 1.6;
+}
+#extension-add {
+  margin: 24px 0;
+}
+#extension-add > label {
+  display: block;
+  margin-bottom: 8px;
+}
+#extension-add > div {
+  display: flex;
+  gap: 8px;
+}
+#extension-url {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  background: #ffffff0a;
+  color: inherit;
+  border: 1px solid #ffffff25;
+  border-radius: 8px;
+}
+.extension-review {
+  padding: 20px;
+  margin: 16px 0;
+  border: 1px solid #ffffff25;
+  border-radius: 12px;
+}
+.extension-review li {
+  margin: 8px 0;
+  overflow-wrap: anywhere;
+}
+.extension-review p {
+  line-height: 1.6;
+  color: #bbb;
+}
+.extension-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 0;
+  border-top: 1px solid #ffffff15;
+}
+.extension-item > div {
+  flex: 1;
+  min-width: 0;
+}
+.extension-item strong,
+.extension-item small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.extension-item small {
+  margin-top: 6px;
+  font-size: 11px;
+  color: #aaa;
+}
+.extension-glyph {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  background: #ffffff0a;
+  border-radius: 10px;
+}
+.extension-glyph svg {
+  width: 22px;
+  height: 22px;
+}
+.extension-toggle {
+  white-space: nowrap;
+}
+.extensions-empty {
+  padding: 24px 0;
+  color: #aaa;
+}
+.spotify-app [hidden] {
+  display: none !important;
+}

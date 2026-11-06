@@ -21,6 +21,25 @@ pub fn cover(view: &WebView) {
     let _ = view;
 }
 
+pub fn raise_content(view: &WebView) {
+    #[cfg(windows)]
+    unsafe {
+        use windows::Win32::UI::WindowsAndMessaging::*;
+        use wry::WebViewExtWindows;
+        let _ = SetWindowPos(
+            view.hwnd(),
+            Some(HWND_TOP),
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+        );
+    }
+    #[cfg(not(windows))]
+    let _ = view;
+}
+
 /// Order the embedded native surface above web content; chrome is raised after this.
 pub fn raise_external(parent: usize, child: usize) {
     #[cfg(windows)]

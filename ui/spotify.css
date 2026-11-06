@@ -1,4 +1,4 @@
-/* Desktop music workspace, based on the user's Spotify reference. */
+/* Music workspace: quiet surfaces, shared motion and a persistent library. */
 .music-track-art img,
 .music-now-art img {
   width: 100%;
@@ -21,19 +21,24 @@
   opacity: 0.35;
 }
 .spotify-app {
-  --music-muted: #b3b3b3;
-  --music-green: #1ed760;
+  --music-muted: #b6b5bd;
+  --music-green: #fa637c;
+  --music-surface: #222226;
+  --music-rail: #29292e;
+  --music-divider: #ffffff0e;
+  --music-motion: 180ms;
+  --music-ease: cubic-bezier(0.16, 1, 0.3, 1);
   display: grid;
   grid-template-columns: 245px minmax(320px, 1fr) 250px;
   grid-template-rows: minmax(0, 1fr) 88px;
-  gap: 8px;
-  padding: 8px 8px 0;
+  gap: 0;
+  padding: 0;
   height: 100%;
   overflow: hidden;
-  background: #000;
-  color: #f5f5f5;
+  background: var(--music-surface);
+  color: #f5f5f7;
   color-scheme: dark;
-  font-family: "Segoe UI", sans-serif;
+  font-family: "Segoe UI Variable", "Segoe UI", sans-serif;
   font-size: 13px;
 }
 .spotify-app svg {
@@ -51,9 +56,9 @@
   border-radius: 50%;
   color: var(--music-muted);
   transition:
-    color 0.14s,
-    background 0.14s,
-    transform 0.14s;
+    color var(--music-motion),
+    background var(--music-motion),
+    transform var(--music-motion) var(--music-ease);
 }
 .spotify-app button:hover {
   color: #fff;
@@ -64,7 +69,7 @@
 }
 .spotify-app button:focus-visible,
 .spotify-app input:focus-visible {
-  outline: 2px solid #fff;
+  outline: 2px solid var(--music-green);
   outline-offset: 3px;
 }
 .spotify-app button[aria-pressed="true"] {
@@ -74,14 +79,16 @@
   font: inherit;
 }
 .music-panel {
-  background: #121212;
-  border-radius: 8px;
+  background: var(--music-surface);
+  border-radius: 0;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
 }
 .music-library {
-  padding: 20px 12px 12px;
+  background: var(--music-rail);
+  border-right: 1px solid var(--music-divider);
+  padding: 24px 16px 16px;
   display: flex;
   flex-direction: column;
   gap: 15px;
@@ -106,14 +113,15 @@
 }
 .music-filters button {
   border-radius: 20px;
-  background: #2a2a2a;
-  color: white;
+  background: #ffffff0a;
+  color: var(--music-muted);
   padding: 0 12px;
   font-size: 12px;
 }
 .music-filters button[aria-pressed="true"] {
-  background: white;
-  color: #121212;
+  background: #ffffff1c;
+  color: white;
+  box-shadow: 0 1px 4px #0002;
 }
 .music-library-tools {
   display: flex;
@@ -226,22 +234,23 @@
   display: flex;
   flex-direction: column;
   position: relative;
-  background: linear-gradient(#1e2822 0, #121212 245px);
+  background: var(--music-surface);
 }
 .music-toolbar {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 16px 18px;
-  background: #12121280;
+  padding: 18px 28px;
+  border-bottom: 1px solid var(--music-divider);
+  background: #252529;
   flex: none;
 }
 .music-toolbar > label {
   display: flex;
   align-items: center;
   gap: 10px;
-  border-radius: 24px;
-  background: #2a2a2a;
+  border-radius: 10px;
+  background: #ffffff08;
   flex: 1;
   min-width: 100px;
   padding: 0 12px;
@@ -260,8 +269,8 @@
   outline: 2px solid white;
 }
 .music-toolbar .music-account {
-  border-radius: 20px;
-  background: #070707;
+  border-radius: 9px;
+  background: #ffffff0c;
   color: white;
   white-space: nowrap;
   padding: 0 13px;
@@ -271,7 +280,7 @@
 }
 .music-scroll {
   overflow: auto;
-  padding: 20px 22px;
+  padding: 24px 32px;
   flex: 1;
   min-height: 0;
   scrollbar-color: #ffffff40 transparent;
@@ -293,7 +302,7 @@
   letter-spacing: -1.2px;
   line-height: 1.15;
   margin: 8px 0 12px;
-  font-weight: 750;
+  font-weight: 700;
 }
 .music-heading p {
   color: #b3b3b3;
@@ -553,7 +562,8 @@
   align-items: center;
   gap: 25px;
   padding: 4px 10px 10px;
-  background: #000;
+  background: #2b2b30;
+  border-top: 1px solid var(--music-divider);
   min-width: 0;
 }
 .music-track {
@@ -700,10 +710,10 @@
   flex: none;
 }
 .music-dialog {
-  background: #282828;
-  color: white;
-  border: 1px solid #454545;
-  border-radius: 10px;
+  background: #303036;
+  color: #f5f5f7;
+  border: 1px solid #ffffff20;
+  border-radius: 18px;
   padding: 24px;
   width: min(480px, 90vw);
   box-shadow: 0 24px 90px #000a;
@@ -967,7 +977,8 @@
   display: grid;
   place-items: center;
   background: #272727;
-  border-radius: 6px;
+  border-radius: 12px;
+  box-shadow: 0 6px 18px #0003;
   overflow: hidden;
 }
 .music-album-card > span > img {
@@ -1007,6 +1018,8 @@
   display: grid;
   place-items: center;
   background: #282828;
+  border-radius: 12px;
+  overflow: hidden;
   box-shadow: 0 8px 28px #0004;
 }
 .music-playlist-cover img {
@@ -1206,5 +1219,47 @@
   }
   .music-playlist-heading {
     gap: 15px;
+  }
+}
+.music-next > button > span img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.music-queue {
+  border-left: 1px solid var(--music-divider);
+  background: #252529;
+}
+.music-row {
+  transition: background var(--music-motion);
+}
+.music-album-card:hover > span {
+  transform: translateY(-3px);
+}
+.music-album-card > span {
+  transition: transform 220ms var(--music-ease);
+}
+.music-heading > div > small {
+  color: var(--music-muted);
+}
+.music-presence small {
+  display: block;
+  line-height: 1.6;
+}
+.spotify-player input {
+  accent-color: var(--music-green);
+}
+@media (prefers-reduced-motion: reduce) {
+  .spotify-app *,
+  .spotify-app *::before,
+  .spotify-app *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+  .music-album-card:hover > span {
+    transform: none;
   }
 }

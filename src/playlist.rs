@@ -37,8 +37,15 @@ impl Catalog {
             if let Ok(bytes) = fs::read(self.path(&uri)) {
                 if bytes.len() <= 2_000_000 {
                     if let Ok(v) = serde_json::from_slice::<Value>(&bytes) {
-                        self.active = v;
-                        return Ok(());
+                        if v["uri"] == uri
+                            && v["state"] == "ready"
+                            && v["tracks"]
+                                .as_array()
+                                .is_some_and(|items| items.len() <= 2000)
+                        {
+                            self.active = v;
+                            return Ok(());
+                        }
                     }
                 }
             }

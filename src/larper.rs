@@ -21,12 +21,23 @@ pub struct Larper {
     attached: bool,
     demo: bool,
 }
+
+// The embedded client appends POSIX separators. Win32 verbatim paths disable
+// slash normalization, so passing canonicalized \\?\ paths prevents saves.
+fn profile_environment_path(path: &Path) -> std::path::PathBuf {
+    let text = path.to_string_lossy();
+    if let Some(unc) = text.strip_prefix(r"\\?\UNC\") {
+        return format!(r"\\{unc}").into();
+    }
+    text.strip_prefix(r"\\?\").unwrap_or(&text).into()
+}
+
 impl Larper {
     pub fn new(directory: &Path) -> Result<Self, String> {
         let executable = crate::components::executable("larpercord")
             .ok_or("O componente larperCord não acompanha este pacote.")?;
-        let config = directory.join("config");
-        let cache = directory.join("cache");
+        let config = profile_environment_path(&directory.join("config"));
+        let cache = profile_environment_path(&directory.join("cache"));
         fs::create_dir_all(&config)
             .and_then(|()| fs::create_dir_all(&cache))
             .map_err(|e| e.to_string())?;
@@ -191,5 +202,28 @@ impl Drop for Larper {
         }
         let _ = self.child.kill();
         let _ = self.child.wait();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::profile_environment_path;
+    use std::path::{Path, PathBuf};
+
+    #[test]
+    fn embedded_profile_paths_allow_clients_to_append_forward_slashes() {
+        for (input, expected) in [
+            (
+                r"\\?\D:\MareBrowserData\apps\discord\config",
+                r"D:\MareBrowserData\apps\discord\config",
+            ),
+            (r"\\?\UNC\server\profile\config", r"\\server\profile\config"),
+            (r"D:\Maré\config", r"D:\Maré\config"),
+        ] {
+            assert_eq!(
+                profile_environment_path(Path::new(input)),
+                PathBuf::from(expected)
+            );
+        }
     }
 }
