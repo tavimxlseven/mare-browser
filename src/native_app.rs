@@ -20,7 +20,9 @@ pub fn run_if_requested() -> Option<Result<(), String>> {
     }
     let result = (|| {
         if arguments.len() != 4 || arguments[0] != "--native-app" || arguments[2] != "--data-dir" {
-            return Err("Uso: --native-app notes|calculator|spotify --data-dir DIRETORIO_ABSOLUTO".into());
+            return Err(
+                "Uso: --native-app notes|calculator|spotify --data-dir DIRETORIO_ABSOLUTO".into(),
+            );
         }
         let app_id = arguments[1]
             .to_str()
