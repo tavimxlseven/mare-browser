@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "retrieved_utc": "2026-11-06T00:40:06Z",
+  "lists": [
+    {
+      "file": "easylist.txt",
+      "source": "https://easylist.to/easylist/easylist.txt",
+      "sha256": "4561f9707e1725a47670fa7ab326e485bd6b6db4b3dbcfc61c12c7bad6c44d7b",
+      "bytes": 2065303,
+      "version": "202611060034",
+      "commit": "5e8802aa9b39b36392ab333c8aedfca6375e3fde",
+      "license": "CC-BY-SA-3.0",
+      "attribution": "The EasyList authors (https://easylist.to/)",
+      "modified": false
+    },
+    {
+      "file": "easyprivacy.txt",
+      "source": "https://easylist.to/easylist/easyprivacy.txt",
+      "sha256": "e96713e83a0f87cdd9aad6722fd5814bcd2dd471084da07ccf0d57029c76f04a",
+      "bytes": 1513151,
+      "version": "202611060034",
+      "commit": "5e8802aa9b39b36392ab333c8aedfca6375e3fde",
+      "license": "CC-BY-SA-3.0",
+      "attribution": "The EasyList authors (https://easylist.to/)",
+      "modified": false
+    }
+  ]
+}
