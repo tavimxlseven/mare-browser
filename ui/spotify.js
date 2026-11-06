@@ -41,7 +41,7 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
     disposed = false,
     autoStarting = false,
     lastPlaying = null;
-  element.innerHTML = `<aside class="music-library music-panel"><header><strong>${svg("library")} Sua biblioteca</strong><button data-action="collection" aria-label="Criar coleção">${svg("plus")}</button></header><div class="music-filters"><button data-filter="all">Tudo</button><button data-filter="playlists">Playlists</button><button data-filter="downloaded">Baixadas</button></div><div class="music-library-tools"><button data-action="search" aria-label="Pesquisar na biblioteca">${svg("search")}</button><span>Recentes ${svg("down")}</span></div><button class="music-liked" data-filter="favorites"><span>${svg("heart")}</span><div><strong>Músicas curtidas</strong><small>Curtidas locais</small></div></button><input class="music-library-search" type="search" placeholder="Filtrar biblioteca" aria-label="Filtrar sua biblioteca"><div class="music-collections"></div><div class="music-library-footer"><span>${icon("spotify")} Spotify para Maré</span><small>Biblioteca independente</small></div></aside>
+  element.innerHTML = `<aside class="music-library music-panel"><header><strong>${svg("library")} Sua biblioteca</strong><button data-action="collection" aria-label="Criar playlist">${svg("plus")}</button></header><div class="music-filters"><button data-filter="all">Tudo</button><button data-filter="playlists">Playlists</button><button data-filter="downloaded">Baixadas</button></div><div class="music-library-tools"><button data-action="search" aria-label="Pesquisar na biblioteca">${svg("search")}</button><span>Recentes ${svg("down")}</span></div><button class="music-liked" data-filter="favorites"><span>${svg("heart")}</span><div><strong>Músicas curtidas</strong><small>Curtidas locais</small></div></button><input class="music-library-search" type="search" placeholder="Filtrar biblioteca" aria-label="Filtrar sua biblioteca"><div class="music-collections"></div><div class="music-library-footer"><span>${icon("spotify")} Spotify para Maré</span><small>Biblioteca independente</small></div></aside>
   <section class="music-main music-panel"><header class="music-toolbar"><label>${svg("search")}<input class="spotify-search" type="search" placeholder="Pesquisar na sua biblioteca" aria-label="Pesquisar na biblioteca"></label><button class="music-account" data-action="account" hidden>Conectar conta</button><button data-action="settings" aria-label="Configurações de música">${svg("settings")}</button></header><div class="music-scroll"><div class="music-heading"><div><small class="music-section-label">Sua música</small><h2>Sua biblioteca</h2><p class="music-subtitle">Seus links e músicas baixadas, em um só lugar.</p></div><button class="music-add" data-action="add">${svg("plus")} Adicionar link</button></div><div class="music-list-heading"><span>#</span><span>Título</span><span>Origem</span><span></span></div><div class="spotify-library"></div></div><div class="music-download" hidden role="status"><span class="music-download-spinner"></span><div><strong></strong><small></small></div><button data-action="cancel_download" aria-label="Cancelar download">${svg("close")}</button></div></section>
   <aside class="music-queue music-panel"><header><div class="music-queue-tabs" role="tablist"><button data-action="queue_list" role="tab" aria-selected="true">Fila</button><button data-action="queue_details" role="tab" aria-selected="false">Tocando agora</button></div><button data-action="queue" aria-label="Fechar fila">${svg("close")}</button></header><h3>Tocando agora</h3><div class="music-now"><div class="music-now-art">${svg("music")}</div><strong>Nada tocando</strong><small>Escolha uma faixa baixada.</small></div><h3>A seguir</h3><div class="music-next"></div><p class="music-queue-note">A música continua ao trocar de aba. Feche a aba do app para encerrar a reprodução.</p></aside>
   <footer class="spotify-player"><div class="music-track"><div class="music-track-art">${svg("music")}</div><div><strong>Nenhuma faixa selecionada</strong><small>Escolha uma música baixada</small></div></div><div class="music-transport"><div><button data-action="shuffle" aria-label="Reprodução aleatória" aria-pressed="false">${svg("shuffle")}</button><button data-action="previous" aria-label="Faixa anterior">${svg("previous")}</button><button class="music-play" data-action="play" aria-label="Reproduzir">${svg("play")}</button><button data-action="next" aria-label="Próxima faixa">${svg("next")}</button><button data-action="repeat" aria-label="Repetir fila" aria-pressed="false">${svg("repeat")}</button></div><label class="music-timeline"><span class="music-position">0:00</span><input type="range" min="0" max="1" value="0" step="1000" class="music-seek" aria-label="Posição da música"><span class="music-duration">0:00</span></label></div><div class="music-volume"><button data-action="sleep_timer" aria-label="Temporizador">${svg("clock")}</button><button data-action="queue" aria-label="Mostrar fila">${svg("queue")}</button>${svg("volume")}<input type="range" min="0" max="100" value="80" class="music-volume-slider" aria-label="Volume"></div></footer>`;
@@ -57,7 +57,11 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
     localFor,
     layout: musicLayout,
     queue: playback,
-    queueChanged: () => {
+    currentCollection: () =>
+      data.collections.find((c) => String(c.id) === String(filter))?.id,
+    queueChanged: (row) => {
+      if (row?.local)
+        queueMeta.set(row.local.id, { uri: row.uri, artwork: row.thumbnail });
       queueIds = [...playback.order];
       renderPlayer();
     },
@@ -145,8 +149,8 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
   }
   function collectionDialog() {
     const d = dialog(
-      "Criar coleção",
-      `<form class="spotify-new"><label>Nome da coleção<input name="name" required maxlength="60" autofocus></label><button class="music-green">Criar</button></form>`,
+      "Criar playlist",
+      `<form class="spotify-new"><label>Nome da playlist<input name="name" required maxlength="60" autofocus></label><button class="music-green">Criar</button></form>`,
     );
     d.querySelector("form").onsubmit = async (event) => {
       event.preventDefault();
@@ -310,7 +314,7 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
     if (exact) return exact;
     const matches = tracks.filter(
       (t) =>
-        (!t.source_uri || t.source_uri === scope) &&
+        (!scope || !t.source_uri || t.source_uri === scope) &&
         normalized(t.title) === normalized(entry.title) &&
         (!entry.artists ||
           !t.artists ||
@@ -393,7 +397,7 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
       data.collections
         .map(
           (c) =>
-            `<button data-collection="${c.id}"><span>${svg("folder")}</span><div><strong>${esc(c.name)}</strong><small>Coleção</small></div></button>`,
+            `<button data-collection="${c.id}"><span>${svg("folder")}</span><div><strong>${esc(c.name)}</strong><small>Playlist local</small></div></button>`,
         )
         .join("");
     element
@@ -421,9 +425,69 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
     $(".music-heading").innerHTML = selectedPlaylist
       ? `<button class="music-cover-back" data-action="library" aria-label="Voltar à biblioteca">${svg("back")}</button><div class="music-playlist-cover">${entry?.thumbnail ? `<img src="${esc(entry.thumbnail)}" alt="">` : svg("music")}</div><div><small>Playlist</small><h2>${esc(entry?.title || p?.name || "Playlist")}</h2><p>${esc(p?.owner || "Sua biblioteca")} ${p?.state === "ready" ? `· ${p.tracks.length} músicas` : ""}</p><div class="music-playlist-controls"><button class="music-green" data-action="download" data-uri="${esc(selectedPlaylist)}" ${busy || p?.state !== "ready" || data.completed_sources?.includes(selectedPlaylist) ? "disabled" : ""}>${svg("download")}${data.completed_sources?.includes(selectedPlaylist) ? "Baixada" : "Baixar playlist"}</button><button data-action="refresh_playlist" aria-label="Atualizar playlist">${svg("reload")}</button></div></div>`
       : `<div><small>Sua música</small><h2>${filter === "favorites" ? "Músicas curtidas" : filter === "downloaded" ? "Músicas baixadas" : data.collections.find((c) => String(c.id) === String(filter))?.name || "Sua biblioteca"}</h2><p>${filter === "downloaded" ? "Suas músicas avulsas, prontas para baixar e ouvir." : "Suas playlists e músicas, em um só lugar."}</p></div><button class="music-add" data-action="add">${svg("plus")} Adicionar link</button>`;
+    const localCollection = data.collections.find(
+      (c) => String(c.id) === String(filter),
+    );
+    if (localCollection) {
+      const members = rowsForView().filter(
+        (e) =>
+          String(e.collection) === String(filter) ||
+          localCollection.uris?.includes(e.uri),
+      );
+      const cover = members.find((e) => e.thumbnail)?.thumbnail;
+      $(".music-heading").classList.add("music-playlist-heading");
+      $(".music-heading").innerHTML =
+        '<button class="music-cover-back" data-action="library" aria-label="Voltar à biblioteca">' +
+        svg("back") +
+        '</button><div class="music-playlist-cover">' +
+        (cover ? '<img src="' + esc(cover) + '" alt="">' : svg("music")) +
+        "</div><div><small>Playlist local</small><h2>" +
+        esc(localCollection.name) +
+        "</h2><p>" +
+        members.length +
+        ' músicas na sua biblioteca</p><div class="music-playlist-controls"><button class="music-green" aria-label="Reproduzir playlist" data-action="play_view" ' +
+        (members.some((e) => e.local?.available) ? "" : "disabled") +
+        ">" +
+        svg("play") +
+        ' Reproduzir</button><button data-action="rename_collection" data-id="' +
+        localCollection.id +
+        '" aria-label="Renomear playlist">' +
+        svg("edit") +
+        '</button><button data-action="delete_collection" data-id="' +
+        localCollection.id +
+        '" aria-label="Excluir playlist">' +
+        svg("trash") +
+        "</button></div></div>";
+    }
+    if (selectedPlaylist) {
+      $(".music-playlist-controls").insertAdjacentHTML(
+        "afterbegin",
+        '<button class="music-green" aria-label="Reproduzir playlist" data-action="play_view" ' +
+          (rowsForView().some((e) => e.local?.available) ? "" : "disabled") +
+          ">" +
+          svg("play") +
+          "</button>",
+      );
+    }
     if (home) {
       $(".spotify-library").innerHTML =
         `<div class="music-album-grid"><button class="music-album-card" data-filter="downloaded"><span class="music-downloads-cover">${svg("download")}</span><strong>Músicas baixadas</strong><small>Suas músicas avulsas</small></button>${playlists.map((e) => `<button class="music-album-card" data-action="open_playlist" data-uri="${esc(e.uri)}"><span>${e.thumbnail ? `<img src="${esc(e.thumbnail)}" alt="" loading="lazy">` : svg("music")}</span><strong>${esc(e.title)}</strong><small>${e.kind === "album" ? "Álbum" : "Playlist"}</small></button>`).join("")}</div>`;
+      const grid = $(".music-album-grid");
+      grid.insertAdjacentHTML(
+        "beforeend",
+        data.collections
+          .map(
+            (c) =>
+              '<button class="music-album-card" data-collection="' +
+              c.id +
+              '"><span>' +
+              svg("library") +
+              "</span><strong>" +
+              esc(c.name) +
+              "</strong><small>Playlist local</small></button>",
+          )
+          .join(""),
+      );
       currentRows = [];
       return;
     }
@@ -440,7 +504,10 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
           filter === "all" ||
           (filter === "favorites"
             ? e.favorite
-            : String(e.collection) === String(filter))) &&
+            : String(e.collection) === String(filter) ||
+              data.collections
+                .find((c) => String(c.id) === String(filter))
+                ?.uris?.includes(e.uri))) &&
         normalized(
           e.title + " " + (e.artists || e.local?.artists || ""),
         ).includes(normalized(query)),
@@ -657,6 +724,7 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
   async function step(direction, automatic = false) {
     if (direction < 0 && data.player?.position_ms > 3000)
       return invoke("seek", { position_ms: 0 });
+    if (!data.local_tracks.some((t) => t.available)) return;
     if (!playback.order.length)
       playback.start(
         data.local_tracks.filter((t) => t.available).map((t) => t.id),
@@ -742,6 +810,51 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
     if (action === "dismiss_download") {
       downloadDismissed = (data.download?.url || "") + data.download?.state;
       renderDownload();
+      return;
+    }
+    if (action === "play_view") {
+      const available = currentRows.filter((row) => row.local?.available);
+      if (available.length) {
+        queueMeta.clear();
+        available.forEach((row) =>
+          queueMeta.set(row.local.id, { uri: row.uri, artwork: row.thumbnail }),
+        );
+        playback.start(
+          available.map((row) => row.local.id),
+          available[0].local.id,
+        );
+        return playQueued(available[0].local.id);
+      }
+      return;
+    }
+    if (action === "rename_collection" || action === "delete_collection") {
+      const id = Number(button.dataset.id),
+        collection = data.collections.find((c) => c.id === id);
+      if (!collection) return;
+      const d = dialog(
+        action === "rename_collection"
+          ? "Renomear playlist"
+          : "Excluir playlist?",
+        action === "rename_collection"
+          ? '<form><label>Nome<input name="name" required maxlength="60" value="' +
+              esc(collection.name) +
+              '"></label><button class="music-green">Salvar</button></form>'
+          : '<p>A playlist será removida. As músicas baixadas continuam na biblioteca.</p><button class="music-green" data-confirm-playlist>Excluir playlist</button>',
+      );
+      if (action === "rename_collection")
+        d.querySelector("form").onsubmit = async (e) => {
+          e.preventDefault();
+          if (await invoke(action, { id, name: e.target.elements.name.value }))
+            d.close();
+        };
+      else
+        d.querySelector("[data-confirm-playlist]").onclick = async () => {
+          if (await invoke(action, { id })) {
+            filter = "all";
+            d.close();
+            renderLibrary();
+          }
+        };
       return;
     }
     if (action === "add") return addDialog();

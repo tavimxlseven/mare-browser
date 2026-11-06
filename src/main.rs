@@ -139,7 +139,7 @@ struct Browser {
 fn embedded_ui() -> String {
     include_str!("../ui/index.html")
         .replace("<link rel=\"stylesheet\" href=\"styles.css\">", &format!("<style>{}</style><style>{}</style>", include_str!("../ui/styles.css"), include_str!("../ui/spotify.css")))
-        .replace("<script src=\"app.js\"></script>", &format!("<script>{}</script><script>{}</script>", format!("{}{}{}{}",include_str!("../ui/music-queue.js"),include_str!("../ui/music-layout.js"), include_str!("../ui/music-tools.js"),include_str!("../ui/spotify.js")), include_str!("../ui/app.js")))
+        .replace("<script src=\"app.js\"></script>", &format!("<script>{}\n{}\n{}\n{}\n{}</script>", include_str!("../ui/music-queue.js"),include_str!("../ui/music-layout.js"),include_str!("../ui/music-tools.js"),include_str!("../ui/spotify.js"),include_str!("../ui/app.js")))
         .replace("<head>", "<head><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: https: http:; connect-src 'none'; base-uri 'none'; form-action 'none'\">")
 }
 
@@ -651,6 +651,8 @@ impl Browser {
         match normalize_input(input, &self.state.settings.search_engine) {
             Ok(url) => {
                 let id = self.state.active_id;
+                self.permissions.close_tab(id);
+                if let Some(tab) = self.state.tabs.iter_mut().find(|t| t.id == id) { tab.app_id = None; }
                 if self.state.navigate(id, url.clone()) {
                     if url == START_URL {
                         self.remove_view(id);
@@ -1011,7 +1013,10 @@ impl Browser {
             "apps_install" | "apps_uninstall" | "apps_open" => {
                 let app_id = value["id"].as_str().unwrap_or("");
                 if app_id == "discord" && cmd == "apps_open" {
-                    self.apps.install("discord").ok();
+                    if let Err(error) = self.apps.install("discord") {
+                        self.notify(&error);
+                        return;
+                    }
                     self.apps.deactivate();
                     if let Some(id) = self
                         .state
@@ -1438,6 +1443,7 @@ impl Browser {
         }
         match event {
             BrowserEvent::Permission(value) => {
+                if !value["id"].as_u64().is_some_and(|id| self.permissions.contains(id)) { return; }
                 let _ = self
                     .chrome
                     .evaluate_script(&format!("window.mare?.permissionRequest({value});"));

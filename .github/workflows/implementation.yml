@@ -37,6 +37,10 @@ jobs:
         run: |
           node --check ui/app.js
           node --check ui/spotify.js
+          node --check ui/music-tools.js
+          node --check ui/music-queue.js
+          node --check ui/music-layout.js
+          node scripts/music-queue-smoke.cjs
           node --check ui/music-layout.js
           node scripts/music-queue-smoke.cjs
       - name: Build executable

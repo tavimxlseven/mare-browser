@@ -31,9 +31,23 @@ window.attachMusicLayout = function (element) {
     const library = clamp(
       config.library,
       180,
-      Math.max(180, Math.min(480, width - 340)),
+      Math.max(
+        180,
+        Math.min(
+          480,
+          width -
+            340 -
+            (width >= 1050 && !config.queueHidden
+              ? clamp(config.queue, 240, 480) + 8
+              : 0),
+        ),
+      ),
     );
-    const queue = clamp(config.queue, 240, 480);
+    const queue = clamp(
+      config.queue,
+      240,
+      Math.max(240, Math.min(480, width - library - 340)),
+    );
     element.style.setProperty("--music-library-width", library + "px");
     element.style.setProperty("--music-queue-width", queue + "px");
     element.style.setProperty(

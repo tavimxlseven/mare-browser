@@ -75,7 +75,9 @@ impl Search {
         self.revision += 1;
         self.result = json!({"state":if query.is_empty(){"idle"}else{"loading"},"query":query,"items":[],"provider":"YouTube"});
         if self.job.is_none() && !query.is_empty() {
-            self.start()?
+            if let Err(error) = self.start() {
+                self.result = json!({"state":"error","query":self.query,"items":[],"error":error});
+            }
         }
         Ok(())
     }
@@ -167,5 +169,24 @@ impl Search {
             .find(|entry| entry["uri"] == uri)
             .cloned()
             .ok_or_else(|| "Pesquise e selecione uma música válida.".into())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn video_ids_are_fixed_identifiers() {
+        assert_eq!(video_id("youtube:video:BaW_jenozKc"), Some("BaW_jenozKc"));
+        for input in ["youtube:video:../file.exe", "youtube:video:ABCDEFGHIJ?", "youtube:video:ABCDEFGHIJK&x", "https://youtube.com/watch?v=BaW_jenozKc", "spotify:track:BaW_jenozKc"] { assert_eq!(video_id(input), None); }
+    }
+    #[test]
+    fn search_rejects_unbounded_queries_and_unselected_tracks() {
+        let mut search = Search::new(Path::new("unused-search-test"));
+        assert!(search.request(&"a".repeat(121)).is_err());
+        assert_eq!(search.snapshot()["state"], "idle");
+        assert!(search.track("youtube:video:BaW_jenozKc").is_err());
+        search.request("  ").unwrap();
+        assert_eq!(search.snapshot()["state"], "idle");
     }
 }

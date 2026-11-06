@@ -9,6 +9,7 @@ window.attachMusicTools = function ({
   layout,
   queue,
   queueChanged,
+  currentCollection,
   redraw,
   notify,
 }) {
@@ -64,7 +65,7 @@ window.attachMusicTools = function ({
       " Importar playlist</button>";
     let html =
       '<div class="music-search-tabs"><button data-action="library">Sua biblioteca</button><button data-action="catalog_focus" aria-pressed="true">Buscar músicas</button></div>';
-    if (result.state === "loading")
+    if (result.query !== term.trim() || result.state === "loading")
       html +=
         '<div class="music-empty" role="status"><h3>Buscando músicas…</h3><p>Consultando o catálogo.</p></div>';
     else if (result.state === "error")
@@ -178,6 +179,9 @@ window.attachMusicTools = function ({
         !row.uri,
       ) +
       item("collection", "Adicionar à playlist", !row.uri) +
+      (currentCollection()
+        ? item("remove_collection", "Remover desta playlist")
+        : "") +
       "<hr>" +
       item(
         "download",
@@ -215,14 +219,22 @@ window.attachMusicTools = function ({
       menu.remove();
       if (action === "queue") {
         queue.add(row.local.id);
-        queueChanged();
+        queueChanged(row);
         notify("Música adicionada à fila.");
         return;
       }
       if (action === "play") {
-        element.querySelectorAll("[data-action=play_local]").forEach((b) => {
-          if (Number(b.dataset.id) === row.local.id) b.click();
+        [...element.querySelectorAll("[data-action=play_local]")]
+          .find((b) => Number(b.dataset.id) === row.local.id)
+          ?.click();
+        return;
+      }
+      if (action === "remove_collection") {
+        await invoke("remove_from_collection", {
+          uri: row.uri,
+          id: currentCollection(),
         });
+        redraw();
         return;
       }
       if (action === "sleep") return sleepDialog();
@@ -387,8 +399,8 @@ window.attachMusicTools = function ({
       return false;
     },
     configure(d) {
-      d.insertAdjacentHTML(
-        "afterbegin",
+      d.querySelector("header").insertAdjacentHTML(
+        "afterend",
         '<section class="music-layout-settings"><h4>Aparência</h4><label>Cantos dos painéis<input data-layout-radius type="range" min="0" max="24" value="' +
           layout.config.radius +
           '"></label><label class="music-checkbox"><input data-layout-compact type="checkbox" ' +

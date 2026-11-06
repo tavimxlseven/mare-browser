@@ -901,6 +901,16 @@
     }
   }
   function closeTransient(immediate = false) {
+    if (ui.overlay === "permission" && activePermission) {
+      send({
+        cmd: "permission_answer",
+        id: activePermission.id,
+        allow: false,
+        remember: false,
+      });
+      activePermission = null;
+      queueMicrotask(showNextPermission);
+    }
     clearInterval(resourceTimer);
     immediate = immediate === true;
     closeSelect();
