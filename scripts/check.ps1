@@ -12,6 +12,8 @@ try {
     cargo test --all-targets --locked
     if ($LASTEXITCODE -ne 0) { throw 'Os testes falharam.' }
     node --check ui/app.js
+    if ($LASTEXITCODE -ne 0) { throw 'JavaScript do navegador inválido.' }
+    node --check ui/spotify.js
     if ($LASTEXITCODE -ne 0) { throw 'JavaScript inválido.' }
     node --check src/reader.js
     if ($LASTEXITCODE -ne 0) { throw 'Código do leitor inválido.' }
@@ -21,4 +23,6 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Script da plataforma inválido.' }
     node --check scripts/worker-smoke.mjs
     if ($LASTEXITCODE -ne 0) { throw 'Script dos workers inválido.' }
+    node --check scripts/spotify-smoke.mjs
+    if ($LASTEXITCODE -ne 0) { throw 'Script do Spotify inválido.' }
 } finally { Pop-Location }

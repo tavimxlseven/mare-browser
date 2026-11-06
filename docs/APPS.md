@@ -1,8 +1,8 @@
 # Apps do Maré
 
-O catálogo inicial contém dois apps locais: **Notas** e **Calculadora**. Seus componentes Rust são distribuídos junto do Maré. Instalar um desses apps registra sua disponibilidade; não baixa outro executável. A interface roda dentro da janela do navegador, e o processamento acontece em um processo Rust separado, criado ao abrir o app.
+O catálogo inicial contém **Notas**, **Calculadora** e o **app de música Spotify**. O catálogo também oferece o adaptador **larperCord**. Seus componentes Rust são distribuídos junto do Maré. Instalar um desses apps registra sua disponibilidade; não baixa outro executável. A interface roda dentro da janela do navegador, e o processamento acontece em um processo Rust separado, criado ao abrir o app.
 
-Spotify e Discord aparecem como propostas futuras, sem botão de instalação. Ainda não há clientes Rust desses serviços implementados nesta versão.
+O app de música também reproduz arquivos locais e integra o Sunnify CLI sob demanda. O adaptador Discord incorpora a janela original do larperCord (Zig/SDL) na área do app, com um worker Rust de supervisão e um processo adicional do cliente. Consulte [SPOTIFY.md](SPOTIFY.md) e [COMPONENTS.md](COMPONENTS.md) para funcionalidades, configuração de mantenedor e limites.
 
 ## Ciclo de vida
 
@@ -32,13 +32,14 @@ MareBrowserData/apps/
   installed.json       apps habilitados pelo usuário
   notes/notes.json     documentos locais do app Notas
   calculator/          diretório reservado ao app Calculadora
+  spotify/library.json links, curtidas e coleções locais
 ```
 
 A pasta fica dentro de `MARE_DATA_DIR`, normalmente em D:. Os arquivos de notas não têm criptografia própria. Desinstalar o app mantém seus documentos locais. O app Notas limita o conjunto de documentos a 96 KB e 200 notas nesta versão; uma operação que excederia o limite é rejeitada antes da gravação. Arquivos inválidos são preservados e não substituídos silenciosamente.
 
 ## Protocolo inicial
 
-O worker usa JSON por linha sobre pipes de stdin/stdout, com limite de 128 KiB por mensagem. O host mantém uma fila limitada e não aguarda a resposta na thread da interface.
+O worker usa JSON por linha sobre pipes de stdin/stdout, com limite de 2 MiB por mensagem. O host mantém uma fila limitada e não aguarda a resposta na thread da interface.
 
 Solicitação:
 
@@ -67,7 +68,7 @@ Operações de Notas retornam `{notes:[{id,title,body,updated_at}],selected_id}`
 
 ## Modelo de confiança
 
-O catálogo embutido permite executar somente os IDs `notes` e `calculator`. Um manifesto não pode escolher caminhos de executáveis, argumentos de shell ou diretórios arbitrários. Não há instalação de binários remotos nesta versão. Apps nativos executam com as permissões do usuário do Windows; um processo separado não equivale a uma sandbox de segurança.
+O catálogo embutido permite executar somente os IDs `notes`, `calculator`, `spotify` e `discord`. Um manifesto não pode escolher caminhos de executáveis, argumentos de shell ou diretórios arbitrários. Os componentes externos são preparados por um script de montagem com URLs e hashes fixos; nenhum manifesto escolhe outro executável. Apps nativos executam com as permissões do usuário do Windows; um processo separado não equivale a uma sandbox de segurança.
 
 Uma loja aberta a desenvolvedores externos ainda exige assinatura e verificação de pacotes, versionamento, atualização, permissões, isolamento, revisão de código e uma política de publicação. Esses mecanismos não estão implementados pelo catálogo inicial.
 
@@ -85,4 +86,4 @@ O script usa perfis temporários próprios, inicia Notas e Calculadora em parale
 
 A [Web API oficial](https://developer.spotify.com/documentation/web-api) fornece integração autorizada com conta, metadados e controle de reprodução. O [Web Playback SDK](https://developer.spotify.com/documentation/web-playback-sdk) é uma biblioteca JavaScript para reprodução na aplicação web; não é um SDK de reprodução nativo em Rust. Qualquer integração precisa considerar autorização, os produtos oficiais disponíveis e a [política do desenvolvedor](https://developer.spotify.com/policy).
 
-Não há credenciais Spotify configuradas no repositório. O catálogo não implementa login, acesso a biblioteca ou streaming Spotify, nem promete contornar as restrições do serviço. Uma próxima etapa possível é um componente Rust para autorização e operações permitidas pela API, validando o mecanismo de reprodução antes de anunciar um cliente compatível.
+Não há credenciais Spotify configuradas no repositório. O app atual importa metadados públicos pelo oEmbed, oferece busca e organização locais e abre URIs validadas no cliente instalado. A reprodução local é implementada; streaming direto do Spotify não é. O fluxo opcional de conta usa PKCE e permissões de leitura, mas a validação com conta real depende do registro do aplicativo. Consulte [SPOTIFY.md](SPOTIFY.md) para métodos disponíveis, limites e a relação com o Spicetify.

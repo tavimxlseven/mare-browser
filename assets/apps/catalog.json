@@ -22,21 +22,21 @@
   {
     "id": "spotify",
     "name": "Spotify",
-    "description": "Integração em estudo. Ainda não há um cliente Spotify Rust disponível no Maré.",
-    "version": null,
-    "status": "planned",
+    "description": "Biblioteca Spotify, áudio local e downloads em segundo plano com Sunnify. Conta opcional.",
+    "version": "0.2.0",
+    "status": "available",
     "kind": "native",
     "icon": "music",
-    "installable": false
+    "installable": true
   },
   {
     "id": "discord",
     "name": "Discord",
-    "description": "Cliente Rust em estudo. Ainda não há um app Discord disponível no Maré.",
-    "version": null,
-    "status": "planned",
-    "kind": "native",
-    "icon": "chat",
-    "installable": false
+    "description": "larperCord integrado em uma aba. Cliente independente Zig/SDL com processo sob demanda.",
+    "version": "0.6.0",
+    "status": "available",
+    "kind": "external-native",
+    "icon": "discord",
+    "installable": true
   }
 ]

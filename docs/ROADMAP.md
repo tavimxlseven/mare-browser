@@ -17,17 +17,17 @@ This document describes direction, not a release schedule. Items are marked comp
 ## Native apps
 
 - 0.2: curated local catalog, Rust workers started on demand, bounded JSON-lines IPC, Notes and Calculator. App tabs retain their workers in the background until explicitly closed.
+- 0.3: Spotify local link library with public metadata, local collections and explicit handoff to the installed client. Short tab-selection and control transitions.
 - Next: versioned SDK, capability declarations, package signing, update verification and app-specific resource accounting.
 - Before third-party distribution: isolation model, permissions UX, package review and recovery from failed updates.
 
-## Spotify and Discord
+## Music and Discord
 
-The goal is independent Rust clients integrated into Maré as app tabs. No Spotify or Discord client is shipped at this stage. Spotify and Discord in the catalog are proposals, without an install action.
+- 0.3: Spotify metadata/library, native Windows local playback, queue/transport controls, on-demand Sunnify CLI integration and explicit cancellation.
+- 0.3: optional read-only OAuth PKCE and local Discord Rich Presence implementations. Application registration and validation with real accounts remain outstanding.
+- 0.3: experimental native-window adapter for the original larperCord Zig/SDL client, with an isolated profile and tab-scoped process lifecycle. Tested in demo mode, without a real Discord login.
+- Next: complete authorized account validation, improve metadata/local-file management and measure resource use with comparable workloads.
 
-The first integration decision is whether to control an existing Spotify Connect device or play audio locally. The official [Web API](https://developer.spotify.com/documentation/web-api) provides metadata and playback control; the [Web Playback SDK](https://developer.spotify.com/documentation/web-playback-sdk) is a JavaScript playback library, not a Rust audio SDK.
+See [music](SPOTIFY.md) and [component provenance and licensing](COMPONENTS.md). Sunnify matches audio from YouTube rather than downloading Spotify audio streams. Spicetify customizes the official Spotify client. Neither component is described as a Rust port.
 
-An implementation needs a registered developer application, an OAuth flow and a playback approach supported by Spotify. Account requirements, quotas, [developer policy](https://developer.spotify.com/policy) and supported platforms must be checked before implementation. No credentials are included in Maré.
-
-Resource comparisons must measure the complete process tree with the same workload, including the browser engine and audio components. A Rust backend alone does not establish lower total memory use.
-
-A Discord client needs its own assessment of documented authorization, API access, voice/video support and supported client behavior. A WebView shortcut to the website is not treated as an implemented Rust port.
+Resource comparisons must measure the complete process tree with the same workload, including the browser engine, decoder and any download helpers. A Rust backend alone does not establish lower total memory use.

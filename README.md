@@ -20,7 +20,9 @@ Maré is a Windows browser built with Rust, Tao and Wry. Web content runs in Mic
 - Reader mode, downloads, find in page, zoom, printing and developer tools.
 - Private tabs with separate WebView2 storage and no persisted browsing history.
 - Light, dark and system themes, keyboard navigation and reduced-motion support.
-- A curated app catalog. Notes and Calculator run in separate Rust workers, each with its own tab. Switching tabs keeps apps running; closing an app tab stops only its worker.
+- A curated app catalog. Notes, Calculator and the music app run in separate Rust workers, each with its own tab. Switching tabs keeps apps running; closing an app tab stops only its worker.
+- A music workspace with public Spotify metadata, local favorites/collections, native local audio and an on-demand Sunnify CLI download component. Optional account import and Discord Rich Presence require registered application IDs.
+- An experimental larperCord adapter that hosts the original Zig/SDL client inside an app tab.
 
 ## Download
 
@@ -43,6 +45,8 @@ cd mare-browser
 
 The portable output is written to `dist\Mare`. When the local D: toolchain is available, scripts use `D:\DevTools` and `D:\DevCache`; otherwise they use Cargo from `PATH`.
 
+For a complete local music/chat build, run `scripts/components.ps1` to prepare the original external components before packaging. CI artifacts contain the Rust host. External components are not redistributed in the public artifact; see [component provenance and terms](docs/COMPONENTS.md). Features documented on `main` may be newer than the latest tagged release.
+
 ## Architecture
 
 | Component | Responsibility |
@@ -57,7 +61,7 @@ See [architecture](docs/ARCHITECTURE.md), [native apps](docs/APPS.md), [protecti
 
 ## Project status
 
-Windows x64 is the supported development target. macOS and Linux have not been validated. The app catalog currently contains bundled apps; third-party package distribution and a Spotify client are planned. No performance comparison with Spotify or other browsers is claimed.
+Windows x64 is the supported development target. macOS and Linux have not been validated. The app catalog currently contains bundled apps; third-party package distribution is planned. The [music app](docs/SPOTIFY.md) plays local audio and integrates a headless Sunnify component. Real-account Spotify login and Discord profile activity await application registration and validation. Spicetify continues to customize the installed official client. External components have [separate terms and packaging limits](docs/COMPONENTS.md). No performance comparison with Spotify or other browsers is claimed.
 
 Shield implements a subset of browser privacy features. It does not provide all Brave Shields features, and filter lists can miss ads or break pages. Its controls and data sources are documented in [PROTECTION.md](docs/PROTECTION.md).
 

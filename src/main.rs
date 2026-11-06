@@ -1,10 +1,17 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod apps;
+mod components;
+mod composition;
 mod icon;
+mod larper;
 mod model;
+mod music;
 mod native_app;
+mod presence;
 mod protection;
 mod resource_control;
+mod spotify;
+mod spotify_account;
 mod storage;
 
 use model::{normalize_input, BrowserState, Download, Settings, Tab, START_URL};
@@ -76,6 +83,9 @@ struct Browser {
     data_dir: PathBuf,
     viewport: Viewport,
     overlay: bool,
+    chrome_panels: Vec<Value>,
+    external_viewport: Option<Viewport>,
+    last_external_layout: String,
     closed_tabs: Vec<Tab>,
     private_downloads: HashSet<u64>,
     download_urls: HashMap<String, VecDeque<u64>>,
@@ -85,9 +95,9 @@ struct Browser {
 
 fn embedded_ui() -> String {
     include_str!("../ui/index.html")
-        .replace("<link rel=\"stylesheet\" href=\"styles.css\">", &format!("<style>{}</style>", include_str!("../ui/styles.css")))
-        .replace("<script src=\"app.js\"></script>", &format!("<script>{}</script>", include_str!("../ui/app.js")))
-        .replace("<head>", "<head><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'\">")
+        .replace("<link rel=\"stylesheet\" href=\"styles.css\">", &format!("<style>{}</style><style>{}</style>", include_str!("../ui/styles.css"), include_str!("../ui/spotify.css")))
+        .replace("<script src=\"app.js\"></script>", &format!("<script>{}</script><script>{}</script>", include_str!("../ui/spotify.js"), include_str!("../ui/app.js")))
+        .replace("<head>", "<head><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: https://i.scdn.co https://mosaic.scdn.co https://image-cdn-ak.spotifycdn.com https://image-cdn-fa.spotifycdn.com; connect-src 'none'; base-uri 'none'; form-action 'none'\">")
 }
 
 fn data_directory() -> PathBuf {
@@ -164,6 +174,7 @@ const PAGE_SHORTCUTS: &str = r#"
   const send = window.ipc.postMessage.bind(window.ipc);
   const nonce = __MARE_NONCE__;
   const publish = (key, shift) => send('{"nonce":"' + nonce + '","key":"' + key + '","shift":' + (shift ? 'true' : 'false') + '}');
+  addEventListener('pointerdown', e => { if(e.isTrusted) publish('dismiss',false); }, true);
   addEventListener('keydown', e => {
     if (!e.isTrusted) return;
     const key = e.key.toLowerCase();
@@ -226,6 +237,7 @@ impl Browser {
             snapshot["runtime"] = json!({
                 "open_tabs": self.state.tabs.len(),
                 "loaded_tabs": self.views.len(),
+                "visible_tabs": self.views.iter().filter_map(|(id,view)|composition::visible(view).then_some(*id)).collect::<Vec<_>>(),
                 "suspended_tabs": self.resources.suspended_count(&self.views),
             });
             let _ = self
@@ -289,7 +301,7 @@ impl Browser {
                     let key = value["key"].as_str().unwrap_or("");
                     if [
                         "l", "t", "w", "tab", "f", "d", "h", "j", "b", "n", "r", "p", "+", "=",
-                        "-", "0", "reload", "back", "forward", "devtools",
+                        "-", "0", "reload", "back", "forward", "devtools", "dismiss",
                     ]
                     .contains(&key)
                     {
@@ -379,7 +391,7 @@ impl Browser {
             }
         }
         for (&id, view) in &self.views {
-            let visible = id == active && remote && !self.overlay && !app_active;
+            let visible = id == active && remote && !app_active;
             if visible {
                 let _ = view.set_bounds(self.viewport.rect());
             }
@@ -387,6 +399,38 @@ impl Browser {
             self.resources
                 .set_background(id, view, id != active || app_active);
         }
+        let external_active = self.apps.snapshot()["active_id"] == "discord";
+        let external_open = self.apps.snapshot()["open_ids"]
+            .as_array()
+            .is_some_and(|ids| ids.iter().any(|id| id == "discord"));
+        #[cfg(windows)]
+        if external_open {
+            use tao::platform::windows::WindowExtWindows;
+            let v = self.external_viewport.unwrap_or(self.viewport);
+            let s = self.window.scale_factor();
+            let params = json!({"parent":self.window.hwnd() as usize,"rect":[(v.x*s) as i32,(v.y*s) as i32,(v.width*s) as i32,(v.height*s) as i32],"visible":external_active});
+            let key = params.to_string();
+            if key != self.last_external_layout {
+                self.last_external_layout = key;
+                let _ = self.apps.request("discord", "host_layout", params);
+            }
+        } else {
+            self.last_external_layout.clear();
+        }
+        let cutout = if external_active {
+            self.external_viewport.unwrap_or(self.viewport)
+        } else {
+            self.viewport
+        };
+        let size = self.window.inner_size();
+        composition::arrange(
+            &self.chrome,
+            [cutout.x, cutout.y, cutout.width, cutout.height],
+            &self.chrome_panels,
+            (!external_active && (!remote || app_active)) || self.overlay,
+            self.window.scale_factor(),
+            (size.width, size.height),
+        );
     }
     fn navigate(&mut self, input: &str) {
         match normalize_input(input, &self.state.settings.search_engine) {
@@ -554,6 +598,16 @@ impl Browser {
                         .clamp(1.0, 20000.0),
                 };
                 self.overlay = value["overlay"].as_bool().unwrap_or(false);
+                self.chrome_panels = value["panels"].as_array().cloned().unwrap_or_default();
+                self.external_viewport = value["app_bounds"]
+                    .as_array()
+                    .filter(|r| r.len() == 4)
+                    .map(|r| Viewport {
+                        x: r[0].as_f64().unwrap_or(0.0),
+                        y: r[1].as_f64().unwrap_or(166.0),
+                        width: r[2].as_f64().unwrap_or(1280.0).clamp(1.0, 20000.0),
+                        height: r[3].as_f64().unwrap_or(500.0).clamp(1.0, 20000.0),
+                    });
                 self.arrange();
                 return;
             }
@@ -734,6 +788,33 @@ impl Browser {
                         .evaluate_script(&format!("window.mare?.copy?.({});", json!(tab.url)));
                 }
             }
+            "spotify_open" => {
+                if let Ok((uri, _, _)) =
+                    spotify::normalize_link(value["url"].as_str().unwrap_or(""))
+                {
+                    #[cfg(windows)]
+                    unsafe {
+                        use windows::{
+                            core::{w, HSTRING, PCWSTR},
+                            Win32::UI::{Shell::ShellExecuteW, WindowsAndMessaging::SW_SHOWNORMAL},
+                        };
+                        let target = HSTRING::from(uri);
+                        let result = ShellExecuteW(
+                            None,
+                            w!("open"),
+                            &target,
+                            PCWSTR::null(),
+                            PCWSTR::null(),
+                            SW_SHOWNORMAL,
+                        );
+                        if result.0 as isize <= 32 {
+                            self.notify("Não foi possível abrir o Spotify instalado.");
+                        }
+                    }
+                } else {
+                    self.notify("Link do Spotify inválido.");
+                }
+            }
             "open_download" | "reveal_download" => self.open_download(id, cmd == "open_download"),
             "window" => match value["action"].as_str().unwrap_or("") {
                 "minimize" => self.window.set_minimized(true),
@@ -864,6 +945,10 @@ impl Browser {
                 let _ = self
                     .chrome
                     .evaluate_script(&format!("window.mare?.appsEvent?.({});", json!(event)));
+                // Player ticks do not change browser tabs or window geometry.
+                if event.app_id == "spotify" && event.payload["method"] == "playback_status" {
+                    return;
+                }
                 self.arrange();
             }
             BrowserEvent::Command(value) => {
@@ -1007,6 +1092,10 @@ impl Browser {
                 if id != self.state.active_id || !self.current_view(id, generation) {
                     return;
                 }
+                if key == "dismiss" {
+                    let _ = self.chrome.evaluate_script("window.mare?.dismiss?.();");
+                    return;
+                }
                 if key == "back" || key == "forward" || key == "devtools" {
                     self.command(json!({"cmd":key}), control_flow);
                     return;
@@ -1093,7 +1182,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             .with_scroll_bar_style(wry::ScrollBarStyle::FluentOverlay)
             .with_default_context_menus(false);
     }
-    let chrome = chrome_builder.build(&window)?;
+    let chrome = chrome_builder.with_transparent(true).build(&window)?;
     let mut browser = Browser {
         apps,
         resources: resource_control::ResourceControl::default(),
@@ -1115,6 +1204,9 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             height: 720.0,
         },
         overlay: false,
+        chrome_panels: Vec::new(),
+        external_viewport: None,
+        last_external_layout: String::new(),
         closed_tabs: Vec::new(),
         private_downloads: HashSet::new(),
         download_urls: HashMap::new(),

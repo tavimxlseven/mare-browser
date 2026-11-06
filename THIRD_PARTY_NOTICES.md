@@ -1,4 +1,4 @@
-# Avisos de terceiros — Maré Browser 0.2.0
+# Avisos de terceiros — Maré Browser 0.3.0
 
 O código original do Maré usa a licença MIT em `LICENSE`. Dependências mantêm suas próprias licenças. Os textos completos de licença, copyright e avisos estão em `THIRD_PARTY_LICENSES.txt` e acompanham a distribuição portátil.
 
@@ -36,7 +36,7 @@ Os arquivos `LICENSE.txt` e `NOTICE.txt` desse pacote foram preservados integral
 
 ## Dependências transitivas
 
-A lista abaixo contém os **104 crates externos** alcançáveis a partir do pacote raiz no grafo retornado por Cargo com filtro Windows GNU. Inclui dependências de build/macros para conservar os avisos mesmo quando partes não são ligadas ao executável.
+A lista abaixo contém os **111 crates externos** alcançáveis a partir do pacote raiz no grafo retornado por Cargo com filtro Windows GNU. Inclui dependências de build/macros para conservar os avisos mesmo quando partes não são ligadas ao executável.
 
 | Crate | Versão | Licença declarada |
 | --- | --- | --- |
@@ -46,18 +46,23 @@ A lista abaixo contém os **104 crates externos** alcançáveis a partir do paco
 | arrayvec | 0.7.8 | MIT OR Apache-2.0 |
 | base64 | 0.22.1 | MIT OR Apache-2.0 |
 | bitflags | 2.13.2 | MIT OR Apache-2.0 |
+| block-buffer | 0.10.4 | MIT OR Apache-2.0 |
 | bytes | 1.12.1 | MIT |
 | cfg-if | 1.0.5 | MIT OR Apache-2.0 |
 | cookie | 0.18.2 | MIT OR Apache-2.0 |
+| cpufeatures | 0.2.17 | MIT OR Apache-2.0 |
 | crossbeam-channel | 0.5.17 | MIT OR Apache-2.0 |
 | crossbeam-utils | 0.8.23 | MIT OR Apache-2.0 |
+| crypto-common | 0.1.7 | MIT OR Apache-2.0 |
 | deranged | 0.5.9 | MIT OR Apache-2.0 |
+| digest | 0.10.7 | MIT OR Apache-2.0 |
 | displaydoc | 0.2.7 | MIT OR Apache-2.0 |
 | dpi | 0.1.2 | Apache-2.0 AND MIT |
 | dunce | 1.0.5 | CC0-1.0 OR MIT-0 OR Apache-2.0 |
 | either | 1.19.0 | MIT OR Apache-2.0 |
 | flatbuffers | 25.12.19 | Apache-2.0 |
 | form_urlencoded | 1.2.2 | MIT OR Apache-2.0 |
+| generic-array | 0.14.7 | MIT |
 | getrandom | 0.3.4 | MIT OR Apache-2.0 |
 | http | 1.5.0 | MIT OR Apache-2.0 |
 | icu_collections | 2.4.0 | Unicode-3.0 |
@@ -99,6 +104,7 @@ A lista abaixo contém os **104 crates externos** alcançáveis a partir do paco
 | serde_core | 1.0.229 | MIT OR Apache-2.0 |
 | serde_derive | 1.0.229 | MIT OR Apache-2.0 |
 | serde_json | 1.0.154 | MIT OR Apache-2.0 |
+| sha2 | 0.10.9 | MIT OR Apache-2.0 |
 | smallvec | 1.16.4 | MIT OR Apache-2.0 |
 | stable_deref_trait | 1.2.1 | MIT OR Apache-2.0 |
 | syn | 2.0.119 | MIT OR Apache-2.0 |
@@ -113,6 +119,7 @@ A lista abaixo contém os **104 crates externos** alcançáveis a partir do paco
 | time-core | 0.1.9 | MIT OR Apache-2.0 |
 | time-macros | 0.2.32 | MIT OR Apache-2.0 |
 | tinystr | 0.8.5 | Unicode-3.0 |
+| typenum | 1.20.1 | MIT OR Apache-2.0 |
 | unicode-ident | 1.0.27 | (MIT OR Apache-2.0) AND Unicode-3.0 |
 | unicode-segmentation | 1.13.3 | MIT OR Apache-2.0 |
 | url | 2.5.8 | MIT OR Apache-2.0 |
@@ -160,3 +167,7 @@ cargo metadata --locked --filter-platform x86_64-pc-windows-gnu --format-version
 ```
 
 Ao atualizar dependências, toolchain, arquitetura ou loader, regenere os avisos antes de distribuir outra build. Não são distribuídos Node, npm, REA, o compilador Rust ou o executável GCC com o pacote portátil.
+
+## Componentes externos opcionais
+
+O inventário Rust acima não concede a licença MIT aos componentes de música/chat. O pacote local completo também contém o Sunnify CLI original 2.6.0, de Sunny Patel, sob licença própria sem permissão de modificação e com restrição comercial. O texto original acompanha `components/sunnify/LICENSE.txt`. O larperCord 0.6.0 é adquirido diretamente do autor para a integração local; o README upstream ainda não define uma licença para o código principal, portanto seus binários não fazem parte dos artefatos públicos do Maré. Consulte [origem e termos dos componentes](docs/COMPONENTS.md).

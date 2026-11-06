@@ -6,9 +6,9 @@ Navegador para Windows e plataforma de apps Rust sob demanda.
 
 O Maré usa Rust, Tao e Wry no host e WebView2 para renderizar páginas. Inclui abas, favoritos, histórico, navegação privada, leitor, downloads e bloqueio de anúncios e rastreadores com o motor Rust do Brave.
 
-A loja inicial oferece Notas e Calculadora. O processamento de cada app ocorre em um worker Rust separado, iniciado ao abrir e encerrado ao fechar sua aba. As páginas abertas são preservadas; abas ocultas podem ser suspensas pelo motor. Os processos do WebView2 continuam fazendo parte do navegador.
+A loja inicial oferece Notas, Calculadora, o app de música e um adaptador experimental para o larperCord. O processamento de cada app ocorre em um worker Rust separado, iniciado ao abrir e encerrado ao fechar sua aba. As páginas abertas são preservadas; abas ocultas podem ser suspensas pelo motor. Os processos do WebView2 continuam fazendo parte do navegador.
 
-O cliente Spotify e a distribuição de apps de terceiros estão no [roadmap](docs/ROADMAP.md). Ainda não há reprodução Spotify nem comparação de desempenho com seu cliente oficial.
+O [app de música](docs/SPOTIFY.md) importa metadados públicos, organiza a biblioteca, reproduz arquivos locais e integra o Sunnify CLI sem janela ou configuração separada. O login opcional para importar a conta e o Rich Presence dependem de IDs de aplicativos registrados e ainda não foram validados com contas reais. A integração larperCord incorpora o cliente Zig/SDL original em uma aba. Consulte [componentes e licenças](docs/COMPONENTS.md). Ainda não há comparação de desempenho com o cliente oficial. A distribuição de apps de terceiros está no [roadmap](docs/ROADMAP.md).
 
 ## Executar
 

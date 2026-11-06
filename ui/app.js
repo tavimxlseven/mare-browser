@@ -61,6 +61,10 @@
       '<rect x="5" y="2" width="14" height="20" rx="2"/><path d="M8 6h8M8 11h1m6 0h1m-8 4h1m6 0h1m-8 4h1m6 0h1"/>',
     music:
       '<path d="M9 18V5l11-2v13M9 8l11-2"/><ellipse cx="6" cy="18" rx="3" ry="3"/><ellipse cx="17" cy="16" rx="3" ry="3"/>',
+    spotify:
+      '<circle cx="12" cy="12" r="11" fill="#1ed760" stroke="none"/><g stroke="#092317" stroke-width="1.7"><path d="M5.6 9.2c4.6-1.4 8.6-1 12.8 1.1M6.6 12.3c3.8-1.1 7.2-.8 10.8 1M7.7 15.2c3-.8 5.7-.5 8.6.8"/></g>',
+    discord:
+      '<path d="M7 4.5 9 4l.6 1.3a17 17 0 0 1 4.8 0L15 4l2 .5c2.4 3.2 3.6 7.2 3.8 11.4-1.7 1.4-3.5 2.2-5.4 2.6L14.3 17a13 13 0 0 0 2.1-1.1 13 13 0 0 1-8.8 0L9.7 17l-1.1 1.5a16 16 0 0 1-5.4-2.6C3.4 11.7 4.6 7.7 7 4.5Z" fill="#8993ff" stroke="none"/><ellipse cx="8.6" cy="11.8" rx="1.5" ry="1.8" fill="#202441" stroke="none"/><ellipse cx="15.4" cy="11.8" rx="1.5" ry="1.8" fill="#202441" stroke="none"/>',
   };
   const icon = (name) =>
     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] || paths.globe}</svg>`;
@@ -287,13 +291,23 @@
         y: r.y,
         width: r.width,
         height: r.height,
+        app_bounds:
+          state.apps?.active_id === "discord" && $("#native-app-body")
+            ? (() => {
+                const b = $("#native-app-body").getBoundingClientRect();
+                return [b.x, b.y, b.width, b.height];
+              })()
+            : null,
+        panels: ["#popup", "#suggestions", "#toast"]
+          .map((selector) => $(selector))
+          .filter((el) => !el.hidden)
+          .map((el) => {
+            const rect = el.getBoundingClientRect();
+            return [rect.x, rect.y, rect.width, rect.height];
+          }),
         overlay:
-          ui.motion ||
-          ui.sidebarAnimating ||
-          !!state.apps?.active_id ||
-          !$("#popup").hidden ||
+          (!!state.apps?.active_id && state.apps.active_id !== "discord") ||
           !$("#overlay").hidden ||
-          !$("#suggestions").hidden ||
           (ui.sidebar && innerWidth <= 520),
       };
       const encoded = JSON.stringify(data);
@@ -375,7 +389,14 @@
     if (foregroundApp)
       $("#site-info").innerHTML = icon(appIcon({ id: foregroundApp }));
     $("#startpage").hidden = !isStart(tab);
-    $("#remote-placeholder").hidden = isStart(tab);
+    $("#remote-placeholder").hidden = isStart(tab) || isNative;
+    document.documentElement.dataset.remote = String(
+      isNative &&
+        ((!isStart(tab) && !foregroundApp) || foregroundApp === "discord"),
+    );
+    document.documentElement.dataset.external = String(
+      foregroundApp === "discord",
+    );
     $("#remote-domain").textContent = hostname(tab.url);
     if (!isNative && !isStart(tab)) {
       $("#remote-placeholder p").textContent = "Prévia da interface";
@@ -445,6 +466,7 @@
       ...openAppTabs().map((app) => ({ ...app, kind: "app" })),
     ];
   }
+  let lastAnimatedTab;
   function renderTabs() {
     const target = $("#tabs");
     const scroll = target.scrollLeft;
@@ -462,6 +484,20 @@
         )
         .join("");
     target.scrollLeft = scroll;
+    const animatedTab = state.apps?.active_id || String(state.active_id);
+    if (animatedTab !== lastAnimatedTab) {
+      const selected = target.querySelector('[aria-selected="true"]');
+      if (selected)
+        animate(
+          selected,
+          [
+            { opacity: 0.65, transform: "translateY(3px)" },
+            { opacity: 1, transform: "translateY(0)" },
+          ],
+          200,
+        );
+      lastAnimatedTab = animatedTab;
+    }
     $$("[data-tab]", target).forEach((el) => {
       el.addEventListener("click", (e) => {
         if (!e.target.closest("[data-close-tab]")) {
@@ -1256,10 +1292,8 @@
     });
   }
   function appIcon(app) {
-    return ["notes", "calculator", "spotify"].includes(app.id)
-      ? app.id === "spotify"
-        ? "music"
-        : app.id
+    return ["notes", "calculator", "spotify", "discord"].includes(app.id)
+      ? app.id
       : app.icon || "apps";
   }
   function storeRows() {
@@ -1272,7 +1306,7 @@
             const stopping = (state.apps?.stopping || []).some(
               (process) => process.id === app.id,
             );
-            return `<article class="store-app" data-app-row="${esc(app.id)}"><div class="store-app-icon app-icon-${esc(app.id)}">${icon(appIcon(app))}</div><div class="store-app-info"><h3>${esc(app.name)}</h3><p>${esc(app.description)}</p><span>${available ? "Aplicativo nativo Rust" : "Em desenvolvimento"}${app.version ? ` · ${esc(app.version)}` : ""}</span></div><div class="store-app-actions">${available ? `<button class="button${app.installed ? "" : " primary"}" data-app-action="${app.installed ? "open" : "install"}" data-app-id="${esc(app.id)}" ${stopping ? "disabled" : ""}>${stopping ? "Encerrando…" : app.running ? "Em execução" : app.installed ? "Abrir" : "Instalar"}</button>${app.installed && !app.running && !stopping ? `<button class="store-remove" data-app-action="uninstall" data-app-id="${esc(app.id)}" aria-label="Remover ${esc(app.name)}" title="Remover aplicativo">${icon("trash")}</button>` : ""}` : '<span class="planned-label">Planejado</span>'}</div></article>`;
+            return `<article class="store-app" data-app-row="${esc(app.id)}"><div class="store-app-icon app-icon-${esc(app.id)}">${icon(appIcon(app))}</div><div class="store-app-info"><h3>${esc(app.name)}</h3><p>${esc(app.description)}</p><span>${available ? (app.kind === "external-native" ? "Cliente nativo Zig/SDL" : "Aplicativo nativo Rust") : "Em desenvolvimento"}${app.version ? ` · ${esc(app.version)}` : ""}</span></div><div class="store-app-actions">${available ? `<button class="button${app.installed ? "" : " primary"}" data-app-action="${app.installed ? "open" : "install"}" data-app-id="${esc(app.id)}" ${stopping ? "disabled" : ""}>${stopping ? "Encerrando…" : app.running ? "Em execução" : app.installed ? "Abrir" : "Instalar"}</button>${app.installed && !app.running && !stopping ? `<button class="store-remove" data-app-action="uninstall" data-app-id="${esc(app.id)}" aria-label="Remover ${esc(app.name)}" title="Remover aplicativo">${icon("trash")}</button>` : ""}` : '<span class="planned-label">Planejado</span>'}</div></article>`;
           })
           .join("")
       : '<div class="store-empty">O catálogo de aplicativos ainda não está disponível.</div>';
@@ -1354,6 +1388,10 @@
         rendered.delete("notes-list");
       }
       if (id === "calculator") appData.calculator = null;
+      if (id === "spotify") {
+        spotifyView?.dispose();
+        spotifyView = null;
+      }
     }
     workspace.hidden = !activeId;
     if (!activeId) return;
@@ -1372,6 +1410,8 @@
       ui.workspaceBuilt = true;
     }
     $("#app-title").textContent = app.name;
+    $(".native-app-footer span:last-child").textContent =
+      activeId === "discord" ? "Cliente Zig/SDL" : "Aplicativo Rust";
     $("#app-title-icon").innerHTML = icon(appIcon(app));
     if (ui.appId !== activeId) {
       if (
@@ -1390,6 +1430,10 @@
           rendered.delete("notes-list");
           buildNotes();
         } else if (activeId === "calculator") buildCalculator();
+        else if (activeId === "spotify") buildSpotify();
+        else if (activeId === "discord")
+          $("#native-app-body").innerHTML =
+            '<div class="larper-loading"><span>Preparando larperCord…</span><small>Cliente nativo em uma aba do Maré.</small></div>';
         else
           $("#native-app-body").innerHTML =
             '<div class="app-unavailable">Este aplicativo não tem uma interface disponível nesta versão.</div>';
@@ -1408,6 +1452,9 @@
       if (appData.calculator) renderCalculator(appData.calculator);
       else $("#app-status").textContent = "Pronto";
     }
+    if (activeId === "spotify")
+      $("#app-status").textContent =
+        "Biblioteca e áudio locais · Downloads sob demanda";
     for (const event of Object.values(apps.responses || {}))
       if (event?.kind) appsEvent(event);
     if (apps.last_response?.kind) appsEvent(apps.last_response);
@@ -1417,10 +1464,13 @@
     if (!id) return Promise.reject(new Error("O aplicativo não está aberto."));
     const requestId = ++requestSequence;
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        appRequests.delete(requestId);
-        reject(new Error("O aplicativo demorou para responder."));
-      }, 8000);
+      const timer = setTimeout(
+        () => {
+          appRequests.delete(requestId);
+          reject(new Error("O aplicativo demorou para responder."));
+        },
+        id === "spotify" && method === "import_link" ? 15000 : 8000,
+      );
       appRequests.set(requestId, { resolve, reject, timer });
       send({ cmd: "apps_request", id, method, params, request_id: requestId });
     });
@@ -1477,6 +1527,17 @@
           $("#app-status").textContent = "Salvo neste computador";
       }
     }
+    if (
+      event.app_id === "spotify" &&
+      (Array.isArray(result.entries) || result.player)
+    )
+      spotifyView?.update(result);
+    if (event.app_id === "discord" && state.apps?.active_id === "discord") {
+      $("#app-status").textContent = result.attached
+        ? `${result.engine} · PID ${result.external_pid}`
+        : "Preparando cliente nativo…";
+      if (result.attached) $(".larper-loading")?.remove();
+    }
     if (event.app_id === "calculator" && payload.method === "calculate") {
       appData.calculator = result;
       if (state.apps?.active_id === "calculator") renderCalculator(result);
@@ -1488,6 +1549,18 @@
     )
       $("#app-status").textContent = "Pronto";
     pending?.resolve(result);
+  }
+  let spotifyView;
+  function buildSpotify() {
+    spotifyView = window.createSpotifyView({
+      request: (method, params) => requestApp(method, params, "spotify"),
+      send,
+      notify,
+      icon,
+      isOpen: () => openAppTabs().some((app) => app.id === "spotify"),
+    });
+    $("#native-app-body").replaceChildren(spotifyView.element);
+    spotifyView.load();
   }
   function buildNotes() {
     $("#native-app-body").innerHTML =
@@ -2460,9 +2533,12 @@
     updateLayout();
   });
   new ResizeObserver(updateLayout).observe($("#viewport"));
+  for (const selector of ["#popup", "#suggestions", "#toast"])
+    new ResizeObserver(updateLayout).observe($(selector));
   media.addEventListener("change", applyTheme);
   window.mare = {
     receive,
+    dismiss: () => closeTransient(true),
     notify,
     shortcut,
     focusAddress,

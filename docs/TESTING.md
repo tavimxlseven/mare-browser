@@ -1,4 +1,4 @@
-# Verificação do Maré 0.1.0
+# Verificação do Maré
 
 Este documento separa o que deve ser verificado dos resultados efetivamente registrados. Uma inspeção de código ou do binário não substitui o teste de uma janela nativa em execução.
 
@@ -99,6 +99,30 @@ node .\scripts\smoke.mjs --cdp=http://127.0.0.1:9227 --profile=D:\DevCache\mare-
 
 O script exige endereço CDP loopback e caminho absoluto de perfil identificado como QA/smoke. A ajuda pode ser consultada com `node .\scripts\smoke.mjs --help`. Essa execução aciona o host por comandos da interface via CDP; não representa uma cobertura de todos os cliques, sites ou estados visuais.
 
+## Validação 0.3.0
+
+Windows x64, Rust 1.99.1 GNU e WebView2 156.0.4314.58. Perfil descartável `D:\DevCache\mare-v030-integration-qa`, CDP loopback em `127.0.0.1:9251`.
+
+| Verificação local | Resultado |
+| --- | --- |
+| Formatação, Clippy e sintaxe JavaScript | Aprovados |
+| Testes Rust, incluindo vetor PKCE RFC7636 | 24 aprovados |
+| Navegador / apps e proteção | 7 / 5 grupos aprovados |
+| Workers Notas e Calculadora | 4 grupos aprovados com processos e pipes reais |
+| Spotify: links, persistência e metadados online | Aprovados |
+| Áudio local Windows | WAV silencioso próprio: tocar, pausar, seek, volume, retomar, parar |
+| Sunnify original 2.6.0 | Versão e metadados reais; início sem janela e cancelamento com encerramento do processo |
+| Discord IPC isolado | Handshake, Listening, faixa real do teste, timestamps e limpeza ao pausar |
+| Integração da interface | 5 grupos aprovados, sem exceções JavaScript |
+
+Os cinco grupos da interface verificaram: página nativa ainda visível ao abrir Shield/Compartilhar/Mais/Downloads, importação por formulário e capa sob CSP, reprodução local contínua ao trocar abas, janela real do larperCord incorporada no host e encerramento de cliente/worker ao fechar somente sua aba. O teste do larperCord usou `--demo --no-live`, sem conta real. A visibilidade da página veio do controlador WebView2 real, e o vínculo nativo do larperCord foi confirmado pelo HWND pai.
+
+```powershell
+node scripts/spotify-smoke.mjs --exe=dist/Mare/Mare.exe
+node scripts/spotify-smoke.mjs --exe=dist/Mare/Mare.exe --online --audio --components
+```
+
+Não foram testados um download completo de áudio externo, login com conta Spotify real ou Rich Presence em um perfil real. Essas limitações não são substituídas por dados simulados na aplicação. Não há benchmark comparativo de consumo. A aprovação local não implica conclusão da CI hospedada.
 ## Validação 0.2.0
 
 Windows x64, Rust 1.99.1, toolchain GNU local e WebView2 156.0.4314.58. A verificação integrada usou o perfil descartável `D:\DevCache\mare-v020-tabs-qa` e CDP em `127.0.0.1:9240`.

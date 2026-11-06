@@ -8,7 +8,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-pub const MAX_MESSAGE_BYTES: usize = 128 * 1024;
+pub const MAX_MESSAGE_BYTES: usize = 2 * 1024 * 1024;
 const MAX_NOTEBOOK_BYTES: usize = 96 * 1024;
 const MAX_NOTES: usize = 200;
 
@@ -25,7 +25,7 @@ pub fn run_if_requested() -> Option<Result<(), String>> {
         let app_id = arguments[1]
             .to_str()
             .ok_or("Identificador de app inválido.")?;
-        if !matches!(app_id, "notes" | "calculator") {
+        if !matches!(app_id, "notes" | "calculator" | "spotify" | "discord") {
             return Err("App nativo desconhecido.".into());
         }
         let directory = PathBuf::from(&arguments[3]);
@@ -123,6 +123,8 @@ struct NativeApp {
     id: String,
     directory: PathBuf,
     notebook: Notebook,
+    spotify: Option<crate::spotify::Spotify>,
+    larper: Option<crate::larper::Larper>,
 }
 
 impl NativeApp {
@@ -160,6 +162,16 @@ impl NativeApp {
             id: id.into(),
             directory: directory.to_path_buf(),
             notebook,
+            spotify: if id == "spotify" {
+                Some(crate::spotify::Spotify::new(directory)?)
+            } else {
+                None
+            },
+            larper: if id == "discord" {
+                Some(crate::larper::Larper::new(directory)?)
+            } else {
+                None
+            },
         })
     }
 
@@ -169,6 +181,10 @@ impl NativeApp {
         let params = request.get("params").cloned().unwrap_or(json!({}));
         let result = if id.is_none() || !params.is_object() || method.len() > 48 {
             Err("Mensagem de app inválida.".into())
+        } else if let Some(spotify) = self.spotify.as_mut() {
+            spotify.handle(method, &params)
+        } else if let Some(larper) = self.larper.as_mut() {
+            larper.handle(method, &params)
         } else if method == "hello" {
             Ok(
                 json!({"app_id":self.id,"protocol_version":1,"methods":if self.id=="notes" {vec!["list","create","update","delete"]} else {vec!["calculate"]}}),

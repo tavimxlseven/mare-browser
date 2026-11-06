@@ -55,6 +55,11 @@ body {
   color: var(--ink);
   background: var(--chrome);
 }
+:root[data-remote="true"],
+:root[data-remote="true"] body,
+:root[data-remote="true"] #viewport {
+  background: transparent;
+}
 button,
 input,
 select {

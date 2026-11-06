@@ -34,14 +34,18 @@ jobs:
       - name: Validate JavaScript
         run: |
           node --check ui/app.js
+          node --check ui/spotify.js
           node --check src/reader.js
           node --check scripts/smoke.mjs
           node --check scripts/platform-smoke.mjs
           node --check scripts/worker-smoke.mjs
+          node --check scripts/spotify-smoke.mjs
       - name: Build release
         run: cargo build --release --locked
       - name: Verify native app workers
         run: node scripts/worker-smoke.mjs --exe=target/release/mare-browser.exe
+      - name: Verify Spotify local library worker
+        run: node scripts/spotify-smoke.mjs --exe=target/release/mare-browser.exe
       - name: Package executable
         shell: pwsh
         run: |

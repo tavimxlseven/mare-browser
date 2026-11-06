@@ -44,7 +44,7 @@ pub struct AppManager {
 }
 
 fn available(id: &str) -> bool {
-    matches!(id, "notes" | "calculator")
+    matches!(id, "notes" | "calculator" | "spotify" | "discord")
 }
 
 impl AppManager {
@@ -284,7 +284,11 @@ impl AppManager {
         self.active_id = Some(id.into());
         self.open_order.push(id.into());
         self.responses.remove(id);
-        let method = if id == "notes" { "list" } else { "hello" };
+        let method = if id == "notes" || id == "spotify" {
+            "list"
+        } else {
+            "hello"
+        };
         self.request(id, method, json!({}))?;
         Ok(())
     }
@@ -444,7 +448,7 @@ mod tests {
         ));
         let mut manager = AppManager::new(&directory, |_| {}).unwrap();
         assert!(manager.install("../other.exe").is_err());
-        assert!(manager.install("spotify").is_err());
+        assert!(manager.install("unknown-app").is_err());
         manager.install("notes").unwrap();
         assert_eq!(manager.snapshot()["process_count"], 0);
         drop(manager);
