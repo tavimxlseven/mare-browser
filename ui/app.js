@@ -8,7 +8,7 @@
   ];
   const paths = {
     sidebar:
-      '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M5.5 8h1M5.5 11h1M5.5 14h1"/>',
+      '<rect x="2.5" y="4" width="19" height="16" rx="3.6"/><path d="M6 4h3v16H6q-3.5 0-3.5-3.5v-9Q2.5 4 6 4Z" fill="currentColor" opacity=".24" stroke="none"/><path d="M9 4.5v15"/>',
     back: '<path d="m15 5-7 7 7 7"/>',
     forward: '<path d="m9 5 7 7-7 7"/>',
     up: '<path d="m6 15 6-6 6 6"/>',
@@ -18,10 +18,12 @@
     reload: '<path d="M19 8a8 8 0 1 0 1 7M19 3v5h-5"/>',
     close: '<path d="m6 6 12 12M18 6 6 18"/>',
     plus: '<path d="M12 4v16M4 12h16"/>',
-    download: '<path d="M12 3v12m-5-5 5 5 5-5M5 15v5h14v-5"/>',
-    share: '<path d="M12 15V3m-4 4 4-4 4 4M7 9H5v12h14V9h-2"/>',
+    download:
+      '<circle cx="12" cy="12" r="9.1" fill="currentColor" fill-opacity=".09"/><path d="M12 6.7v9.4m-4-4 4 4 4-4" stroke-width="1.95"/>',
+    share:
+      '<path d="M7.9 9H6.5A2.5 2.5 0 0 0 4 11.5v7A2.5 2.5 0 0 0 6.5 21h11a2.5 2.5 0 0 0 2.5-2.5v-7A2.5 2.5 0 0 0 17.5 9h-1.4" fill="currentColor" fill-opacity=".08"/><path d="M12 14.7V2.6m-3.7 3.8L12 2.6l3.7 3.8"/>',
     overview:
-      '<rect x="3" y="3" width="7" height="7" rx="1.3"/><rect x="14" y="3" width="7" height="7" rx="1.3"/><rect x="3" y="14" width="7" height="7" rx="1.3"/><rect x="14" y="14" width="7" height="7" rx="1.3"/>',
+      '<path d="M4.8 16.5h-.6a2 2 0 0 1-2-2V5.8a2.5 2.5 0 0 1 2.5-2.5h10a2.5 2.5 0 0 1 2.5 2.5v.6"/><rect x="7" y="8" width="14.5" height="12.7" rx="3" fill="currentColor" fill-opacity=".12"/>',
     more: '<circle cx="5" cy="12" r="1" fill="currentColor"/><circle cx="12" cy="12" r="1" fill="currentColor"/><circle cx="19" cy="12" r="1" fill="currentColor"/>',
     compass:
       '<circle cx="12" cy="12" r="9"/><path d="m16.8 7.2-3 6.6-6.6 3 3-6.6 6.6-3Z"/><path d="m10.2 10.2 3.6 3.6M12 3v1M12 20v1M3 12h1M20 12h1"/>',
@@ -42,29 +44,30 @@
       '<path d="M7 8V3h10v5M7 17H3V8h18v9h-4M7 13h10v8H7Z"/><path d="M17 10h1"/>',
     globe:
       '<circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18"/>',
-    folder: '<path d="M3 6h7l2 2h9v12H3V6Z"/>',
+    folder:
+      '<path d="M2.5 7.2a2 2 0 0 1 2-2h4.2c1.6 0 1.9 2.4 3.7 2.4h6.7a2.3 2.3 0 0 1 2.4 2.3v7.8a2.5 2.5 0 0 1-2.5 2.5H5a2.5 2.5 0 0 1-2.5-2.5Z" fill="currentColor" fill-opacity=".16"/><path d="M3 10h18"/>',
     trash: '<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/>',
     check: '<path d="m5 12 4 4L20 5"/>',
     pin: '<path d="m15 3 6 6-4 1-4 6-2-2-6 6m6-6-3-3 6-4 1-4Z"/>',
     tab: '<path d="M3 8V5h7l2 3h9v12H3V8Z"/>',
     code: '<path d="m8 6-6 6 6 6m8-12 6 6-6 6m-5 2 2-16"/>',
     performance:
-      '<path d="M3 17a9 9 0 1 1 18 0M12 12l5-5M5 18h14"/><circle cx="12" cy="12" r="2"/>',
+      '<rect x="2.4" y="4.4" width="19.2" height="15.2" rx="4" fill="currentColor" fill-opacity=".09"/><path d="M5.4 13h3l2.4-5.1 3 8 2.1-4h2.8" stroke-width="1.85"/>',
     extension:
-      '<path d="M9 3h6v4a3 3 0 1 1 4 4h2v10h-8v-3a3 3 0 1 0-6 0v3H3v-8h3a3 3 0 1 0 0-6H3V3h6Z"/>',
+      '<path d="M4 8a2 2 0 0 1 2-2h3.2a2.8 2.8 0 1 1 5.5 0H18a2 2 0 0 1 2 2v3.1a2.8 2.8 0 1 0 0 5.4V19a2 2 0 0 1-2 2h-3.2a2.8 2.8 0 1 0-5.6 0H6a2 2 0 0 1-2-2Z" fill="currentColor" fill-opacity=".13"/>',
     shield:
-      '<path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6l8-3Z"/><path d="m8 12 3 3 5-6"/>',
+      '<path d="M12 2.3c2.2 1.7 5.3 2.8 8 3v6.3c0 4.5-3.1 8.1-8 10.1-4.9-2-8-5.6-8-10.1V5.3c2.7-.2 5.8-1.3 8-3Z" fill="currentColor" fill-opacity=".18"/><path d="M6.4 13.4c2.4.2 3.3-3.2 5.5-3.2 1.5 0 2 1.6 3.5 1.6.7 0 1.4-.3 2.1-.9" stroke-width="2"/>',
     info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v.1"/>',
     zoom: '<circle cx="10" cy="10" r="7"/><path d="m15 15 6 6M6 10h8M10 6v8"/>',
     external: '<path d="M14 3h7v7m0-7L10 14M10 3H3v18h18v-7"/>',
     reader: '<path d="M5 4h14M5 8h14M5 12h14M5 16h10M5 20h10"/>',
-    apps: '<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><path d="M14 17.5h7m-3.5-3.5v7"/>',
+    apps: '<g fill="currentColor" stroke="none"><rect x="2.8" y="3.8" width="7.8" height="7.8" rx="2.4"/><rect x="13.3" y="3" width="7.2" height="7.2" rx="2.2" transform="rotate(13 16.9 6.6)" opacity=".68"/><rect x="2.8" y="14.2" width="7.8" height="7.8" rx="2.4" opacity=".68"/><rect x="13.1" y="14.2" width="7.8" height="7.8" rx="2.4"/></g>',
     notes:
       '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
     calculator:
       '<rect x="5" y="2" width="14" height="20" rx="2"/><path d="M8 6h8M8 11h1m6 0h1m-8 4h1m6 0h1m-8 4h1m6 0h1"/>',
     music:
-      '<path d="M9 18V5l11-2v13M9 8l11-2"/><ellipse cx="6" cy="18" rx="3" ry="3"/><ellipse cx="17" cy="16" rx="3" ry="3"/>',
+      '<path d="M9 17.8V6l10.5-2v11.7"/><path d="m9 6 10.5-2v3.5L9 9.5Z" fill="currentColor" stroke="none"/><g fill="currentColor" stroke="none"><ellipse cx="6.2" cy="18" rx="3.7" ry="2.9" transform="rotate(-18 6.2 18)"/><ellipse cx="16.6" cy="16" rx="3.7" ry="2.9" transform="rotate(-18 16.6 16)"/></g>',
     spotify:
       '<circle cx="12" cy="12" r="11" fill="#1ed760" stroke="none"/><g stroke="#092317" stroke-width="1.7"><path d="M5.6 9.2c4.6-1.4 8.6-1 12.8 1.1M6.6 12.3c3.8-1.1 7.2-.8 10.8 1M7.7 15.2c3-.8 5.7-.5 8.6.8"/></g>',
     discord:
@@ -1882,7 +1885,9 @@
           $("#app-status").textContent = "Salvo neste computador";
       }
     }
+    // Requests made by the music view apply their own result once resolved.
     if (
+      !pending &&
       event.app_id === "spotify" &&
       (Array.isArray(result.entries) || result.player)
     )

@@ -153,9 +153,12 @@ try {
     assert.equal(state.player.state, "paused");
     assert.ok(state.player.position_ms >= 4900);
     assert.deepEqual(state.session, savedQueue);
+    state = await call("seek", { position_ms: 3000 });
+    assert.equal(state.player.state, "paused");
+    assert.equal(state.player.position_ms, 3000);
     state = await call("resume");
     assert.equal(state.player.state, "playing");
-    assert.ok(state.player.position_ms >= 4900);
+    assert.ok(state.player.position_ms >= 2900);
     console.log(
       "PASS volume, paused position and shuffled queue survive a worker restart without autoplay",
     );

@@ -4,7 +4,7 @@ use serde_json::{json, Value};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
-    io::BufReader,
+    io::{BufReader, Read},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::{Arc, Mutex},
@@ -33,6 +33,7 @@ struct Progress {
 }
 struct Download {
     child: Child,
+    started: std::time::Instant,
     progress: Arc<Mutex<Progress>>,
     reader: Option<thread::JoinHandle<()>>,
     tree: Option<crate::components::ProcessTree>,
@@ -182,7 +183,7 @@ impl Music {
         session.track_id = session
             .track_id
             .filter(|id| tracks.iter().any(|t| t.id == *id && t.path.is_file()));
-        Ok(Self {
+        let mut music = Self {
             directory: directory.into(),
             tracks,
             catalog: BTreeMap::new(),
@@ -201,7 +202,67 @@ impl Music {
                 _ => return Err("Não foi possível ler o registro de downloads.".into()),
             },
             presence: crate::presence::Presence::new(directory),
-        })
+        };
+        if music.index_playlist_ids() {
+            // These IDs can be recovered again from the original manifests.
+            let _ = music.save();
+        }
+        Ok(music)
+    }
+    // The original CLI records exact Spotify IDs beside finished playlist files.
+    // Match only filenames already registered by Maré, never open a manifest-supplied path.
+    fn index_playlist_ids(&mut self) -> bool {
+        let Ok(root) = self.directory.join("audio").canonicalize() else {
+            return false;
+        };
+        let mut folders = BTreeMap::<PathBuf, BTreeMap<String, usize>>::new();
+        for (index, track) in self.tracks.iter().enumerate() {
+            if !track.track_uri.is_empty()
+                || !track.path.starts_with(&root)
+                || !(track.source_uri.starts_with("spotify:playlist:")
+                    || track.source_uri.starts_with("spotify:album:"))
+            {
+                continue;
+            }
+            if let (Some(folder), Some(name)) = (
+                track.path.parent(),
+                track.path.file_name().and_then(|n| n.to_str()),
+            ) {
+                folders
+                    .entry(folder.into())
+                    .or_default()
+                    .insert(name.into(), index);
+            }
+        }
+        let mut changed = false;
+        for (dir, names) in folders {
+            let Ok(file) = fs::File::open(dir.join(".sunnify-manifest.jsonl")) else {
+                continue;
+            };
+            let mut content = String::new();
+            if file.take(1_048_577).read_to_string(&mut content).is_err()
+                || content.len() > 1_048_576
+            {
+                continue;
+            }
+            for line in content.lines() {
+                let Ok(row) = serde_json::from_str::<Value>(line) else {
+                    continue;
+                };
+                let Some(index) = row["file"].as_str().and_then(|name| names.get(name)) else {
+                    continue;
+                };
+                let Some(id) = row["id"]
+                    .as_str()
+                    .filter(|id| id.len() == 22 && id.bytes().all(|c| c.is_ascii_alphanumeric()))
+                else {
+                    continue;
+                };
+                self.tracks[*index].track_uri = format!("spotify:track:{id}");
+                changed = true;
+            }
+        }
+        changed
     }
     fn save(&self) -> Result<(), String> {
         let path = self.directory.join("downloaded.json");
@@ -269,6 +330,7 @@ impl Music {
             return;
         };
         let finished = download.child.try_wait().ok().flatten();
+        self.last_download["elapsed_s"] = json!(download.started.elapsed().as_secs());
         let source_uri = download.source_uri.clone();
         let play_after = download.play_after;
         if finished.is_some() {
@@ -277,16 +339,14 @@ impl Music {
             }
         }
         let (events, last) = if let Ok(mut progress) = download.progress.lock() {
+            self.last_download["completed_tracks"] = json!(progress.done);
+            self.last_download["last_track"] = progress.latest.clone();
             (std::mem::take(&mut progress.events), progress.last.clone())
         } else {
             (Vec::new(), Value::Null)
         };
         if !last.is_null() {
-            self.last_download["event"] = last;
-        }
-        if let Ok(progress) = download.progress.lock() {
-            self.last_download["completed_tracks"] = json!(progress.done);
-            self.last_download["last_track"] = progress.latest.clone();
+            self.last_download["event"] = last.clone();
         }
         let mut changed = false;
         for event in events {
@@ -301,6 +361,7 @@ impl Music {
                 );
                 if let Ok(path) = Path::new(event["file"].as_str().unwrap_or("")).canonicalize() {
                     if let Some(track) = self.tracks.iter_mut().find(|t| t.path == path) {
+                        self.last_download["ready_track_id"] = json!(track.id);
                         if track.source_uri.is_empty() {
                             track.source_uri = source_uri.clone();
                             changed = true;
@@ -316,6 +377,10 @@ impl Music {
             }
         }
         if let Some(status) = finished {
+            if self.last_download["kind"] != "track" && self.index_playlist_ids() {
+                self.revision = self.revision.saturating_add(1);
+                let _ = self.save();
+            }
             let confirmed = status.success()
                 && self
                     .tracks
@@ -323,6 +388,13 @@ impl Music {
                     .any(|t| t.source_uri == source_uri && t.path.is_file());
             self.last_download["state"] = json!(if confirmed { "completed" } else { "failed" });
             self.last_download["exit_code"] = json!(status.code());
+            if last["event"] == "run_summary" {
+                if let (Some(landed), Some(skipped)) =
+                    (last["landed"].as_u64(), last["skipped"].as_u64())
+                {
+                    self.last_download["completed_tracks"] = json!(landed.saturating_add(skipped));
+                }
+            }
             self.download = None;
             if confirmed {
                 self.completed.insert(source_uri.clone());
@@ -426,19 +498,23 @@ impl Music {
                 self.save()?;
             }
             "download" => {
-                let (uri, _, _) = source(params["url"].as_str().unwrap_or(""))?;
+                let (uri, url, kind) = source(params["url"].as_str().unwrap_or(""))?;
                 if let Some(download) = self.download.as_mut().filter(|d| d.source_uri == uri) {
                     download.play_after |= params["play_after"].as_bool().unwrap_or(false);
                     return Ok(());
                 }
-                if self.completed.contains(&uri)
-                    && self
-                        .tracks
-                        .iter()
-                        .any(|t| t.source_uri == uri && t.path.is_file())
+                let cached = self
+                    .tracks
+                    .iter()
+                    .find(|t| (t.source_uri == uri || t.track_uri == uri) && t.path.is_file())
+                    .map(|t| t.id);
+                if let Some(id) =
+                    cached.filter(|_| kind == "track" || self.completed.contains(&uri))
                 {
+                    if self.download.is_none() {
+                        self.last_download = json!({"state":"completed","uri":uri,"url":url,"kind":kind,"cached":true,"ready_track_id":id,"job_id":crate::model::now_ms()});
+                    }
                     if params["play_after"].as_bool() == Some(true) {
-                        let id = self.tracks.iter().find(|t| t.source_uri == uri).unwrap().id;
                         self.handle("play_local", &json!({"id":id}))?;
                     }
                     return Ok(());
@@ -446,7 +522,6 @@ impl Music {
                 if self.download.is_some() {
                     return Err("Já existe um download em andamento. Cancele ou aguarde.".into());
                 }
-                let (_, url, kind) = source(params["url"].as_str().unwrap_or(""))?;
                 if !matches!(kind.as_str(), "track" | "album" | "playlist") {
                     return Err("Baixe uma faixa, álbum ou playlist.".into());
                 }
@@ -466,7 +541,12 @@ impl Music {
                     Command::new(executable)
                 };
                 if youtube {
-                    command.args(["--no-playlist","--no-simulate","--no-mtime","--no-progress","--format","bestaudio[ext=m4a]/bestaudio[ext=mp4]","--output"])
+                    command.args([
+                        "--no-playlist", "--no-simulate", "--no-mtime", "--concurrent-fragments", "4",
+                        "--progress", "--newline", "--progress-delta", "1", "--output-na-placeholder", "null",
+                        "--progress-template", r#"download:{"event":"transfer","received":%(progress.downloaded_bytes)j,"total":%(progress.total_bytes)j}"#,
+                        "--format", "bestaudio[ext=m4a]/bestaudio[ext=mp4]", "--output",
+                    ])
                         .arg(self.directory.join("audio").join("%(id)s.%(ext)s"))
                         .args(["--print",r#"after_move:{"event":"track_done","file":%(filepath)j,"title":%(title)j,"artists":%(uploader)j}"#,&url]);
                 } else {
@@ -475,7 +555,7 @@ impl Music {
                         .arg(self.directory.join("audio"))
                         .args([
                             "--format",
-                            "mp3",
+                            if kind == "track" { "m4a" } else { "mp3" },
                             "--quality",
                             "192",
                             "--no-loose-match",
@@ -526,9 +606,10 @@ impl Music {
                         }
                     }
                 });
-                self.last_download = json!({"state":"running","url":url,"completed_tracks":0,"total_tracks":params["total_tracks"].as_u64().unwrap_or(0).min(2000)});
+                self.last_download = json!({"state":"running","url":url,"uri":uri,"kind":kind,"job_id":crate::model::now_ms(),"completed_tracks":0,"total_tracks":if kind == "track" {1} else {params["total_tracks"].as_u64().unwrap_or(0).min(2000)}});
                 self.download = Some(Download {
                     child,
+                    started: std::time::Instant::now(),
                     progress,
                     reader: Some(reader),
                     tree: Some(tree),
@@ -540,6 +621,7 @@ impl Music {
             "cancel_download" => {
                 if let Some(download) = self.download.as_mut() {
                     download.play_after = false;
+                    download.tree.take();
                     let _ = download.child.kill();
                     let _ = download.child.wait();
                     self.poll_download();
@@ -648,10 +730,13 @@ impl Music {
                     .as_u64()
                     .ok_or("Posição inválida.")?
                     .min(86_400_000);
-                self.audio
-                    .as_ref()
-                    .ok_or("Selecione uma faixa.")?
-                    .seek(position)?;
+                if let Some(audio) = &self.audio {
+                    audio.seek(position)?;
+                } else if self.current.is_some() && self.session.duration_ms > 0 {
+                    self.session.position_ms = position.min(self.session.duration_ms);
+                } else {
+                    return Err("Selecione uma faixa.".into());
+                }
             }
             "volume" => {
                 self.volume = params["value"].as_u64().ok_or("Volume inválido.")?.min(100) as u32;
@@ -700,6 +785,35 @@ impl Drop for Music {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn playlist_download_can_be_reused_by_track_id_after_restart() {
+        let dir = std::env::temp_dir().join(format!(
+            "mare-manifest-{}-{}",
+            std::process::id(),
+            crate::model::now_ms()
+        ));
+        let mut music = Music::new(&dir).unwrap();
+        let album = dir.join("audio").join("Test album");
+        fs::create_dir(&album).unwrap();
+        let file = album.join("same name.mp3");
+        fs::write(&file, [0; 16]).unwrap();
+        assert!(music.add_file(&file, "Song", "Artist"));
+        music.tracks[0].source_uri = "spotify:album:0000000000000000000002".into();
+        music.save().unwrap();
+        drop(music);
+        let id = "0000000000000000000001";
+        fs::write(album.join(".sunnify-manifest.jsonl"), format!("broken\n{{\"id\":\"{id}\",\"file\":\"same name.mp3\"}}\n{{\"id\":\"0000000000000000000003\",\"file\":\"../same name.mp3\"}}\n")).unwrap();
+        let mut music = Music::new(&dir).unwrap();
+        let uri = format!("spotify:track:{id}");
+        music.handle("download", &json!({"url":uri})).unwrap();
+        let state = music.snapshot();
+        assert_eq!(state["local_tracks"][0]["track_uri"], uri);
+        assert_eq!(state["download"]["cached"], true);
+        assert_eq!(state["download"]["ready_track_id"], 1);
+        assert!(state["downloader_pid"].is_null());
+        drop(music);
+        fs::remove_dir_all(dir).unwrap();
+    }
     #[test]
     fn spotify_identity_updates_and_persists_download_metadata() {
         let dir = std::env::temp_dir().join(format!(

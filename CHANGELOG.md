@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.9 — 2026-11-07
+
+- O download de música aparece em uma ilha compacta com capa, título e andamento. Clique para acompanhar a playlist, ouvir uma faixa concluída ou cancelar.
+- O Maré reconhece o ID das faixas nos manifestos de playlists do Sunnify e reutiliza arquivos já baixados. Novas faixas avulsas usam M4A, que permite reaproveitar áudio AAC compatível.
+- Novos controles de volume e posição, com prévia durante o arraste e ajuste da posição ao reabrir uma sessão pausada. Ícones atualizados no player e na barra do navegador.
+
 ## 0.3.8 — 2026-11-07
 
 - Fix missing browser and music styles in the packaged interface after HTML formatting changed a stylesheet tag.
