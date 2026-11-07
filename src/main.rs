@@ -142,10 +142,36 @@ struct Browser {
 }
 
 fn embedded_ui() -> String {
-    include_str!("../ui/index.html")
-        .replace("<link rel=\"stylesheet\" href=\"styles.css\">", &format!("<style>{}</style><style>{}</style>", include_str!("../ui/styles.css"), include_str!("../ui/spotify.css")))
-        .replace("<script src=\"app.js\"></script>", &format!("<script>{}\n{}\n{}\n{}\n{}</script>", include_str!("../ui/music-queue.js"),include_str!("../ui/music-layout.js"),include_str!("../ui/music-tools.js"),include_str!("../ui/spotify.js"),include_str!("../ui/app.js")))
-        .replace("<head>", "<head><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: https: http:; connect-src 'none'; base-uri 'none'; form-action 'none'\">")
+    fn inline_section(html: &mut String, name: &str, content: &str) {
+        let start = format!("<!-- MARE_{name}_START -->");
+        let end = format!("<!-- MARE_{name}_END -->");
+        let first = html.find(&start).expect("embedded UI start marker") + start.len();
+        let last = first + html[first..].find(&end).expect("embedded UI end marker");
+        html.replace_range(first..last, content);
+    }
+    let mut html = include_str!("../ui/index.html").to_owned();
+    inline_section(
+        &mut html,
+        "STYLES",
+        &format!(
+            "<style>{}</style><style>{}</style>",
+            include_str!("../ui/styles.css"),
+            include_str!("../ui/spotify.css")
+        ),
+    );
+    inline_section(
+        &mut html,
+        "SCRIPTS",
+        &format!(
+            "<script>{}\n{}\n{}\n{}\n{}</script>",
+            include_str!("../ui/music-queue.js"),
+            include_str!("../ui/music-layout.js"),
+            include_str!("../ui/music-tools.js"),
+            include_str!("../ui/spotify.js"),
+            include_str!("../ui/app.js")
+        ),
+    );
+    html.replace("<head>", "<head><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: https: http:; connect-src 'none'; base-uri 'none'; form-action 'none'\">")
 }
 
 fn data_directory() -> PathBuf {
@@ -2052,6 +2078,10 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     });
 }
 fn main() {
+    if std::env::args().any(|arg| arg == "--dump-interface") {
+        print!("{}", embedded_ui());
+        return;
+    }
     if let Some(result) = native_app::run_if_requested() {
         if let Err(error) = result {
             eprintln!("{error}");
@@ -2068,6 +2098,24 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn packaged_interface_contains_all_styles_and_scripts_without_external_files() {
+        let html = embedded_ui();
+        assert!(html.contains(include_str!("../ui/styles.css")));
+        assert!(html.contains(include_str!("../ui/spotify.css")));
+        for script in [
+            include_str!("../ui/music-queue.js"),
+            include_str!("../ui/music-layout.js"),
+            include_str!("../ui/music-tools.js"),
+            include_str!("../ui/spotify.js"),
+            include_str!("../ui/app.js"),
+        ] {
+            assert!(html.contains(script));
+        }
+        assert!(!html.contains("href=\"styles.css\""));
+        assert!(!html.contains("src=\"app.js\""));
+        assert!(html.contains("Content-Security-Policy"));
+    }
     #[test]
     fn interface_origin_is_stable_and_cannot_navigate_to_external_content() {
         assert!(allowed_interface_navigation("mare-ui://localhost/"));

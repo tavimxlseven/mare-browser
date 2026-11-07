@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.8 — 2026-11-07
+
+- Fix missing browser and music styles in the packaged interface after HTML formatting changed a stylesheet tag.
+- Bundle styles/scripts using explicit section markers and test the final HTML for all required resources.
+
 ## 0.3.7 — 2026-11-07
 
 - Serve the trusted interface from a stable, intercepted HTTPS origin so music appearance and wallpapers persist in WebView2. No HTTP server or external UI content is used.

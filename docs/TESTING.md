@@ -4,6 +4,12 @@ Este documento separa o que deve ser verificado dos resultados efetivamente regi
 
 ## Verificações automatizadas
 
+### Validação 0.3.8
+
+A falha de CSS da 0.3.7 veio de uma substituição textual que não reconhecia a tag de stylesheet após formatação. O empacotamento agora usa marcadores de seção. O teste Rust verifica todos os recursos no HTML final: 44 testes aprovados e um teste externo ignorado.
+
+`node scripts/interface-smoke.cjs --exe=dist/Mare/Mare.exe` extrai o HTML do executável por `--dump-interface`, confirma os dois CSS e os cinco scripts e compila o JavaScript incorporado sem executá-lo. A CI roda esse teste na build release e novamente no executável instalado. Uma prévia do HTML extraído do binário GNU foi renderizada no navegador: duas folhas de estilo carregadas, toolbar em flex, controles circulares e nenhum link externo de CSS. Não foi usada uma montagem separada dos arquivos da interface para esta verificação.
+
 ### Validação 0.3.7
 
 A interface usa protocolo customizado do Wry com origem HTTPS estável e interceptada. Um teste Rust adicional restringe a navegação a essa origem, mantendo páginas externas, URLs data/file e caminhos arbitrários bloqueados. A documentação [WebView2 sobre conteúdo local](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/working-with-local-content) confirma que NavigateToString não oferece Web Storage. Total: 43 testes Rust aprovados e um teste externo ignorado. A publicação do instalador 0.3.6 foi cancelada para incluir esta correção.

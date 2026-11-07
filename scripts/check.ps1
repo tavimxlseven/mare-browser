@@ -13,6 +13,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Os testes falharam.' }
     node --check ui/app.js
     if ($LASTEXITCODE -ne 0) { throw 'JavaScript do navegador inválido.' }
+    node --check scripts/interface-smoke.cjs
+    if ($LASTEXITCODE -ne 0) { throw 'Verificação da interface empacotada inválida.' }
     node --check ui/spotify.js
     if ($LASTEXITCODE -ne 0) { throw 'JavaScript inválido.' }
     foreach ($script in @('ui/music-tools.js','ui/music-queue.js','ui/music-layout.js')) { node --check $script; if ($LASTEXITCODE -ne 0) { throw 'JavaScript de música inválido.' } }
