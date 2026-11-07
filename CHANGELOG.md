@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.7 — 2026-11-07
+
+- Serve the trusted interface from a stable, intercepted HTTPS origin so music appearance and wallpapers persist in WebView2. No HTTP server or external UI content is used.
+- Include the music and Apps redesign from 0.3.6; its installer publication was cancelled before release to include this storage correction.
+
 ## 0.3.6 — 2026-11-07
 
 - Redesign the music library with a top player, softer panels, adjustable artwork and light/dark themes.

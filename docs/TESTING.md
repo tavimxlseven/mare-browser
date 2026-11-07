@@ -4,7 +4,11 @@ Este documento separa o que deve ser verificado dos resultados efetivamente regi
 
 ## Verificações automatizadas
 
-### Validação 0.3.6
+### Validação 0.3.7
+
+A interface usa protocolo customizado do Wry com origem HTTPS estável e interceptada. Um teste Rust adicional restringe a navegação a essa origem, mantendo páginas externas, URLs data/file e caminhos arbitrários bloqueados. A documentação [WebView2 sobre conteúdo local](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/working-with-local-content) confirma que NavigateToString não oferece Web Storage. Total: 43 testes Rust aprovados e um teste externo ignorado. A publicação do instalador 0.3.6 foi cancelada para incluir esta correção.
+
+### Validação do redesign 0.3.6
 
 - 42 testes Rust aprovados, com um teste externo ignorado por padrão; curva de volume e validação/persistência da sessão incluídas.
 - Worker real: volume e fila persistem sem dispositivo de áudio. WAV silencioso próprio: faixa e posição são restauradas pausadas, com retomada por comando após reiniciar o processo.

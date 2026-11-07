@@ -177,6 +177,13 @@ fn random_nonce() -> Result<String, String> {
     Ok(bytes.iter().map(|byte| format!("{byte:02x}")).collect())
 }
 
+fn allowed_interface_navigation(url: &str) -> bool {
+    matches!(
+        url,
+        "about:blank" | "about:blank/" | "" | "mare-ui://localhost/" | "https://mare-ui.localhost/"
+    )
+}
+
 fn download_filename(path: &Path) -> String {
     let name = path
         .file_name()
@@ -1916,27 +1923,26 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         .build(&event_loop)?;
     let ui_proxy = proxy.clone();
     let mut ui_context = WebContext::new(Some(data_dir.join("interface")));
+    let chrome_html = embedded_ui().into_bytes();
     let mut chrome_builder = WebViewBuilder::new_with_web_context(&mut ui_context)
-        .with_html(embedded_ui())
-        .with_devtools(cfg!(debug_assertions))
-        .with_navigation_handler({
-            let initial_html = std::cell::Cell::new(true);
-            move |url| {
-                if matches!(url.as_str(), "about:blank" | "about:blank/" | "") {
-                    return true;
-                }
-                // Wry loads with_html through a local data:text/html document on this runtime.
-                // Only that controlled initial document may use a data URL.
-                let allow = url.starts_with("data:text/html") && initial_html.replace(false);
-                #[cfg(debug_assertions)]
-                eprintln!(
-                    "Maré interface navigation: scheme={}, bytes={}, initial={allow}",
-                    url.split(':').next().unwrap_or("unknown"),
-                    url.len()
-                );
-                allow
-            }
+        // A stable, intercepted origin enables persistent Web Storage. No server is opened.
+        .with_custom_protocol("mare-ui".into(), move |_, request| {
+            let root = request.method() == "GET" && request.uri().path() == "/";
+            wry::http::Response::builder()
+                .status(if root { 200 } else { 404 })
+                .header("Content-Type", "text/html; charset=utf-8")
+                .header("Cache-Control", "no-store")
+                .header("X-Content-Type-Options", "nosniff")
+                .body(std::borrow::Cow::Owned(if root {
+                    chrome_html.clone()
+                } else {
+                    Vec::new()
+                }))
+                .expect("static interface response headers")
         })
+        .with_url("mare-ui://localhost/")
+        .with_devtools(cfg!(debug_assertions))
+        .with_navigation_handler(|url| allowed_interface_navigation(&url))
         .with_new_window_req_handler(|_, _| NewWindowResponse::Deny)
         .with_ipc_handler(move |request| {
             if request.body().len() <= 256_000 {
@@ -1948,6 +1954,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(windows)]
     {
         chrome_builder = chrome_builder
+            .with_https_scheme(true)
             .with_additional_browser_args("--disable-features=msWebOOUI,msPdfOOUI")
             .with_browser_accelerator_keys(false)
             .with_scroll_bar_style(wry::ScrollBarStyle::FluentOverlay)
@@ -2061,6 +2068,22 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn interface_origin_is_stable_and_cannot_navigate_to_external_content() {
+        assert!(allowed_interface_navigation("mare-ui://localhost/"));
+        assert!(allowed_interface_navigation("https://mare-ui.localhost/"));
+        for url in [
+            "https://example.com/",
+            "https://mare-ui.localhost.evil.example/",
+            "http://mare-ui.localhost/",
+            "https://mare-ui.localhost/other",
+            "data:text/html,hi",
+            "file:///C:/test.html",
+            "javascript:alert(1)",
+        ] {
+            assert!(!allowed_interface_navigation(url));
+        }
+    }
     #[test]
     fn viewport_resize_preserves_toolbar_sidebar_and_bottom_insets() {
         let v = Viewport {
