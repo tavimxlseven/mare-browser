@@ -2908,6 +2908,9 @@
     appsEvent,
     appsRequestFailed,
     permissionRequest,
+    getMusicRemote: () => state.music_remote || { enabled: false },
+    setMusicRemote: (enabled) => send({ cmd: "music_remote", enabled }),
+    remoteMusic: (value) => spotifyView?.remote(value.action, value.params),
     requestClose,
     copy,
   };

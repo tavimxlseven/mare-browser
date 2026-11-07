@@ -16,6 +16,8 @@ try {
     node --check ui/spotify.js
     if ($LASTEXITCODE -ne 0) { throw 'JavaScript inválido.' }
     foreach ($script in @('ui/music-tools.js','ui/music-queue.js','ui/music-layout.js')) { node --check $script; if ($LASTEXITCODE -ne 0) { throw 'JavaScript de música inválido.' } }
+    node scripts/music-remote-check.cjs
+    if ($LASTEXITCODE -ne 0) { throw 'JavaScript do controle remoto inválido.' }
     node scripts/music-queue-smoke.cjs
     if ($LASTEXITCODE -ne 0) { throw 'Regressão na fila de música.' }
     node scripts/youtube-smoke.mjs

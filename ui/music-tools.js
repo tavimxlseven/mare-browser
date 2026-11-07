@@ -23,6 +23,7 @@ window.attachMusicTools = function ({
   const searchInput = $(".spotify-search");
   searchInput.placeholder = "O que você quer ouvir?";
   searchInput.setAttribute("aria-label", "Pesquisar músicas e artistas");
+
   function modal(title, body) {
     const d = document.createElement("dialog");
     d.className = "music-dialog";
@@ -37,13 +38,23 @@ window.attachMusicTools = function ({
     d.onclose = () => d.remove();
     element.append(d);
     d.showModal();
+    if (!matchMedia("(prefers-reduced-motion: reduce)").matches)
+      d.animate(
+        [
+          { opacity: 0, transform: "translateY(10px) scale(.98)" },
+          { opacity: 1, transform: "none" },
+        ],
+        { duration: 200, easing: "cubic-bezier(.16,1,.3,1)" },
+      );
     return d;
   }
+
   async function search() {
     if (term.trim().length < 2) return;
     await invoke("search", { query: term });
     redraw();
   }
+
   searchInput.oninput = (event) => {
     term = event.target.value;
     searching = !!term;
@@ -51,29 +62,46 @@ window.attachMusicTools = function ({
     redraw();
     if (term.trim().length >= 2) timer = setTimeout(search, 450);
   };
+
+  /* ── renderSearch ───────────────────────────────────────────────────── */
   function renderSearch() {
     const result = data().search || {};
     $(".music-heading").classList.remove("music-playlist-heading");
     $(".music-list-heading").hidden = true;
     $(".music-heading").innerHTML =
-      "<div><small>Descobrir</small><h2>" +
+      '<div><small class="music-section-label">Descobrir</small><h2>' +
       esc(
-        term ? "Resultados para “" + term + "”" : "Encontre sua próxima música",
+        term
+          ? "Resultados para \u201c" + term + "\u201d"
+          : "Encontre sua próxima música",
       ) +
       '</h2><p>Busque pelo nome da música ou do artista.</p></div><button class="music-add" data-action="add">' +
       icon("plus") +
       " Importar playlist</button>";
+
+    // tabs
     let html =
       '<div class="music-search-tabs"><button data-action="library">Sua biblioteca</button><button data-action="catalog_focus" aria-pressed="true">Buscar músicas</button></div>';
-    if (result.query !== term.trim() || result.state === "loading")
+
+    // states: loading, error, results, empty
+    if (result.query !== term.trim() || result.state === "loading") {
       html +=
-        '<div class="music-empty" role="status"><h3>Buscando músicas…</h3><p>Consultando o catálogo.</p></div>';
-    else if (result.state === "error")
+        '<div class="music-empty" role="status"><span>' +
+        icon("music") +
+        "</span><h3>Buscando músicas…</h3><p>Consultando o catálogo.</p></div>";
+    } else if (result.state === "error") {
       html +=
-        '<div class="music-empty" role="alert"><h3>Não foi possível pesquisar</h3><p>' +
+        '<div class="music-empty" role="alert"><span>' +
+        icon("close") +
+        "</span><h3>Não foi possível pesquisar</h3><p>" +
         esc(result.error) +
         '</p><button class="music-green" data-action="retry_search">Tentar novamente</button></div>';
-    else
+    } else if (!result.items || result.items.length === 0) {
+      html +=
+        '<div class="music-empty"><span>' +
+        icon("search") +
+        "</span><h3>Nenhum resultado</h3><p>Tente outro título ou artista.</p></div>";
+    } else {
       html +=
         '<div class="music-search-results">' +
         (result.items || [])
@@ -128,10 +156,14 @@ window.attachMusicTools = function ({
           })
           .join("") +
         "</div>";
+    }
+
     html +=
-      '<p class="music-search-source">Resultados públicos do YouTube. Confira a gravação e o canal antes de adicionar. As músicas baixadas ficam na sua biblioteca, sem conectar uma conta Spotify.</p>';
+      '<p class="music-search-source">Metadados Spotify fornecidos pelo XWolf. Busca sem conectar uma conta; os downloads continuam pelo componente interno.</p>';
     $(".spotify-library").innerHTML = html;
   }
+
+  /* ── sleepDialog ────────────────────────────────────────────────────── */
   function sleepDialog() {
     const d = modal(
       "Temporizador",
@@ -161,6 +193,8 @@ window.attachMusicTools = function ({
         }),
     );
   }
+
+  /* ── songMenu ───────────────────────────────────────────────────────── */
   function songMenu(row, x, y) {
     element.querySelector(".music-context")?.remove();
     const menu = document.createElement("div");
@@ -325,6 +359,7 @@ window.attachMusicTools = function ({
       button?.click();
     };
   }
+
   const context = (event) => {
     const article = event.target.closest(".spotify-item");
     if (!article) return;
@@ -340,6 +375,7 @@ window.attachMusicTools = function ({
   };
   element.addEventListener("contextmenu", context);
   element.addEventListener("pointerdown", dismiss);
+
   return {
     get searching() {
       return searching;

@@ -7,7 +7,7 @@ O app reúne uma biblioteca de links Spotify, downloads em segundo plano e repro
 ## Disponível
 
 - Títulos e capas reais de links públicos pelo oEmbed do Spotify.
-- Busca independente por música/artista, sem conta nem Client ID Spotify. Resultados públicos do YouTube aparecem no próprio app, com fonte, título, canal e capa. É possível adicionar à biblioteca ou baixar; a reprodução só é liberada para o arquivo concluído.
+- Busca de faixas Spotify por música/artista, com metadados públicos via XWolf, sem conta nem Client ID. Os resultados mantêm ID Spotify, artista e capa da faixa até a biblioteca e o Rich Presence. A reprodução continua local, após concluir o download.
 - Playlist pública Spotify por link, com lista real de faixas e indicação individual de download. Playlists privadas e recursos de conta continuam indisponíveis sem autenticação.
 - Playlists locais com criação, renomeação, exclusão e associação de uma faixa a várias playlists. Remover da playlist preserva o download.
 - Fila completa, reordenação por arrastar ou botão, remoção individual, anterior/próxima, aleatório sem reposição e repetição da faixa/fila.
@@ -56,17 +56,23 @@ Para preparar os componentes originais em uma build de desenvolvimento:
 
 O script baixa versões fixas dos repositórios originais e verifica SHA256. Os componentes não são incluídos no Git. Consulte [COMPONENTS.md](COMPONENTS.md) para origem, versões e licenças.
 
-## Busca independente
+## Busca Spotify
 
-A consulta usa o yt-dlp original 2026.10.26, com no máximo 25 resultados, uma consulta por vez e limite de 40 segundos. Deno 2.9.8 atende aos scripts do extrator quando necessário. Os dois ficam incluídos no setup, sem instalação separada, cookies de conta ou configuração do usuário. Os resultados representam gravações e canais do YouTube; não são uma busca no catálogo autenticado Spotify. Verifique a gravação escolhida. Disponibilidade e bloqueios do provedor podem impedir consultas ou downloads.
+A busca consulta [XWolf](https://spotify.xwolf.space/api/search), um serviço terceiro, com no máximo 25 resultados por consulta, uma requisição ativa por vez e limites de tempo/resposta. Não consulta o endpoint de tokens, não lê cookies e não conecta a conta do usuário. O serviço recebe o texto digitado na busca; não existe promessa de disponibilidade, quota ilimitada ou suporte oficial do Spotify. Em falhas, o app mostra erro e permite tentar novamente; não troca silenciosamente o resultado por uma gravação de outro catálogo.
 
-Os resultados são baixados como áudio M4A/AAC para reprodução nativa, sem conversão externa. Sunnify continua responsável pelos links públicos Spotify. Os auxiliares de busca somam aproximadamente 122 MB no disco e não ficam residentes após o trabalho. O app não inclui recomendações pessoais, letras licenciadas, podcasts de conta, sincronização de playlists ou Spicetify. Não há promessa de paridade com o serviço oficial.
+IDs e links são normalizados para spotify:track, as imagens ficam restritas às CDNs permitidas e campos têm limites de tamanho. O ID selecionado acompanha o download, a biblioteca e a atividade no Discord. O índice local conserva título/artista/capa canônicos, evitando alternância entre o nome do canal de áudio e o artista Spotify. Entradas YouTube antigas continuam disponíveis; não são convertidas automaticamente em outras músicas por aproximação de título.
+
+Sunnify continua responsável pelos downloads de links Spotify. O áudio não vem do fluxo protegido do Spotify; o matcher e a fonte de áudio mantêm as limitações documentadas acima. yt-dlp/Deno permanecem disponíveis para entradas YouTube já existentes. Login de conta, recomendações pessoais e sincronização de playlists continuam adiados.
+
+## Controle pelo celular
+
+Abra as configurações de música e ative **Controlar pelo celular**. O recurso fica desligado a cada início, exige pareamento e mantém o áudio no PC. Consulte [controle na Wi-Fi](REMOTE-MUSIC.md) para instruções e limites.
 
 ## Verificação
 
 ```powershell
 node scripts/spotify-smoke.mjs --exe=dist/Mare/Mare.exe
-node scripts/spotify-smoke.mjs --exe=dist/Mare/Mare.exe --online --audio --components
+node scripts/spotify-smoke.mjs --exe=dist/Mare/Mare.exe --online --audio --catalog
 ```
 
 `--audio` usa WAV silencioso próprio; exige os componentes multimídia do Windows. `--components` inicia e cancela imediatamente o downloader para verificar seu ciclo de vida, sem baixar áudio externo. `--online` verifica metadados públicos. Essas verificações não equivalem a um download de áudio completo nem a um login de conta real.

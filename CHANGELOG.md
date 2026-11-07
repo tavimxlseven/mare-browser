@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.5 — 2026-11-06
+
+- Integrate the music workspace redesign while keeping library, queue, download and native playback contracts.
+- Search Spotify track metadata through XWolf without account credentials; preserve canonical artist/title/artwork through local playback and Rich Presence.
+- Add opt-in Wi-Fi playback control with expiring pairing codes, session revocation, request limits and a restricted command set.
+- Keep remote control disabled on startup and stop its listener when the music app closes.
+- Isolate music CSS from browser controls and preserve compact mode and panel resizing.
+
 ## 0.3.4 — 2026-11-06
 
 - Preserve memberships in existing local playlists when adding a track to another playlist after upgrading from the legacy library format.

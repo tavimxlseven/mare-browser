@@ -4,6 +4,19 @@ Este documento separa o que deve ser verificado dos resultados efetivamente regi
 
 ## Verificações automatizadas
 
+### Validação 0.3.5
+
+Windows x64, toolchain GNU local. Formatação, Clippy com todos os recursos e warnings como erros e sintaxe JavaScript aprovados. Testes Rust: 40 aprovados, nenhum reprovado e um teste de rede da Chrome Web Store ignorado por padrão.
+
+- TCP loopback real: pareamento, autenticação, expiração, limites, comandos permitidos, origem e revogação do controle pelo celular.
+- Worker real: busca Spotify via XWolf, seleção e persistência após reiniciar; metadados públicos e reprodução/pausa/seek/volume de WAV silencioso próprio.
+- DOM isolado: playlist de 170 faixas, fila completa, controles remotos, pareamento, descarte da interface e sessão do painel móvel.
+- Fila: 170 faixas sem repetição no aleatório, histórico, repetição, reordenação e remoção.
+
+Os testes de DOM não renderizam uma janela de navegador. Não houve teste em celular físico ou Wi-Fi real, inspeção visual final do redesign, benchmark de consumo nem avaliação de cortes de áudio com música externa nesta rodada. A CI verifica separadamente a build MSVC e o instalador.
+
+A busca real passou em uma execução anterior; uma repetição final também registrou HTTP 500 do XWolf, corretamente apresentado como erro pelo app. O serviço externo pode oscilar e não integra os testes obrigatórios de disponibilidade offline.
+
 No PowerShell:
 
 ```powershell

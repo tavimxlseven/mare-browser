@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod apps;
 mod audio;
+mod catalog_search;
 mod components;
 mod composition;
 mod covers;
@@ -10,6 +11,7 @@ mod icon;
 mod icon_pixels;
 mod model;
 mod music;
+mod music_remote;
 mod music_search;
 mod native_app;
 mod permissions;
@@ -45,6 +47,7 @@ use wry::{WebViewBuilderExtWindows, WebViewExtWindows};
 #[derive(Debug)]
 enum BrowserEvent {
     Command(Value),
+    MusicRemote(Value),
     Navigation(u64, u64, String),
     Loaded(u64, u64, bool, String),
     Title(u64, u64, String),
@@ -108,6 +111,7 @@ struct Browser {
     pending_extension: Option<extensions::Prepared>,
     extension_busy: bool,
     permissions: permissions::Manager,
+    music_remote: music_remote::Manager,
     protection: protection::Protection,
     views: HashMap<u64, WebView>,
     view_generations: HashMap<u64, u64>,
@@ -277,6 +281,7 @@ impl Browser {
         self.window.set_title(&format!("{title} — Maré"));
         if let Ok(mut snapshot) = serde_json::to_value(&self.state) {
             snapshot["apps"] = app_state;
+            snapshot["music_remote"] = self.music_remote.status();
             let active_url = self
                 .state
                 .active_tab()
@@ -1024,6 +1029,9 @@ impl Browser {
             }
             "apps_install" | "apps_uninstall" | "apps_open" => {
                 let app_id = value["id"].as_str().unwrap_or("");
+                if app_id == "spotify" && cmd == "apps_uninstall" {
+                    self.music_remote.stop();
+                }
                 if app_id == "discord" && cmd == "apps_open" {
                     if let Err(error) = self.apps.install("discord") {
                         self.notify(&error);
@@ -1072,11 +1080,36 @@ impl Browser {
                 }
                 self.arrange();
             }
+            "music_remote" => {
+                if value["enabled"] == true {
+                    let open = self.apps.snapshot()["open_ids"]
+                        .as_array()
+                        .is_some_and(|ids| ids.iter().any(|id| id == "spotify"));
+                    if open {
+                        let proxy = self.proxy.clone();
+                        match self.music_remote.start(move |value| {
+                            let _ = proxy.send_event(BrowserEvent::MusicRemote(value));
+                        }) {
+                            Ok(()) => {
+                                let _ = self.apps.request_with_id("spotify", 0, "list", json!({}));
+                            }
+                            Err(error) => self.notify(&error),
+                        }
+                    } else {
+                        self.notify("Abra o app de música antes de ativar o controle.");
+                    }
+                } else {
+                    self.music_remote.stop();
+                }
+            }
             "apps_close" => {
                 let active = self.apps.snapshot()["active_id"]
                     .as_str()
                     .map(str::to_owned);
                 if let Some(app_id) = value["id"].as_str().map(str::to_owned).or(active) {
+                    if app_id == "spotify" {
+                        self.music_remote.stop();
+                    }
                     self.apps.close(&app_id);
                 }
                 self.arrange();
@@ -1625,9 +1658,42 @@ impl Browser {
                 }
                 return;
             }
+            BrowserEvent::MusicRemote(value) => {
+                if !self.apps.snapshot()["open_ids"]
+                    .as_array()
+                    .is_some_and(|ids| ids.iter().any(|id| id == "spotify"))
+                {
+                    self.music_remote.stop();
+                    self.publish();
+                    return;
+                }
+                if !self.music_remote.enabled() {
+                    return;
+                }
+                if value["action"] == "refresh" {
+                    let _ = self.apps.request_with_id(
+                        "spotify",
+                        0,
+                        "playback_status",
+                        json!({"revision":self.music_remote.revision()}),
+                    );
+                } else {
+                    let _ = self
+                        .chrome
+                        .evaluate_script(&format!("window.mare?.remoteMusic({value});"));
+                }
+                return;
+            }
             BrowserEvent::App(event) => {
                 if !self.apps.handle_event(&event) {
                     return;
+                }
+                if event.app_id == "spotify" {
+                    if event.kind == "exited" {
+                        self.music_remote.stop();
+                    } else {
+                        self.music_remote.update(&event.payload["result"]);
+                    }
                 }
                 if event.app_id == "discord" {
                     if event.kind == "exited" {
@@ -1925,6 +1991,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         pending_extension: None,
         extension_busy: false,
         permissions: permissions::Manager::default(),
+        music_remote: music_remote::Manager::default(),
         external_viewport: None,
         last_external_layout: String::new(),
         external_window: 0,

@@ -202,8 +202,15 @@ try {
     );
     assert.ok(state.search.items.length > 0 && state.search.items.length <= 25);
     const found = state.search.items[0];
-    assert.match(found.uri, /^youtube:video:[A-Za-z0-9_-]{11}$/);
-    assert.equal(new URL(found.thumbnail).hostname, "i.ytimg.com");
+    assert.match(found.uri, /^spotify:track:[A-Za-z0-9]{22}$/);
+    assert.ok(
+      [
+        "i.scdn.co",
+        "image-cdn-ak.spotifycdn.com",
+        "image-cdn-fa.spotifycdn.com",
+        "mosaic.scdn.co",
+      ].includes(new URL(found.thumbnail).hostname),
+    );
     await call("import_search", { uri: found.uri });
     await stop();
     start();

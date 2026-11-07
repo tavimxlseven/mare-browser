@@ -2,7 +2,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     fs,
     io::BufReader,
     path::{Path, PathBuf},
@@ -43,6 +43,7 @@ struct Download {
 pub struct Music {
     directory: PathBuf,
     tracks: Vec<Track>,
+    catalog: BTreeMap<String, (String, String, String)>,
     download: Option<Download>,
     last_download: Value,
     current: Option<u64>,
@@ -85,14 +86,73 @@ fn source(input: &str) -> Result<(String, String, String), String> {
     crate::spotify::normalize_link(input)
 }
 impl Music {
+    pub fn retain_catalog<'a>(&mut self, entries: impl Iterator<Item = &'a str>) {
+        let mut keys = entries.collect::<BTreeSet<_>>();
+        for track in &self.tracks {
+            keys.insert(track.track_uri.as_str());
+            keys.insert(track.source_uri.as_str());
+        }
+        self.catalog.retain(|uri, _| keys.contains(uri.as_str()));
+    }
+    pub fn catalog_track(&mut self, uri: &str, title: &str, artists: &str, artwork: &str) {
+        if !uri.starts_with("spotify:track:")
+            || artists.trim().is_empty()
+            || title.trim().is_empty()
+        {
+            return;
+        }
+        if self
+            .catalog
+            .get(uri)
+            .is_some_and(|m| m.0 == title && m.1 == artists && m.2 == artwork)
+        {
+            return;
+        }
+        self.catalog
+            .insert(uri.into(), (title.into(), artists.into(), artwork.into()));
+    }
+    fn apply_catalog(&mut self) {
+        let mut changed = false;
+        for track in &mut self.tracks {
+            let uri = if track.track_uri.starts_with("spotify:track:") {
+                &track.track_uri
+            } else {
+                &track.source_uri
+            };
+            if let Some((title, artists, artwork)) = self.catalog.get(uri) {
+                if &track.title != title
+                    || &track.artists != artists
+                    || (!artwork.is_empty() && &track.artwork != artwork)
+                {
+                    track.title = title.clone();
+                    track.artists = artists.clone();
+                    if !artwork.is_empty() && crate::spotify::safe_artwork(artwork) {
+                        track.artwork = artwork.clone();
+                    }
+                    changed = true;
+                }
+            }
+        }
+        if changed {
+            self.revision = self.revision.saturating_add(1);
+            let _ = self.save();
+        }
+    }
+
     pub fn sync_artwork(&mut self, covers: &std::collections::BTreeMap<String, String>) {
         let mut changed = false;
         for t in &mut self.tracks {
-            if let Some(url) = covers.get(if t.track_uri.is_empty() {
+            let uri = if t.track_uri.is_empty() {
                 &t.source_uri
             } else {
                 &t.track_uri
-            }) {
+            };
+            let authoritative = self
+                .catalog
+                .get(uri)
+                .map(|entry| &entry.2)
+                .filter(|url| !url.is_empty());
+            if let Some(url) = authoritative.or_else(|| covers.get(uri)) {
                 if &t.artwork != url {
                     t.artwork = url.clone();
                     changed = true;
@@ -118,6 +178,7 @@ impl Music {
         Ok(Self {
             directory: directory.into(),
             tracks,
+            catalog: BTreeMap::new(),
             download: None,
             last_download: json!({"state":"idle"}),
             current: None,
@@ -280,6 +341,7 @@ impl Music {
     }
     pub fn snapshot_since(&mut self, known_revision: Option<u64>) -> Value {
         self.poll_download();
+        self.apply_catalog();
         let (mode, position, duration) = self
             .audio
             .as_ref()
@@ -579,5 +641,58 @@ impl Drop for Music {
             let _ = download.child.kill();
             let _ = download.child.wait();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn spotify_identity_updates_and_persists_download_metadata() {
+        let dir = std::env::temp_dir().join(format!(
+            "mare-catalog-audio-{}-{}",
+            std::process::id(),
+            crate::model::now_ms()
+        ));
+        let mut music = Music::new(&dir).unwrap();
+        let file = dir.join("audio/own-metadata-fixture.wav");
+        fs::write(&file, []).unwrap();
+        let uri = "spotify:track:4uLU6hMCjMI75M1A2tKUQC";
+        music.tracks.push(Track {
+            id: 1,
+            title: "Extractor title".into(),
+            artists: "Channel".into(),
+            path: file,
+            source_uri: uri.into(),
+            track_uri: String::new(),
+            artwork: String::new(),
+        });
+        music.catalog_track(
+            uri,
+            "Canonical song",
+            "Canonical artist",
+            "https://i.scdn.co/image/own-fixture",
+        );
+        let state = music.snapshot();
+        assert_eq!(state["local_tracks"][0]["title"], "Canonical song");
+        assert_eq!(state["local_tracks"][0]["artists"], "Canonical artist");
+        assert_eq!(
+            state["local_tracks"][0]["artwork"],
+            "https://i.scdn.co/image/own-fixture"
+        );
+        let revision = state["library_revision"].clone();
+        music.sync_artwork(&BTreeMap::from([(
+            uri.into(),
+            "https://i.scdn.co/image/different-resolution".into(),
+        )]));
+        assert_eq!(music.snapshot()["library_revision"], revision);
+        drop(music);
+        let mut restored = Music::new(&dir).unwrap();
+        assert_eq!(
+            restored.snapshot()["local_tracks"][0]["artists"],
+            "Canonical artist"
+        );
+        drop(restored);
+        fs::remove_dir_all(dir).unwrap();
     }
 }

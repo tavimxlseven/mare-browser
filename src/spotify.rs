@@ -39,6 +39,7 @@ pub struct Spotify {
     playlists: crate::playlist::Catalog,
     covers: crate::covers::Covers,
     search: crate::music_search::Search,
+    metadata_dirty: bool,
 }
 
 pub fn normalize_link(input: &str) -> Result<(String, String, String), String> {
@@ -118,6 +119,7 @@ impl Spotify {
             playlists: crate::playlist::Catalog::new(directory),
             covers: crate::covers::Covers::new(directory),
             search: crate::music_search::Search::new(directory),
+            metadata_dirty: true,
         })
     }
     fn merge_account(&mut self, items: Vec<Value>) -> Result<(), String> {
@@ -164,9 +166,38 @@ impl Spotify {
             .and_then(|()| fs::rename(temp, &self.path))
             .map_err(|e| e.to_string())?;
         self.library = next;
+        self.metadata_dirty = true;
         Ok(())
     }
+    fn sync_music_metadata(&mut self) {
+        if !self.metadata_dirty {
+            return;
+        }
+        self.metadata_dirty = false;
+        self.music
+            .retain_catalog(self.library.entries.iter().map(|entry| entry.uri.as_str()));
+        for entry in &self.library.entries {
+            if entry.kind == "track" {
+                self.music.catalog_track(
+                    &entry.uri,
+                    &entry.title,
+                    &entry.artists,
+                    &entry.thumbnail,
+                );
+            }
+        }
+    }
+    fn decorate_artwork(&self, result: &mut Value) {
+        if let Some(artwork) = result["artwork"].as_object_mut() {
+            for entry in &self.library.entries {
+                if entry.kind == "track" && safe_artwork(&entry.thumbnail) {
+                    artwork.insert(entry.uri.clone(), json!(entry.thumbnail));
+                }
+            }
+        }
+    }
     fn snapshot(&mut self) -> Value {
+        self.sync_music_metadata();
         self.music.sync_artwork(self.covers.poll());
         if let Some(items) = self.account.take_imports() {
             if let Err(error) = self.merge_account(items) {
@@ -176,7 +207,7 @@ impl Spotify {
         let installed = |variable: &str, suffix: &str| {
             std::env::var_os(variable).is_some_and(|p| PathBuf::from(p).join(suffix).is_file())
         };
-        let mut result = json!({"entries":self.library.entries,"collections":self.library.collections,"playback_available":false,"local_playback_available":true,"spotify_installed":installed("APPDATA","Spotify/Spotify.exe"),"search_available":crate::components::executable("yt-dlp").is_some(),"spicetify_installed":installed("LOCALAPPDATA","spicetify/spicetify.exe"),"mode":"local_library","account_connected":false});
+        let mut result = json!({"entries":self.library.entries,"collections":self.library.collections,"playback_available":false,"local_playback_available":true,"spotify_installed":installed("APPDATA","Spotify/Spotify.exe"),"search_available":true,"spicetify_installed":installed("LOCALAPPDATA","spicetify/spicetify.exe"),"mode":"local_library","account_connected":false});
         if let (Some(result), Some(music)) =
             (result.as_object_mut(), self.music.snapshot().as_object())
         {
@@ -187,6 +218,7 @@ impl Spotify {
         if let Some(object) = result.as_object_mut() {
             object.extend(self.covers.snapshot().as_object().unwrap().clone());
         }
+        self.decorate_artwork(&mut result);
         let account = self.account.snapshot();
         result["account_connected"] = account["connected"].clone();
         result["account"] = account;
@@ -201,7 +233,15 @@ impl Spotify {
         if method == "import_search" {
             let track = self.search.track(params["uri"].as_str().unwrap_or(""))?;
             let mut next = self.library.clone();
-            if !next.entries.iter().any(|entry| entry.uri == track["uri"]) {
+            if let Some(entry) = next
+                .entries
+                .iter_mut()
+                .find(|entry| entry.uri == track["uri"])
+            {
+                entry.title = track["title"].as_str().unwrap().into();
+                entry.artists = track["artists"].as_str().unwrap_or("").into();
+                entry.thumbnail = track["thumbnail"].as_str().unwrap_or("").into();
+            } else {
                 if next.entries.len() >= 1000 {
                     return Err("Sua biblioteca atingiu o limite de itens.".into());
                 }
@@ -228,6 +268,7 @@ impl Spotify {
                 .and_then(|()| fs::rename(temp, &self.path))
                 .map_err(|e| e.to_string())?;
             self.library = next;
+            self.metadata_dirty = true;
             if params["download"].as_bool() == Some(true) {
                 self.music
                     .handle("download", &json!({"url":track["uri"],"total_tracks":1}))?;
@@ -248,6 +289,7 @@ impl Spotify {
             return Ok(result);
         }
         if method == "playback_status" {
+            self.sync_music_metadata();
             self.music.sync_artwork(self.covers.poll());
             if self.account.has_imports() {
                 return Ok(self.snapshot());
@@ -457,6 +499,7 @@ impl Spotify {
         drop(file);
         fs::rename(&temporary, &self.path).map_err(|e| e.to_string())?;
         self.library = next;
+        self.metadata_dirty = true;
         Ok(self.snapshot())
     }
 }
