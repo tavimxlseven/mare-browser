@@ -19,7 +19,7 @@ impl Player {
             .map_err(|e| format!("Dispositivo de áudio: {e}"))?;
         stream.log_on_drop(false);
         let sink = Sink::connect_new(stream.mixer());
-        sink.set_volume(volume as f32 / 100.0);
+        sink.set_volume(volume_gain(volume));
         sink.append(source);
         Ok(Self {
             sink,
@@ -57,6 +57,20 @@ impl Player {
             .map_err(|e| format!("Não foi possível buscar nesta faixa: {e}"))
     }
     pub fn volume(&self, volume: u32) {
-        self.sink.set_volume(volume as f32 / 100.0);
+        self.sink.set_volume(volume_gain(volume));
+    }
+}
+fn volume_gain(value: u32) -> f32 {
+    (value.min(100) as f32 / 100.0).powi(2)
+}
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn volume_curve_has_fine_low_level_control_and_bounded_gain() {
+        assert_eq!(super::volume_gain(0), 0.0);
+        assert_eq!(super::volume_gain(100), 1.0);
+        assert_eq!(super::volume_gain(200), 1.0);
+        assert!(super::volume_gain(10) < 0.011);
+        assert!(super::volume_gain(50) > super::volume_gain(49));
     }
 }

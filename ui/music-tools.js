@@ -38,7 +38,10 @@ window.attachMusicTools = function ({
     d.onclose = () => d.remove();
     element.append(d);
     d.showModal();
-    if (!matchMedia("(prefers-reduced-motion: reduce)").matches)
+    if (
+      layout.config.motion !== false &&
+      !matchMedia("(prefers-reduced-motion: reduce)").matches
+    )
       d.animate(
         [
           { opacity: 0, transform: "translateY(10px) scale(.98)" },
@@ -439,18 +442,129 @@ window.attachMusicTools = function ({
       return false;
     },
     configure(d) {
-      d.querySelector("header").insertAdjacentHTML(
-        "afterend",
-        '<section class="music-layout-settings"><h4>Aparência</h4><label>Cantos dos painéis<input data-layout-radius type="range" min="0" max="24" value="' +
-          layout.config.radius +
-          '"></label><label class="music-checkbox"><input data-layout-compact type="checkbox" ' +
-          (layout.config.compact ? "checked" : "") +
-          "> Lista compacta</label><small>Arraste as divisórias para ajustar a biblioteca e a fila. Use as setas com a divisória selecionada; dê dois cliques para restaurar.</small></section>",
-      );
-      d.querySelector("[data-layout-radius]").oninput = (e) =>
-        layout.update({ radius: Number(e.target.value) });
-      d.querySelector("[data-layout-compact]").onchange = (e) =>
-        layout.update({ compact: e.target.checked });
+      const c = layout.config;
+      const group = (label, key, choices) =>
+        `<fieldset class="music-preference-group"><legend>${label}</legend><div class="music-choice-row">${choices.map(([value, name]) => `<button type="button" data-preference="${key}" data-value="${value}" aria-pressed="${c[key] === value}">${name}</button>`).join("")}</div></fieldset>`;
+      const range = (label, key, min, max, unit) =>
+        `<label class="music-setting-range">${label}<output data-output="${key}">${c[key]}${unit}</output><input type="range" data-preference-range="${key}" min="${min}" max="${max}" step="1" value="${c[key]}" aria-label="${label}"></label>`;
+      const target = d.querySelector(".music-appearance-options");
+      target.innerHTML =
+        group("Tema", "theme", [
+          ["light", "Claro"],
+          ["dark", "Escuro"],
+          ["system", "Sistema"],
+        ]) +
+        group("Cor de destaque", "accent", [
+          ["rose", "Rosa"],
+          ["blue", "Azul"],
+          ["green", "Verde"],
+          ["violet", "Violeta"],
+        ]) +
+        range("Tamanho do texto", "textSize", 12, 16, "px") +
+        range("Tamanho das capas", "artworkSize", 120, 220, "px") +
+        range("Cantos das capas", "coverRadius", 0, 24, "px") +
+        range("Cantos dos painéis", "radius", 0, 24, "px") +
+        `<label class="music-setting-switch"><span>Lista compacta<small>Mais músicas no mesmo espaço.</small></span><input data-preference-toggle="compact" type="checkbox" ${c.compact ? "checked" : ""}></label><label class="music-setting-switch"><span>Mostrar capas na lateral</span><input data-preference-toggle="showArtwork" type="checkbox" ${c.showArtwork !== false ? "checked" : ""}></label><label class="music-setting-switch"><span>Animações suaves<small>Respeita a preferência de movimento reduzido do sistema.</small></span><input data-preference-toggle="motion" type="checkbox" ${c.motion !== false ? "checked" : ""}></label><small>Arraste as divisórias para ajustar a biblioteca e a fila. Use as setas no teclado para ajustes finos.</small><button type="button" class="music-secondary" data-reset-appearance>Restaurar aparência</button>`;
+      for (const button of target.querySelectorAll("[data-preference]"))
+        button.onclick = () => {
+          layout.update({ [button.dataset.preference]: button.dataset.value });
+          for (const other of target.querySelectorAll(
+            `[data-preference=${button.dataset.preference}]`,
+          ))
+            other.setAttribute("aria-pressed", String(other === button));
+        };
+      for (const input of target.querySelectorAll("[data-preference-range]"))
+        input.oninput = () => {
+          const key = input.dataset.preferenceRange;
+          layout.update({ [key]: Number(input.value) });
+          target.querySelector(`[data-output=${key}]`).textContent =
+            input.value + "px";
+        };
+      for (const input of target.querySelectorAll("[data-preference-toggle]"))
+        input.onchange = () =>
+          layout.update({ [input.dataset.preferenceToggle]: input.checked });
+      const paper = d.querySelector(".music-wallpaper-options");
+      paper.innerHTML = `<fieldset class="music-preference-group"><legend>Escolha um fundo</legend><div class="music-wallpaper-grid">${[
+        ["none", "Sem fundo"],
+        ["mist", "Névoa"],
+        ["sunset", "Pôr do sol"],
+        ["ocean", "Oceano"],
+        ["custom", "Sua imagem"],
+      ]
+        .map(
+          ([value, name]) =>
+            `<button type="button" data-wallpaper-choice="${value}" aria-pressed="${c.wallpaper === value}" ${value === "custom" && !layout.hasCustomWallpaper ? "disabled" : ""}><span class="music-wallpaper-preview" data-preview="${value}"></span>${name}</button>`,
+        )
+        .join(
+          "",
+        )}</div></fieldset><label class="music-upload-button music-secondary"><input type="file" accept="image/png,image/jpeg,image/webp" data-wallpaper-upload hidden>${icon("plus")} Escolher imagem…</label><small>PNG, JPEG ou WebP, até 12 MB. A imagem é reduzida antes de salvar.</small><p role="status" class="music-wallpaper-status"></p>${group(
+        "Ajuste da imagem",
+        "wallpaperFit",
+        [
+          ["cover", "Preencher"],
+          ["contain", "Ajustar"],
+        ],
+      )}${range("Opacidade dos painéis", "panelOpacity", 85, 100, "%")}${layout.hasCustomWallpaper ? '<button type="button" class="music-secondary" data-remove-wallpaper>Remover imagem salva</button>' : ""}`;
+      for (const button of paper.querySelectorAll("[data-wallpaper-choice]"))
+        button.onclick = () => {
+          layout.update({ wallpaper: button.dataset.wallpaperChoice });
+          for (const other of paper.querySelectorAll("[data-wallpaper-choice]"))
+            other.setAttribute("aria-pressed", String(other === button));
+        };
+      for (const button of paper.querySelectorAll("[data-preference]"))
+        button.onclick = () => {
+          layout.update({ [button.dataset.preference]: button.dataset.value });
+          for (const other of paper.querySelectorAll(
+            `[data-preference=${button.dataset.preference}]`,
+          ))
+            other.setAttribute("aria-pressed", String(other === button));
+        };
+      const opacity = paper.querySelector("[data-preference-range]");
+      opacity.oninput = () => {
+        layout.update({ panelOpacity: Number(opacity.value) });
+        paper.querySelector("[data-output=panelOpacity]").textContent =
+          opacity.value + "%";
+      };
+      paper.querySelector("[data-wallpaper-upload]").onchange = async (
+        event,
+      ) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        const status = paper.querySelector("[role=status]");
+        status.textContent = "Preparando imagem…";
+        event.target.disabled = true;
+        try {
+          await layout.importWallpaper(file);
+          this.configure(d);
+        } catch (error) {
+          status.textContent =
+            error.message || "Não foi possível abrir essa imagem.";
+          event.target.disabled = false;
+          event.target.value = "";
+        }
+      };
+      paper
+        .querySelector("[data-remove-wallpaper]")
+        ?.addEventListener("click", () => {
+          layout.clearWallpaper();
+          this.configure(d);
+        });
+      target.querySelector("[data-reset-appearance]").onclick = () => {
+        layout.update({
+          theme: "light",
+          accent: "rose",
+          textSize: 13,
+          artworkSize: 160,
+          coverRadius: 12,
+          radius: 18,
+          compact: false,
+          motion: true,
+          showArtwork: true,
+          library: 260,
+          queue: 300,
+        });
+        this.configure(d);
+      };
     },
     tick() {
       if (sleepDeadline && Date.now() >= sleepDeadline) {

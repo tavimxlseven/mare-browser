@@ -4,6 +4,16 @@ Este documento separa o que deve ser verificado dos resultados efetivamente regi
 
 ## Verificações automatizadas
 
+### Validação 0.3.6
+
+- 42 testes Rust aprovados, com um teste externo ignorado por padrão; curva de volume e validação/persistência da sessão incluídas.
+- Worker real: volume e fila persistem sem dispositivo de áudio. WAV silencioso próprio: faixa e posição são restauradas pausadas, com retomada por comando após reiniciar o processo.
+- DOM isolado: restauração da fila, agrupamento de 100 eventos de volume, silenciar/restaurar, cinco seções dos ajustes e preferências persistentes.
+- Prévia renderizada no navegador: biblioteca, temas, ajustes, importação/restauração de wallpaper e catálogo Apps com dados fictícios. A importação usou um PNG de teste próprio e conversão real para WebP.
+- Fila de 170 faixas e painel remoto mantiveram os testes anteriores.
+
+A revisão visual usou a interface real em uma prévia isolada, sem contas ou downloads. Não representa validação completa da janela nativa, uso prolongado de áudio ou benchmark. Capturas e ferramentas privadas de revisão ficam fora do repositório.
+
 ### Validação 0.3.5
 
 Windows x64, toolchain GNU local. Formatação, Clippy com todos os recursos e warnings como erros e sintaxe JavaScript aprovados. Testes Rust: 40 aprovados, nenhum reprovado e um teste de rede da Chrome Web Store ignorado por padrão.

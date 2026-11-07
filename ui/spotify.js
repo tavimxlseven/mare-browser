@@ -16,6 +16,8 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
     );
   const $ = (selector) => element.querySelector(selector);
   const glyph = {
+    image:
+      '<rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8" cy="8" r="1.5"/><path d="m4 18 5-5 4 3 3-5 5 7"/>',
     play: '<path d="m9 5 11 7-11 7Z" fill="currentColor" stroke="none"/>',
     pause: '<path d="M8 5v14M16 5v14" stroke-width="5"/>',
     previous: '<path d="M5 5v14m14-14L8 12l11 7Z"/>',
@@ -41,12 +43,106 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
     disposed = false,
     autoStarting = false,
     lastPlaying = null;
+  let sessionLoaded = false,
+    sessionSignature = "";
+  let pendingVolume = null,
+    volumeTimer = 0,
+    volumeSending = false,
+    lastAudibleVolume = 80;
+
+  function saveSessionSoon() {
+    if (!sessionLoaded || disposed) return;
+    flushSession();
+  }
+  function flushSession() {
+    if (!sessionLoaded || disposed) return;
+    const state = {
+      ...playback.snapshot(),
+      filter,
+      playlist: selectedPlaylist,
+    };
+    const value = JSON.stringify(state);
+    if (value === sessionSignature) return;
+    sessionSignature = value;
+    request("save_session", {
+      ...state,
+      revision: data.library_revision,
+    }).catch(() => {
+      sessionSignature = "";
+      if (!disposed) notify("Não foi possível salvar a fila. Tente novamente.");
+    });
+  }
+  function paintVolume(value) {
+    const n = Math.max(0, Math.min(100, Math.round(value)));
+    for (const input of element.querySelectorAll(
+      ".music-volume-slider,[data-settings-volume]",
+    )) {
+      input.value = n;
+      input.style.setProperty("--range-fill", n + "%");
+      input.setAttribute("aria-valuetext", n + "%");
+    }
+    for (const output of element.querySelectorAll(
+      ".music-volume-value,[data-settings-volume-value]",
+    ))
+      output.textContent = n + "%";
+    const mute = $("[data-action=mute]");
+    mute?.setAttribute("aria-pressed", String(n === 0));
+    mute?.setAttribute(
+      "aria-label",
+      n === 0 ? "Restaurar volume" : "Silenciar",
+    );
+  }
+  function setVolume(value, immediate = false) {
+    pendingVolume = Math.max(0, Math.min(100, Math.round(Number(value) || 0)));
+    if (pendingVolume) lastAudibleVolume = pendingVolume;
+    paintVolume(pendingVolume);
+    if (immediate) {
+      clearTimeout(volumeTimer);
+      volumeTimer = 0;
+      return flushVolume();
+    }
+    if (!volumeTimer)
+      volumeTimer = setTimeout(() => {
+        volumeTimer = 0;
+        void flushVolume();
+      }, 70);
+  }
+  async function flushVolume() {
+    if (volumeSending || pendingVolume === null || disposed) return;
+    volumeSending = true;
+    const value = pendingVolume;
+    pendingVolume = null;
+    try {
+      const result = await request("volume", {
+        value,
+        revision: data.library_revision,
+      });
+      if (!disposed && pendingVolume === null) update(result);
+    } catch (error) {
+      if (!disposed) notify(error.message);
+    } finally {
+      volumeSending = false;
+      if (pendingVolume !== null && !disposed) void flushVolume();
+    }
+  }
+  function bindVolume(input) {
+    input.oninput = (e) => setVolume(e.target.value);
+    input.onchange = (e) => setVolume(e.target.value, true);
+    input.addEventListener(
+      "wheel",
+      (event) => {
+        event.preventDefault();
+        setVolume(Number(input.value) + (event.deltaY < 0 ? 1 : -1), true);
+      },
+      { passive: false },
+    );
+  }
 
   /* ── Shell HTML ─────────────────────────────────────────────────────── */
-  element.innerHTML = `<aside class="music-library music-panel"><header><strong>${svg("library")} Sua biblioteca</strong><button data-action="collection" aria-label="Criar playlist">${svg("plus")}</button></header><div class="music-filters"><button data-filter="all">Tudo</button><button data-filter="playlists">Playlists</button><button data-filter="downloaded">Baixadas</button></div><div class="music-library-tools"><button data-action="search" aria-label="Pesquisar na biblioteca">${svg("search")}</button><span>Recentes ${svg("down")}</span></div><button class="music-liked" data-filter="favorites"><span>${svg("heart")}</span><div><strong>Músicas curtidas</strong><small>Curtidas locais</small></div></button><input class="music-library-search" type="search" placeholder="Filtrar biblioteca" aria-label="Filtrar sua biblioteca"><div class="music-collections"></div><div class="music-library-footer"><span>${icon("spotify")} Spotify para Maré</span><small>Biblioteca independente</small></div></aside>
+  element.innerHTML = `<aside class="music-library music-panel"><header><strong>${svg("music")} Música</strong><button data-action="collection" aria-label="Criar playlist">${svg("plus")}</button></header><nav class="music-filters" aria-label="Biblioteca de música"><button data-filter="all">${svg("library")} Biblioteca</button><button data-filter="playlists">${svg("folder")} Playlists e álbuns</button><button data-filter="downloaded">${svg("download")} Baixadas</button></nav><div class="music-library-tools"><button data-action="search" aria-label="Pesquisar na biblioteca">${svg("search")}</button><span>Playlists</span></div><button class="music-liked" data-filter="favorites"><span>${svg("heart")}</span><div><strong>Músicas curtidas</strong><small>Curtidas locais</small></div></button><input class="music-library-search" type="search" placeholder="Filtrar biblioteca" aria-label="Filtrar sua biblioteca"><div class="music-collections"></div><div class="music-library-footer"><button data-action="settings">${svg("settings")} Ajustes de música</button></div></aside>
   <section class="music-main music-panel"><header class="music-toolbar"><label>${svg("search")}<input class="spotify-search" type="search" placeholder="Pesquisar na sua biblioteca" aria-label="Pesquisar na biblioteca"></label><button class="music-account" data-action="account" hidden>Conectar conta</button><button data-action="settings" aria-label="Configurações de música">${svg("settings")}</button></header><div class="music-scroll"><div class="music-heading"><div><small class="music-section-label">Sua música</small><h2>Sua biblioteca</h2><p class="music-subtitle">Seus links e músicas baixadas, em um só lugar.</p></div><button class="music-add" data-action="add">${svg("plus")} Adicionar link</button></div><div class="music-list-heading"><span>#</span><span>Título</span><span>Origem</span><span></span></div><div class="spotify-library"></div></div><div class="music-download" hidden role="status"></div></section>
   <aside class="music-queue music-panel"><header><div class="music-queue-tabs" role="tablist"><button data-action="queue_list" role="tab" aria-selected="true">Fila</button><button data-action="queue_details" role="tab" aria-selected="false">Tocando agora</button></div><button data-action="queue" aria-label="Fechar fila">${svg("close")}</button></header><h3>Tocando agora</h3><div class="music-now"><div class="music-now-art">${svg("music")}</div><strong>Nada tocando</strong><small>Escolha uma faixa baixada.</small></div><h3>A seguir</h3><div class="music-next"></div><p class="music-queue-note">A música continua ao trocar de aba. Feche a aba do app para encerrar a reprodução.</p></aside>
-  <footer class="spotify-player"><div class="music-track"><div class="music-track-art">${svg("music")}</div><div><strong>Nenhuma faixa selecionada</strong><small>Escolha uma música baixada</small></div></div><div class="music-transport"><div><button data-action="shuffle" aria-label="Reprodução aleatória" aria-pressed="false">${svg("shuffle")}</button><button data-action="previous" aria-label="Faixa anterior">${svg("previous")}</button><button class="music-play" data-action="play" aria-label="Reproduzir">${svg("play")}</button><button data-action="next" aria-label="Próxima faixa">${svg("next")}</button><button data-action="repeat" aria-label="Repetir fila" aria-pressed="false">${svg("repeat")}</button></div><label class="music-timeline"><span class="music-position">0:00</span><input type="range" min="0" max="1" value="0" step="1000" class="music-seek" aria-label="Posição da música"><span class="music-duration">0:00</span></label></div><div class="music-volume"><button data-action="sleep_timer" aria-label="Temporizador">${svg("clock")}</button><button data-action="queue" aria-label="Mostrar fila">${svg("queue")}</button>${svg("volume")}<input type="range" min="0" max="100" value="80" class="music-volume-slider" aria-label="Volume"></div></footer>`;
+  <footer class="spotify-player"><div class="music-track"><div class="music-track-art">${svg("music")}</div><div><strong>Nenhuma faixa selecionada</strong><small>Escolha uma música baixada</small></div></div><div class="music-transport"><div><button data-action="shuffle" aria-label="Reprodução aleatória" aria-pressed="false">${svg("shuffle")}</button><button data-action="previous" aria-label="Faixa anterior">${svg("previous")}</button><button class="music-play" data-action="play" aria-label="Reproduzir">${svg("play")}</button><button data-action="next" aria-label="Próxima faixa">${svg("next")}</button><button data-action="repeat" aria-label="Repetir fila" aria-pressed="false">${svg("repeat")}</button></div><label class="music-timeline"><span class="music-position">0:00</span><input type="range" min="0" max="1" value="0" step="1000" class="music-seek" aria-label="Posição da música"><span class="music-duration">0:00</span></label></div><div class="music-volume"><button data-action="sleep_timer" aria-label="Temporizador">${svg("clock")}</button><button data-action="queue" aria-label="Mostrar fila">${svg("queue")}</button><button data-action="mute" aria-label="Silenciar" aria-pressed="false">${svg("volume")}</button><input type="range" min="0" max="100" step="1" value="80" class="music-volume-slider" aria-label="Volume"><output class="music-volume-value">80%</output></div></footer>`;
 
   const playback = new window.MareMusicQueue();
   const musicLayout = window.attachMusicLayout(element);
@@ -94,7 +190,10 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
   function reveal() {
     const list = $(".spotify-library");
     list.getAnimations().forEach((animation) => animation.cancel());
-    if (!matchMedia("(prefers-reduced-motion: reduce)").matches)
+    if (
+      musicLayout.config.motion !== false &&
+      !matchMedia("(prefers-reduced-motion: reduce)").matches
+    )
       list.animate(
         [
           { opacity: 0.5, transform: "translateY(6px)" },
@@ -112,7 +211,10 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
     d.querySelector("[data-dismiss]").onclick = () => d.close();
     d.onclose = () => d.remove();
     d.showModal();
-    if (!matchMedia("(prefers-reduced-motion: reduce)").matches)
+    if (
+      musicLayout.config.motion !== false &&
+      !matchMedia("(prefers-reduced-motion: reduce)").matches
+    )
       d.animate(
         [
           { opacity: 0, transform: "translateY(10px) scale(.98)" },
@@ -196,24 +298,39 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
   function settingsDialog() {
     const p = data.presence || {};
     const d = dialog(
-      "Configurações de música",
-      `<section><h4>Downloads</h4><p>Os componentes internos de busca e download iniciam sob demanda e encerram ao terminar. Links Spotify usam o Sunnify; a busca consulta metadados Spotify pelo XWolf. Nenhum login Spotify é necessário.</p><small>${data.sunnify_available && data.search_available ? "Busca e downloads disponíveis" : "Algum componente de música está ausente neste pacote"}</small><button data-scan>${svg("reload")} Atualizar arquivos baixados</button></section><form class="music-presence"><h4>Discord Rich Presence</h4><p>Compartilhe a música que você está ouvindo pelo Discord instalado. A integração do Maré já está configurada para todos os usuários e não precisa de bot ou token.</p><label class="music-checkbox"><input type="checkbox" name="enabled" ${p.enabled ? "checked" : ""}> Mostrar música no meu perfil</label><small>Estado: ${esc({ disabled: "Desativada", discord_closed: "Abra o Discord no computador", connecting: "Conectando…", ready: "Pronta para compartilhar", active: "Música compartilhada", rejected: "O Discord recusou a atividade" }[p.state] || "Aguardando o Discord")}.</small><button class="music-green">Salvar presença</button></form>`,
+      "Ajustes de música",
+      `<div class="music-settings-shell"><nav class="music-settings-nav" aria-label="Seções dos ajustes"><button data-settings-tab="appearance" aria-current="page">${svg("settings")} Aparência</button><button data-settings-tab="wallpaper">${svg("image")} Fundo</button><button data-settings-tab="playback">${svg("volume")} Reprodução</button><button data-settings-tab="integrations">${svg("share")} Conexões</button><button data-settings-tab="downloads">${svg("download")} Downloads</button></nav><div class="music-settings-content"><section data-settings-pane="appearance"><h4>Do seu jeito</h4><p>Cores, tamanhos e espaço para sua biblioteca.</p><div class="music-appearance-options"></div></section><section data-settings-pane="wallpaper" hidden><h4>Seu fundo</h4><p>Uma imagem para deixar a música com a sua cara. O arquivo fica somente neste computador.</p><div class="music-wallpaper-options"></div></section><section data-settings-pane="playback" hidden><h4>Reprodução</h4><p>Sua fila, playlist, posição e volume são salvos neste computador. Ao reabrir, a música aguarda seu play.</p><label class="music-setting-range">Volume <output data-settings-volume-value>${data.player?.volume ?? 80}%</output><input data-settings-volume type="range" min="0" max="100" step="1" value="${data.player?.volume ?? 80}" aria-label="Volume da reprodução"></label><small>Ajuste fino em volumes baixos. Use as setas para mudar 1% ou a roda do mouse sobre o controle.</small><div class="music-session-summary"><strong>Continuar de onde parou</strong><p>A fila é restaurada com a ordem aleatória e o modo de repetição. Faixas removidas do disco são descartadas da fila.</p></div></section><section data-settings-pane="integrations" hidden><h4>Conexões</h4><form class="music-presence"><label class="music-setting-switch"><span>Discord Rich Presence<small>Mostrar a música no seu perfil do Discord desktop.</small></span><input type="checkbox" name="enabled" ${p.enabled ? "checked" : ""}></label><small role="status" data-presence-status>${esc({ disabled: "Desativada", discord_closed: "Abra o Discord no computador", connecting: "Conectando…", ready: "Pronta para compartilhar", active: "Música compartilhada", rejected: "O Discord recusou a atividade" }[p.state] || "Aguardando o Discord")}</small></form><section class="music-remote-settings"></section></section><section data-settings-pane="downloads" hidden><h4>Downloads</h4><p>As músicas ficam na biblioteca deste computador e liberam o play quando o download termina.</p><div class="music-component-status"><span class="music-status-dot"></span>${data.sunnify_available ? "Downloads disponíveis" : "Componente de download ausente"}</div><button class="music-secondary" data-scan>${svg("reload")} Atualizar músicas baixadas</button><small>Os arquivos concluídos são preservados. A busca online depende da disponibilidade do catálogo.</small></section></div></div>`,
     );
+    d.classList.add("music-settings-dialog");
     musicTools.configure(d);
-    const remoteSection = document.createElement("section");
-    remoteSection.className = "music-remote-settings";
-    d.append(remoteSection);
+    for (const tab of d.querySelectorAll("[data-settings-tab]"))
+      tab.onclick = () => {
+        for (const b of d.querySelectorAll("[data-settings-tab]"))
+          b.setAttribute("aria-current", b === tab ? "page" : "false");
+        for (const pane of d.querySelectorAll("[data-settings-pane]"))
+          pane.hidden = pane.dataset.settingsPane !== tab.dataset.settingsTab;
+      };
     renderRemoteSettings();
-    d.querySelector("[data-scan]").onclick = () => invoke("scan_local");
-    d.querySelector("form").onsubmit = async (event) => {
-      event.preventDefault();
-      if (
-        await invoke("presence_config", {
-          enabled: event.target.elements.enabled.checked,
-        })
-      )
-        d.close();
+    d.querySelector("[data-scan]").onclick = async (event) => {
+      event.currentTarget.disabled = true;
+      await invoke("scan_local");
+      if (d.isConnected) event.target.closest("button").disabled = false;
     };
+    d.querySelector("[name=enabled]").onchange = async (event) => {
+      const input = event.target;
+      input.disabled = true;
+      const result = await invoke("presence_config", {
+        enabled: input.checked,
+      });
+      if (!result) input.checked = !input.checked;
+      input.disabled = false;
+      d.querySelector("[data-presence-status]").textContent = result
+        ? input.checked
+          ? "Compartilhamento ativado"
+          : "Compartilhamento desativado"
+        : "Não foi possível salvar. Tente novamente.";
+    };
+    bindVolume(d.querySelector("[data-settings-volume]"));
   }
 
   function renderRemoteSettings() {
@@ -237,7 +354,7 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
             : "") +
           '<p>Código de pareamento</p><strong class="music-pair-code">' +
           esc(remote.code) +
-          "</strong><small>Expira em cinco minutos. Conexão HTTP para uma rede confiável.</small><div><button data-remote-renew>Renovar código</button><button data-remote-disable>Desativar controle</button></div>"
+          "</strong><small>Código válido por cinco minutos. Use uma Wi-Fi confiável (HTTP).</small><div><button data-remote-renew>Renovar código</button><button data-remote-disable>Desativar controle</button></div>"
         : '<p>Desligado. Ative somente quando quiser conectar seu celular.</p><button class="music-green" data-remote-enable>Ativar na Wi-Fi</button>');
     section
       .querySelector("[data-remote-enable]")
@@ -419,6 +536,7 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
 
   /* ── renderLibrary ──────────────────────────────────────────────────── */
   function renderLibrary() {
+    saveSessionSoon();
     const busy = downloadRequestPending || data.download?.state === "running";
     const next = JSON.stringify([
       data.artwork,
@@ -615,6 +733,8 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
     visualFrame = 0;
     if (
       disposed ||
+      musicLayout.config.motion === false ||
+      matchMedia("(prefers-reduced-motion: reduce)").matches ||
       data.player?.state !== "playing" ||
       !element.getClientRects().length
     )
@@ -638,6 +758,7 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
       data.player?.state === "playing" &&
       !visualFrame &&
       element.getClientRects().length &&
+      musicLayout.config.motion !== false &&
       !matchMedia("(prefers-reduced-motion: reduce)").matches
     )
       visualFrame = requestAnimationFrame(smoothProgress);
@@ -699,8 +820,9 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
     seek.disabled = !track;
     seek.max = String(Math.max(1, player.duration_ms || 1));
     if (document.activeElement !== seek) seek.value = player.position_ms || 0;
-    if (document.activeElement !== $(".music-volume-slider"))
-      $(".music-volume-slider").value = player.volume ?? 80;
+    if (pendingVolume === null && !volumeSending)
+      paintVolume(player.volume ?? 80);
+    saveSessionSoon();
 
     // queue list
     const queueSignature = JSON.stringify([
@@ -968,6 +1090,7 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
       const queue = $(".music-queue");
       if (
         !element.classList.contains("queue-hidden") &&
+        musicLayout.config.motion !== false &&
         !matchMedia("(prefers-reduced-motion: reduce)").matches
       )
         queue.animate(
@@ -1018,6 +1141,14 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
     }
     if (action === "next" || action === "previous")
       return step(action === "next" ? 1 : -1);
+    if (action === "mute") {
+      const current = Number($(".music-volume-slider").value);
+      if (current > 0) {
+        lastAudibleVolume = current;
+        setVolume(0, true);
+      } else setVolume(lastAudibleVolume || 50, true);
+      return;
+    }
     if (action === "play") {
       if (data.player?.state === "playing") return invoke("pause");
       if (data.player?.state === "paused") return invoke("resume");
@@ -1128,8 +1259,7 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
   };
   $(".music-seek").onchange = (event) =>
     invoke("seek", { position_ms: Number(event.target.value) });
-  $(".music-volume-slider").onchange = (event) =>
-    invoke("volume", { value: Number(event.target.value) });
+  bindVolume($(".music-volume-slider"));
 
   /* ── State update (merge delta) ─────────────────────────────────────── */
   function update(result) {
@@ -1148,6 +1278,37 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
       result.download?.state !== data.download?.state;
     data = { ...data, ...result };
     data.local_tracks ||= [];
+    if (!sessionLoaded && result.session) {
+      sessionLoaded = true;
+      const saved = result.session;
+      playback.restore(
+        saved,
+        new Set(data.local_tracks.filter((t) => t.available).map((t) => t.id)),
+      );
+      if (typeof saved.filter === "string") filter = saved.filter;
+      selectedPlaylist = data.entries.some((e) => e.uri === saved.playlist)
+        ? saved.playlist
+        : null;
+      sessionSignature = JSON.stringify({
+        ...playback.snapshot(),
+        filter,
+        playlist: selectedPlaylist,
+      });
+      for (const action of ["shuffle", "repeat"])
+        $(`[data-action=${action}]`).setAttribute(
+          "aria-pressed",
+          String(
+            action === "shuffle"
+              ? playback.shuffled
+              : playback.repeat !== "off",
+          ),
+        );
+      $(`[data-action=repeat]`).dataset.mode = playback.repeat;
+      if (selectedPlaylist)
+        request("open_playlist", { uri: selectedPlaylist })
+          .then(update)
+          .catch(() => {});
+    }
     playback.prune(
       new Set(data.local_tracks.filter((t) => t.available).map((t) => t.id)),
     );
@@ -1199,7 +1360,7 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
         params.value >= 0 &&
         params.value <= 100
       )
-        return invoke("volume", { value: params.value });
+        return setVolume(params.value, true);
       if (
         action === "seek" &&
         Number.isInteger(params.position_ms) &&
@@ -1214,7 +1375,10 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
     },
     load: () => invoke("list"),
     dispose: () => {
+      flushSession();
+      flushVolume();
       disposed = true;
+      clearTimeout(volumeTimer);
       musicLayout.dispose();
       musicTools.dispose();
       cancelAnimationFrame(visualFrame);

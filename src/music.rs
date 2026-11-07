@@ -49,6 +49,8 @@ pub struct Music {
     current: Option<u64>,
     audio: Option<crate::audio::Player>,
     volume: u32,
+    session: crate::music_session::Session,
+    checkpoint_at: std::time::Instant,
     revision: u64,
     completed: BTreeSet<String>,
     pub presence: crate::presence::Presence,
@@ -175,15 +177,22 @@ impl Music {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Vec::new(),
             Err(e) => return Err(e.to_string()),
         };
+        let mut session = crate::music_session::Session::load(directory);
+        let tracks: Vec<Track> = tracks;
+        session.track_id = session
+            .track_id
+            .filter(|id| tracks.iter().any(|t| t.id == *id && t.path.is_file()));
         Ok(Self {
             directory: directory.into(),
             tracks,
             catalog: BTreeMap::new(),
             download: None,
             last_download: json!({"state":"idle"}),
-            current: None,
+            current: session.track_id,
             audio: None,
-            volume: 80,
+            volume: session.volume,
+            session,
+            checkpoint_at: std::time::Instant::now(),
             revision: 0,
             completed: match fs::read(directory.join("completed-downloads.json")) {
                 Ok(bytes) if bytes.len() <= 131072 => serde_json::from_slice(&bytes)
@@ -342,11 +351,18 @@ impl Music {
     pub fn snapshot_since(&mut self, known_revision: Option<u64>) -> Value {
         self.poll_download();
         self.apply_catalog();
-        let (mode, position, duration) = self
-            .audio
-            .as_ref()
-            .map(|p| p.snapshot())
-            .unwrap_or(("stopped", 0, 0));
+        let (mode, position, duration) =
+            self.audio
+                .as_ref()
+                .map(|p| p.snapshot())
+                .unwrap_or(if self.current.is_some() {
+                    ("paused", self.session.position_ms, self.session.duration_ms)
+                } else {
+                    ("stopped", 0, 0)
+                });
+        if self.audio.is_some() && self.checkpoint_at.elapsed().as_secs() >= 10 {
+            let _ = self.checkpoint();
+        }
         let track = self
             .current
             .and_then(|id| self.tracks.iter().find(|t| t.id == id));
@@ -358,6 +374,7 @@ impl Music {
             track.map(|t| t.artwork.as_str()).unwrap_or(""),
         );
         let mut snapshot = json!({"library_revision":self.revision,"player":{"track_id":self.current,"state":mode,"position_ms":position,"duration_ms":duration,"volume":self.volume},"download":self.last_download,"sunnify_available":crate::components::executable("sunnify").is_some(),"downloader_pid":self.download.as_ref().map(|d|d.child.id()),"presence":self.presence.snapshot()});
+        snapshot["session"] = self.session.ui.clone();
         if known_revision != Some(self.revision) {
             snapshot["completed_sources"] = json!(self.completed);
             snapshot["local_tracks"]=json!(self.tracks.iter().map(|t|json!({"id":t.id,"title":t.title,"artists":t.artists,"source_uri":t.source_uri,"track_uri":t.track_uri,"artwork":t.artwork,"available":t.path.is_file()})).collect::<Vec<_>>());
@@ -367,6 +384,10 @@ impl Music {
     pub fn handle(&mut self, method: &str, params: &Value) -> Result<(), String> {
         self.poll_download();
         match method {
+            "save_session" => {
+                self.session.ui = crate::music_session::validate_ui(params)?;
+                self.checkpoint()?;
+            }
             "delete_local" => {
                 if self.download.is_some() {
                     return Err("Aguarde ou cancele o download antes de excluir uma música.".into());
@@ -579,6 +600,12 @@ impl Music {
                     return Err("Arquivo fora da biblioteca local.".into());
                 }
                 let audio = crate::audio::Player::open(&path, self.volume)?;
+                if params["resume"] == true
+                    && self.session.track_id == Some(id)
+                    && self.session.position_ms < self.session.duration_ms
+                {
+                    audio.seek(self.session.position_ms)?;
+                }
                 self.audio = Some(audio);
                 self.current = Some(id);
                 if let Some(track) = self.tracks.iter_mut().find(|t| t.id == id) {
@@ -606,6 +633,10 @@ impl Music {
                 self.audio.as_ref().ok_or("Selecione uma faixa.")?.pause();
             }
             "resume" => {
+                if self.audio.is_none() {
+                    let id = self.current.ok_or("Selecione uma faixa.")?;
+                    return self.handle("play_local", &json!({"id":id,"resume":true}));
+                }
                 self.audio.as_ref().ok_or("Selecione uma faixa.")?.resume();
             }
             "stop" => {
@@ -631,11 +662,33 @@ impl Music {
             "presence_config" => self.presence.configure(params)?,
             _ => return Err("Operação de áudio desconhecida.".into()),
         }
+        if matches!(
+            method,
+            "volume" | "play_local" | "pause" | "stop" | "seek" | "delete_local"
+        ) {
+            self.checkpoint()?;
+        }
+        Ok(())
+    }
+    fn checkpoint(&mut self) -> Result<(), String> {
+        if let Some(audio) = &self.audio {
+            let (_, position, duration) = audio.snapshot();
+            self.session.position_ms = position;
+            self.session.duration_ms = duration;
+        } else if self.current != self.session.track_id || self.current.is_none() {
+            self.session.position_ms = 0;
+            self.session.duration_ms = 0;
+        }
+        self.session.track_id = self.current;
+        self.session.volume = self.volume;
+        self.session.save(&self.directory)?;
+        self.checkpoint_at = std::time::Instant::now();
         Ok(())
     }
 }
 impl Drop for Music {
     fn drop(&mut self) {
+        let _ = self.checkpoint();
         self.audio = None;
         if let Some(mut download) = self.download.take() {
             let _ = download.child.kill();

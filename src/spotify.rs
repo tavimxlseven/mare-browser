@@ -329,9 +329,13 @@ impl Spotify {
                 | "stop"
                 | "seek"
                 | "volume"
+                | "save_session"
                 | "presence_config"
         ) {
             self.music.handle(method, params)?;
+            if matches!(method, "volume" | "save_session") {
+                return Ok(self.music.snapshot_since(params["revision"].as_u64()));
+            }
             return Ok(self.snapshot());
         }
         let mut next = self.library.clone();

@@ -21,6 +21,16 @@ O app reúne uma biblioteca de links Spotify, downloads em segundo plano e repro
 
 O Sunnify consulta metadados Spotify e busca o áudio correspondente no YouTube, com seu próprio matcher, yt-dlp, FFmpeg e gravador de tags. Ele **não baixa o fluxo de áudio do Spotify**. O resultado e a disponibilidade dependem da fonte e da rede; falhas são mostradas sem inventar um arquivo ou uma reprodução. Use downloads para conteúdo que você pode baixar. O binário original do Sunnify não foi modificado.
 
+## Aparência e sessão
+
+Em **Ajustes de música**, a navegação separa Aparência, Fundo, Reprodução, Conexões e Downloads. Há temas claro/escuro/sistema, quatro cores de destaque, tamanho de texto e capas, cantos, lista compacta e controle de animações. As divisórias continuam redimensionáveis por mouse ou teclado.
+
+Em **Fundo**, escolha um dos três fundos ou importe PNG/JPEG/WebP de até 12 MB e 40 megapixels. O app reduz a imagem para até 1600 pixels, converte para WebP e salva até 768 KiB no armazenamento local da interface. Nenhuma imagem é enviada a serviços externos. A opção de encaixe e a opacidade dos painéis mantêm o conteúdo legível. O fundo e as preferências acompanham o perfil separado da instalação.
+
+A sessão de reprodução fica em `apps/spotify/playback-session.json`: volume, faixa, posição, contexto da playlist, fila, aleatório e repetição. Ao reabrir o app, a faixa aguarda play; o Maré não começa a tocar sozinho. A posição é gravada em intervalos de dez segundos durante a reprodução e também ao pausar/fechar normalmente. Um encerramento forçado pode perder os últimos segundos. Faixas ausentes são descartadas da fila ao restaurar.
+
+O volume responde durante o arraste com eventos agrupados, passos de 1%, roda do mouse e restauração após silenciar. A curva de ganho quadrática oferece ajuste mais fino em níveis baixos; o percentual é uma escala de controle, não uma medida de volume acústico. Esse ajuste não altera o arquivo de áudio.
+
 ## Conta Spotify — adiada nesta versão
 
 O botão de login está oculto na 0.3.3, e nenhum Client ID foi embutido. Os detalhes abaixo descrevem o código experimental para uma futura reativação, não uma integração de conta disponível nesta release. Consulte [IDs e configuração](INTEGRATIONS.md).

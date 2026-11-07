@@ -3139,3 +3139,169 @@ button {
 .spotify-app [hidden] {
   display: none !important;
 }
+
+/* Apps: an editorial shelf followed by the installed catalog. */
+.store-panel {
+  width: min(940px, 96vw) !important;
+  padding: 28px !important;
+}
+.store-panel .dialog-heading {
+  margin-bottom: 22px;
+}
+.store-panel .dialog-heading h2 {
+  font-size: 28px;
+  letter-spacing: -0.8px;
+}
+.apps-editorial {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 30px;
+  margin-bottom: 28px;
+  overflow: hidden;
+}
+.apps-editorial > div:first-child {
+  max-width: 48ch;
+}
+.apps-editorial span {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.apps-editorial h3 {
+  font-size: 31px;
+  line-height: 1.1;
+  letter-spacing: -0.9px;
+  font-weight: 700;
+  margin: 10px 0;
+}
+.apps-editorial p {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted);
+  margin: 0;
+}
+.apps-editorial-icons {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.apps-editorial-icons svg {
+  width: 46px;
+  height: 46px;
+  padding: 10px;
+  box-sizing: content-box;
+  background: var(--hover);
+  border-radius: 16px;
+  color: var(--ink);
+}
+.apps-editorial-icons svg:first-child {
+  color: #20be64;
+}
+.apps-editorial-icons svg:nth-child(2) {
+  color: #b59843;
+}
+.apps-editorial-icons svg:nth-child(3) {
+  color: #818cf8;
+}
+.apps-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 16px;
+}
+.apps-section-heading h3 {
+  font-size: 18px;
+  letter-spacing: -0.4px;
+  margin: 0;
+}
+.apps-section-heading span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.store-catalog {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 22px;
+}
+.store-app {
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr);
+  gap: 13px 14px;
+  align-content: start;
+  border: 1px solid var(--line);
+  padding: 20px;
+  border-radius: 12px;
+  background: var(--surface);
+}
+.store-app-icon {
+  height: 62px;
+  width: 62px;
+  border-radius: 14px;
+  grid-row: 1 / 3;
+}
+.store-app-info h3 {
+  font-size: 16px;
+  margin: 2px 0 6px;
+}
+.store-app-info p {
+  font-size: 12px;
+  line-height: 1.5;
+  min-height: 36px;
+  margin: 0 0 8px;
+}
+.store-app-info > span {
+  font-size: 11px;
+}
+.store-app-actions {
+  grid-column: 2;
+  justify-content: flex-start;
+}
+.store-app-actions .button {
+  border-radius: 99px;
+  min-width: 80px;
+  min-height: 30px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.store-app-actions .button:not(.primary) {
+  background: var(--hover);
+  color: var(--accent);
+  border: 0;
+}
+.store-footer {
+  padding-top: 16px;
+}
+@media (max-width: 800px) {
+  .apps-editorial-icons svg:nth-child(n + 2) {
+    display: none;
+  }
+  .apps-editorial h3 {
+    font-size: 26px;
+  }
+  .store-app {
+    padding: 16px;
+    grid-template-columns: 48px minmax(0, 1fr);
+  }
+  .store-app-icon {
+    width: 48px;
+    height: 48px;
+  }
+}
+@media (max-width: 600px) {
+  .store-catalog {
+    grid-template-columns: 1fr;
+  }
+  .apps-editorial {
+    padding: 22px;
+  }
+  .apps-section-heading span {
+    display: none;
+  }
+}

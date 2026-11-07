@@ -29,6 +29,36 @@
     current() {
       return this.order[this.position] ?? null;
     }
+    snapshot() {
+      return {
+        order: [...this.order],
+        original: [...this.original],
+        position: this.position,
+        shuffled: this.shuffled,
+        repeat: this.repeat,
+      };
+    }
+    restore(value, available) {
+      const valid = (items) =>
+        Array.isArray(items)
+          ? items
+              .slice(0, 2000)
+              .filter((id) => Number.isSafeInteger(id) && available.has(id))
+          : [];
+      const raw = Array.isArray(value?.order) ? value.order.slice(0, 2000) : [];
+      const position = Number.isInteger(value?.position)
+        ? Math.max(-1, Math.min(value.position, raw.length - 1))
+        : -1;
+      this.order = valid(raw);
+      this.original = [...new Set(valid(value?.original))];
+      for (const id of this.order)
+        if (!this.original.includes(id)) this.original.push(id);
+      this.position = valid(raw.slice(0, position + 1)).length - 1;
+      this.shuffled = value?.shuffled === true;
+      this.repeat = ["off", "all", "one"].includes(value?.repeat)
+        ? value.repeat
+        : "off";
+    }
     upcoming() {
       return this.order.slice(this.position + 1);
     }

@@ -3,12 +3,33 @@ window.attachMusicLayout = function (element) {
   let config = {
     library: 260,
     queue: 300,
-    radius: 12,
+    radius: 18,
     compact: false,
     queueHidden: false,
+    theme: "light",
+    accent: "rose",
+    textSize: 13,
+    artworkSize: 160,
+    coverRadius: 12,
+    motion: true,
+    showArtwork: true,
+    wallpaper: "none",
+    wallpaperFit: "cover",
+    panelOpacity: 94,
   };
   try {
     config = { ...config, ...JSON.parse(localStorage.getItem(key) || "{}") };
+  } catch {}
+  const wallpaperKey = "mare.music.wallpaper.v1";
+  let customWallpaper = "";
+  let appliedWallpaper = null;
+  try {
+    const stored = localStorage.getItem(wallpaperKey) || "";
+    if (
+      stored.length <= 786432 &&
+      /^data:image\/(webp|jpeg|png);base64,[A-Za-z0-9+/=]+$/.test(stored)
+    )
+      customWallpaper = stored;
   } catch {}
   let frame = 0,
     active = null;
@@ -21,6 +42,55 @@ window.attachMusicLayout = function (element) {
   };
   function apply() {
     const width = element.clientWidth;
+    const paper = ["none", "mist", "sunset", "ocean", "custom"].includes(
+      config.wallpaper,
+    )
+      ? config.wallpaper
+      : "none";
+    element.dataset.musicWallpaper = paper;
+    element.classList.toggle(
+      "music-has-wallpaper",
+      paper !== "none" && (paper !== "custom" || !!customWallpaper),
+    );
+    if (appliedWallpaper !== customWallpaper) {
+      element.style.setProperty(
+        "--music-custom-wallpaper",
+        customWallpaper ? `url("${customWallpaper}")` : "none",
+      );
+      appliedWallpaper = customWallpaper;
+    }
+    element.style.setProperty(
+      "--music-wallpaper-fit",
+      config.wallpaperFit === "contain" ? "contain" : "cover",
+    );
+    element.style.setProperty(
+      "--music-panel-opacity",
+      clamp(config.panelOpacity, 85, 100) + "%",
+    );
+    element.dataset.musicTheme = ["light", "dark", "system"].includes(
+      config.theme,
+    )
+      ? config.theme
+      : "light";
+    element.dataset.musicAccent = ["rose", "blue", "green", "violet"].includes(
+      config.accent,
+    )
+      ? config.accent
+      : "rose";
+    element.classList.toggle("music-still", config.motion === false);
+    element.classList.toggle("music-no-artwork", config.showArtwork === false);
+    element.style.setProperty(
+      "--music-text-size",
+      clamp(config.textSize, 12, 16) + "px",
+    );
+    element.style.setProperty(
+      "--music-artwork-size",
+      clamp(config.artworkSize, 120, 220) + "px",
+    );
+    element.style.setProperty(
+      "--music-cover-radius",
+      clamp(config.coverRadius, 0, 24) + "px",
+    );
     element.classList.toggle("music-narrow", width < 1050);
     element.classList.toggle("music-compact", !!config.compact);
     element.classList.toggle("queue-hidden", !!config.queueHidden);
@@ -154,6 +224,68 @@ window.attachMusicLayout = function (element) {
   apply();
   return {
     config,
+    get hasCustomWallpaper() {
+      return !!customWallpaper;
+    },
+    async importWallpaper(file) {
+      if (
+        !file ||
+        !["image/png", "image/jpeg", "image/webp"].includes(file.type)
+      )
+        throw Error("Escolha uma imagem PNG, JPEG ou WebP.");
+      if (file.size > 12 * 1024 * 1024)
+        throw Error("Escolha uma imagem de até 12 MB.");
+      let bitmap;
+      try {
+        bitmap = await createImageBitmap(file);
+      } catch {
+        throw Error(
+          "Não foi possível abrir a imagem. Escolha outro PNG, JPEG ou WebP.",
+        );
+      }
+      try {
+        if (bitmap.width * bitmap.height > 40000000)
+          throw Error("A imagem é muito grande. Use até 40 megapixels.");
+        const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+        canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+        canvas
+          .getContext("2d")
+          .drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+        let image = canvas.toDataURL("image/webp", 0.82);
+        if (image.length > 786432) image = canvas.toDataURL("image/webp", 0.55);
+        if (
+          image.length > 786432 ||
+          !/^data:image\/webp;base64,[A-Za-z0-9+/=]+$/.test(image)
+        )
+          throw Error(
+            "Não foi possível preparar essa imagem. Tente outra menor.",
+          );
+        try {
+          localStorage.setItem(wallpaperKey, image);
+        } catch {
+          throw Error(
+            "Sem espaço para salvar o fundo. Escolha uma imagem menor.",
+          );
+        }
+        customWallpaper = image;
+        config.wallpaper = "custom";
+        apply();
+        save();
+      } finally {
+        bitmap.close();
+      }
+    },
+    clearWallpaper() {
+      try {
+        localStorage.removeItem(wallpaperKey);
+      } catch {}
+      customWallpaper = "";
+      config.wallpaper = "none";
+      apply();
+      save();
+    },
     update(values) {
       Object.assign(config, values);
       apply();

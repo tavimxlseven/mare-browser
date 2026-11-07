@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.6 — 2026-11-07
+
+- Redesign the music library with a top player, softer panels, adjustable artwork and light/dark themes.
+- Organize music settings into appearance, backgrounds, playback, connections and downloads.
+- Add private local wallpaper import, built-in backgrounds, fit controls and panel opacity.
+- Persist playback volume, paused position, playlist context and queue order across worker restarts without autoplay.
+- Coalesce volume gestures, add mute restoration and use a finer low-volume gain curve.
+- Rename the app catalog to Apps and present its real entries in an App Store-inspired shelf.
+
 ## 0.3.5 — 2026-11-06
 
 - Integrate the music workspace redesign while keeping library, queue, download and native playback contracts.

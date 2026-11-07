@@ -13,6 +13,7 @@ mod model;
 mod music;
 mod music_remote;
 mod music_search;
+mod music_session;
 mod native_app;
 mod permissions;
 mod playlist;

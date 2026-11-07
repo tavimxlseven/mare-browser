@@ -1566,15 +1566,24 @@
   }
   function storeRows() {
     const catalog = state.apps?.catalog || [];
+    const descriptions = {
+      notes: "Suas ideias, sempre à mão.",
+      calculator: "Contas rápidas sem sair da navegação.",
+      spotify: "Sua biblioteca, playlists e músicas em um só lugar.",
+      discord: "Converse com suas comunidades, numa aba do Maré.",
+    };
     return catalog.length
-      ? catalog
+      ? [...catalog]
+          .sort((a, b) =>
+            a.id === "spotify" ? -1 : b.id === "spotify" ? 1 : 0,
+          )
           .map((app) => {
             const available =
               app.status !== "planned" && app.installable !== false;
             const stopping = (state.apps?.stopping || []).some(
               (process) => process.id === app.id,
             );
-            return `<article class="store-app" data-app-row="${esc(app.id)}"><div class="store-app-icon app-icon-${esc(app.id)}">${icon(appIcon(app))}</div><div class="store-app-info"><h3>${esc(app.name)}</h3><p>${esc(app.description)}</p><span>${available ? (app.kind === "web" ? "Aplicativo web oficial" : app.kind === "external-native" ? "Cliente nativo Zig/SDL" : "Aplicativo nativo Rust") : "Em desenvolvimento"}${app.version ? ` · ${esc(app.version)}` : ""}</span></div><div class="store-app-actions">${available ? `<button class="button${app.installed ? "" : " primary"}" data-app-action="${app.installed ? "open" : "install"}" data-app-id="${esc(app.id)}" ${stopping ? "disabled" : ""}>${stopping ? "Encerrando…" : app.running ? "Em execução" : app.installed ? "Abrir" : "Instalar"}</button>${app.installed && !app.running && !stopping ? `<button class="store-remove" data-app-action="uninstall" data-app-id="${esc(app.id)}" aria-label="Remover ${esc(app.name)}" title="Remover aplicativo">${icon("trash")}</button>` : ""}` : `<span class="planned-label">${app.status === "component_missing" ? "Não incluído" : "Planejado"}</span>`}</div></article>`;
+            return `<article class="store-app" data-app-row="${esc(app.id)}"><div class="store-app-icon app-icon-${esc(app.id)}">${icon(appIcon(app))}</div><div class="store-app-info"><h3>${esc(app.name)}</h3><p>${esc(descriptions[app.id] || app.description)}</p><span>${app.running ? "Aberto agora" : app.installed ? "Na sua biblioteca" : app.kind === "web" ? "Comunicação" : app.id === "spotify" ? "Música" : "Produtividade"}</span></div><div class="store-app-actions">${available ? `<button class="button${app.installed ? "" : " primary"}" data-app-action="${app.installed ? "open" : "install"}" data-app-id="${esc(app.id)}" ${stopping ? "disabled" : ""}>${stopping ? "Encerrando…" : app.running ? "Em execução" : app.installed ? "Abrir" : "Instalar"}</button>${app.installed && !app.running && !stopping ? `<button class="store-remove" data-app-action="uninstall" data-app-id="${esc(app.id)}" aria-label="Remover ${esc(app.name)}" title="Remover aplicativo">${icon("trash")}</button>` : ""}` : `<span class="planned-label">${app.status === "component_missing" ? "Não incluído" : "Planejado"}</span>`}</div></article>`;
           })
           .join("")
       : '<div class="store-empty">O catálogo de aplicativos ainda não está disponível.</div>';
@@ -1582,8 +1591,8 @@
   function showStore() {
     showOverlay(
       "store",
-      "Loja do Maré",
-      `<p class="store-intro">Aplicativos nativos em abas. Alterne entre eles e a navegação sem encerrar seus aplicativos.</p><div class="store-catalog" id="store-catalog">${storeRows()}</div><div class="store-footer"><span id="store-running"></span><span>Instalação local</span></div>`,
+      "Apps",
+      `<div class="apps-editorial"><div><span>Seu espaço no Maré</span><h3>Seus apps. No mesmo lugar.</h3><p>Música, conversas e pequenas ferramentas para o seu dia.</p></div><div class="apps-editorial-icons" aria-hidden="true">${icon("spotify")}${icon("notes")}${icon("discord")}</div></div><div class="apps-section-heading"><h3>Explore os apps</h3><span>Feitos para abrir em abas</span></div><div class="store-catalog" id="store-catalog">${storeRows()}</div><div class="store-footer"><span id="store-running"></span><span>Sua biblioteca no Maré</span></div>`,
       "store-panel",
     );
     bindStore();
@@ -1691,7 +1700,7 @@
       };
     document.title = `${app.name} — Maré`;
     if (!ui.workspaceBuilt) {
-      workspace.innerHTML = `<header class="native-app-header"><button class="button app-back" id="app-back">${icon("back")}Voltar à navegação</button><div class="native-app-name"><span id="app-title-icon"></span><h1 id="app-title"></h1></div><button class="icon-button" id="app-store" title="Loja do Maré" aria-label="Loja do Maré">${icon("apps")}</button></header><div class="native-app-body" id="native-app-body"></div><footer class="native-app-footer"><span id="app-status"></span><span>Aplicativo Rust</span></footer>`;
+      workspace.innerHTML = `<header class="native-app-header"><button class="button app-back" id="app-back">${icon("back")}Voltar à navegação</button><div class="native-app-name"><span id="app-title-icon"></span><h1 id="app-title"></h1></div><button class="icon-button" id="app-store" title="Apps" aria-label="Apps">${icon("apps")}</button></header><div class="native-app-body" id="native-app-body"></div><footer class="native-app-footer"><span id="app-status"></span><span>Aplicativo Rust</span></footer>`;
       $("#app-back").onclick = () => leaveApp();
       $("#app-store").onclick = showStore;
       ui.workspaceBuilt = true;

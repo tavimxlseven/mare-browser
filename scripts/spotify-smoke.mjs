@@ -80,6 +80,25 @@ try {
   assert.ok(delta.player);
   assert.equal(delta.local_tracks, undefined);
   assert.equal(delta.entries, undefined);
+  const emptySession = {
+    order: [],
+    original: [],
+    position: -1,
+    shuffled: true,
+    repeat: "all",
+    filter: "favorites",
+    playlist: null,
+  };
+  await call("volume", { value: 31 });
+  await call("save_session", emptySession);
+  await stop();
+  start();
+  state = await call("list");
+  assert.equal(state.player.volume, 31);
+  assert.deepEqual(state.session, emptySession);
+  console.log(
+    "PASS native playback preferences and empty queue persist without an audio device",
+  );
   if (!state.account.configured) await assert.rejects(call("account_begin"));
   if (process.argv.includes("--audio")) {
     const audio = join(directory, "audio");
@@ -112,8 +131,34 @@ try {
     assert.ok(state.player.position_ms >= 4900);
     state = await call("volume", { value: 20 });
     assert.equal(state.player.volume, 20);
+    const playingId = state.player.track_id;
+    const savedQueue = {
+      order: [playingId],
+      original: [playingId],
+      position: 0,
+      shuffled: true,
+      repeat: "all",
+      filter: "downloaded",
+      playlist: null,
+    };
+    await call("save_session", savedQueue);
+    await assert.rejects(
+      call("save_session", { ...savedQueue, order: ["file:///invalid"] }),
+    );
+    await stop();
+    start();
+    state = await call("list");
+    assert.equal(state.player.volume, 20);
+    assert.equal(state.player.track_id, playingId);
+    assert.equal(state.player.state, "paused");
+    assert.ok(state.player.position_ms >= 4900);
+    assert.deepEqual(state.session, savedQueue);
     state = await call("resume");
     assert.equal(state.player.state, "playing");
+    assert.ok(state.player.position_ms >= 4900);
+    console.log(
+      "PASS volume, paused position and shuffled queue survive a worker restart without autoplay",
+    );
     state = await call("stop");
     assert.equal(state.player.track_id, null);
     console.log(
