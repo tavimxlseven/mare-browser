@@ -1,10 +1,13 @@
-const CACHE = "mare-music-shell-v4";
+const CACHE = "mare-music-shell-v5";
 const SHELL = [
   "/",
   "/style.css",
+  "/account-player.css",
   "/app.js",
   "/icons.js",
   "/library.js",
+  "/accounts.js",
+  "/player-ui.js",
   "/manifest.webmanifest",
   "/icon-180.png",
   "/icon-192.png",
@@ -33,7 +36,8 @@ self.addEventListener("fetch", (event) => {
     url.origin !== self.location.origin ||
     event.request.method !== "GET" ||
     url.pathname.startsWith("/api/") ||
-    url.pathname.startsWith("/media/")
+    url.pathname.startsWith("/media/") ||
+    url.pathname.startsWith("/artwork/")
   )
     return;
   event.respondWith(

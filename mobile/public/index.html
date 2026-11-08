@@ -16,6 +16,7 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-180.png" />
     <link rel="stylesheet" href="/style.css" />
+    <link rel="stylesheet" href="/account-player.css" />
   </head>
   <body>
     <section id="install" class="welcome">
@@ -26,13 +27,22 @@
       <div class="install-steps">
         <div>
           <span data-icon="share"></span>
-          <p>No Safari, abra <strong>Compartilhar</strong>.</p>
+          <p>
+            <span id="install-step-one">No Safari, abra Compartilhar.</span>
+          </p>
         </div>
         <div>
           <span data-icon="plus"></span>
-          <p>Toque em <strong>Adicionar à Tela de Início</strong>.</p>
+          <p>
+            <span id="install-step-two"
+              >Toque em Adicionar à Tela de Início.</span
+            >
+          </p>
         </div>
       </div>
+      <button id="install-button" class="primary" hidden>
+        Instalar Maré Música
+      </button>
       <p class="hint">
         Abra pelo ícone do Maré para entrar. Depois de salvas, suas músicas
         também tocam offline.
@@ -41,10 +51,26 @@
     <section id="login" class="welcome" hidden>
       <img class="app-icon" src="/icon-192.png" width="76" height="76" alt="" />
       <p class="brand-label">Maré Música</p>
-      <h1>Bom ter você<br />por aqui.</h1>
-      <p>Entre na sua biblioteca particular.</p>
+      <h1 id="auth-title">Bom ter você por aqui.</h1>
+      <p id="auth-description">Entre para abrir suas playlists.</p>
+      <div class="auth-tabs" role="tablist" aria-label="Acesso">
+        <button id="login-tab" role="tab" aria-selected="true">Entrar</button>
+        <button id="register-tab" role="tab" aria-selected="false">
+          Criar conta
+        </button>
+      </div>
       <form id="login-form">
-        <label for="password">Senha da biblioteca</label>
+        <label for="username">Usuário</label
+        ><input
+          id="username"
+          autocomplete="username"
+          required
+          minlength="3"
+          maxlength="32"
+          autocapitalize="none"
+          spellcheck="false"
+        />
+        <label for="password">Senha</label>
         <input
           id="password"
           type="password"
@@ -54,6 +80,40 @@
         />
         <button class="primary">Entrar</button>
       </form>
+      <form id="register-form" hidden>
+        <label for="register-username">Seu usuário</label
+        ><input
+          id="register-username"
+          autocomplete="username"
+          autocapitalize="none"
+          spellcheck="false"
+          required
+          minlength="3"
+          maxlength="32"
+          pattern="[A-Za-z0-9_.-]{3,32}"
+        />
+        <label for="register-password">Senha</label
+        ><input
+          id="register-password"
+          type="password"
+          autocomplete="new-password"
+          required
+          minlength="10"
+          maxlength="128"
+        />
+        <p class="hint">Use pelo menos 10 caracteres na senha.</p>
+        <label for="invite-code">Código de convite</label
+        ><input
+          id="invite-code"
+          autocomplete="off"
+          autocapitalize="none"
+          spellcheck="false"
+          required
+          maxlength="100"
+        />
+        <button class="primary">Criar minha conta</button>
+      </form>
+      <p id="auth-error" role="alert" hidden></p>
     </section>
     <div id="app" hidden>
       <header>
@@ -98,6 +158,26 @@
           </button>
           <button id="create" class="subtle">
             <span data-icon="plus"></span>Nova
+          </button>
+        </div>
+        <div id="library-menu" class="library-menu">
+          <button data-library-filter="playlists">
+            <span data-icon="playlist"></span>Playlists<span
+              class="menu-chevron"
+              data-icon="back"
+            ></span>
+          </button>
+          <button data-library-filter="liked">
+            <span data-icon="heart"></span>Músicas curtidas<span
+              class="menu-chevron"
+              data-icon="back"
+            ></span>
+          </button>
+          <button data-library-filter="all">
+            <span data-icon="music"></span>Todas as músicas<span
+              class="menu-chevron"
+              data-icon="back"
+            ></span>
           </button>
         </div>
         <div id="collections" class="collections" aria-label="Playlists"></div>
@@ -168,7 +248,7 @@
           </div>
           <div id="job-list"></div>
           <button id="island-save" class="island-action" hidden>
-            <span data-icon="download"></span>Salvar prontas no iPhone
+            <span data-icon="download"></span>Salvar prontas no aparelho
           </button>
           <button id="island-retry" class="island-action" hidden>
             <span data-icon="retry"></span>Tentar novamente
@@ -215,59 +295,103 @@
         </button>
       </nav>
     </div>
-    <dialog id="player">
-      <button
-        class="dismiss"
-        data-close
-        aria-label="Fechar player"
-        data-icon="chevron"
-      ></button>
-      <p class="sheet-caption">Tocando agora</p>
-      <div id="cover" class="cover"></div>
-      <h1 id="player-title"></h1>
-      <p id="player-artist"></p>
-      <input
-        id="seek"
-        type="range"
-        min="0"
-        max="100"
-        value="0"
-        aria-label="Posição na música"
-      />
-      <div class="times">
-        <span id="elapsed">0:00</span><span id="duration">0:00</span>
+    <dialog id="player" aria-label="Player de música">
+      <div class="player-atmosphere" aria-hidden="true">
+        <img id="player-backdrop" alt="" />
       </div>
-      <div class="transport">
+      <div class="player-sheet-header">
         <button
-          id="shuffle"
-          aria-label="Aleatório"
+          class="dismiss"
+          data-close
+          aria-label="Fechar player"
+          data-icon="chevron"
+        ></button>
+        <p class="sheet-caption">Maré Música</p>
+      </div>
+      <div id="album-view"><div id="cover" class="cover"></div></div>
+      <div class="now-heading">
+        <div>
+          <h1 id="player-title"></h1>
+          <p id="player-artist"></p>
+        </div>
+        <button
+          id="player-like"
+          class="icon-button"
+          aria-label="Curtir música"
           aria-pressed="false"
-          data-icon="shuffle"
+          data-icon="heart"
         ></button>
         <button
-          id="previous"
-          aria-label="Anterior"
-          data-icon="previous"
-        ></button>
-        <button
-          id="big-play"
-          class="play"
-          aria-label="Reproduzir ou pausar"
-          data-icon="play"
-        ></button>
-        <button id="forward" aria-label="Próxima" data-icon="next"></button>
-        <button
-          id="repeat"
-          aria-label="Repetir"
-          aria-pressed="false"
-          data-icon="repeat"
+          id="player-more"
+          class="icon-button"
+          aria-label="Opções da música"
+          data-icon="more"
         ></button>
       </div>
-      <button id="save-current">
-        <span data-icon="download"></span>Salvar no iPhone
-      </button>
-      <h2>A seguir</h2>
-      <div id="queue"></div>
+      <div id="queue-view" hidden>
+        <div class="queue-toolbar">
+          <button
+            id="shuffle"
+            aria-label="Aleatório"
+            aria-pressed="false"
+            data-icon="shuffle"
+          ></button
+          ><button
+            id="repeat"
+            aria-label="Repetir"
+            aria-pressed="false"
+            data-icon="repeat"
+          ></button>
+        </div>
+        <div class="queue-tabs" role="tablist" aria-label="Lista de reprodução">
+          <button id="upcoming-tab" role="tab" aria-selected="true">
+            A seguir</button
+          ><button id="history-tab" role="tab" aria-selected="false">
+            Histórico</button
+          ><button id="clear-history" hidden>Limpar</button>
+        </div>
+        <div id="queue"></div>
+      </div>
+      <div class="player-controls">
+        <input
+          id="seek"
+          type="range"
+          min="0"
+          max="100"
+          value="0"
+          aria-label="Posição na música"
+        />
+        <div class="times">
+          <span id="elapsed">0:00</span><span id="duration">0:00</span>
+        </div>
+        <div class="transport">
+          <button
+            id="previous"
+            aria-label="Anterior"
+            data-icon="previous"
+          ></button>
+          <button
+            id="big-play"
+            class="play"
+            aria-label="Reproduzir ou pausar"
+            data-icon="play"
+          ></button>
+          <button id="forward" aria-label="Próxima" data-icon="next"></button>
+        </div>
+        <div class="player-bottom">
+          <button
+            id="save-current"
+            aria-label="Salvar no aparelho"
+            data-icon="download"
+          ></button
+          ><button
+            id="player-queue"
+            aria-label="Mostrar fila"
+            aria-pressed="false"
+            data-icon="playlist"
+          ></button>
+        </div>
+      </div>
     </dialog>
     <dialog id="preferences">
       <button
@@ -277,6 +401,33 @@
         data-icon="close"
       ></button>
       <h1>Ajustes</h1>
+      <section class="settings-section">
+        <h2>Conta</h2>
+        <strong id="account-name"></strong>
+        <p id="account-role"></p>
+        <p>
+          Suas playlists acompanham sua conta. Os downloads ficam neste
+          aparelho.
+        </p>
+      </section>
+      <section id="admin-section" class="settings-section" hidden>
+        <h2>Convites</h2>
+        <p>
+          Cada convite cria uma conta, pode ser usado uma vez e vale por 7 dias.
+        </p>
+        <button id="generate-invite">Gerar convite</button>
+        <div id="invite-result" hidden>
+          <label for="generated-invite"
+            >Compartilhe este código com seu amigo</label
+          ><input id="generated-invite" readonly autocomplete="off" /><button
+            id="copy-invite"
+          >
+            Copiar código
+          </button>
+          <p>O código aparece somente agora. Você pode revogá-lo abaixo.</p>
+        </div>
+        <div id="invite-history"></div>
+      </section>
       <section class="settings-section">
         <h2>Seu app</h2>
         <label class="setting"
@@ -304,7 +455,7 @@
         </p>
       </section>
       <section class="settings-section">
-        <h2>Neste iPhone</h2>
+        <h2>Neste aparelho</h2>
         <p id="storage"></p>
         <p>
           Mantenha o app aberto ao salvar músicas no celular. Se o iPhone
@@ -337,5 +488,7 @@
     <script src="/icons.js" defer></script>
     <script src="/app.js" defer></script>
     <script src="/library.js" defer></script>
+    <script src="/accounts.js" defer></script>
+    <script src="/player-ui.js" defer></script>
   </body>
 </html>

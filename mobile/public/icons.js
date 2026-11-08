@@ -29,6 +29,8 @@ const iconPaths = {
   playlist:
     '<path d="M4 5h12M4 10h12M4 15h6M17 12v7"/><ellipse cx="14.5" cy="19.5" rx="2.5" ry="2"/>',
   share: '<path d="M12 15V2m-4 4 4-4 4 4M7 9H4v12h16V9h-3"/>',
+  up: '<path d="m6 15 6-6 6 6"/>',
+  down: '<path d="m6 9 6 6 6-6"/>',
   retry: '<path d="M20 8A8 8 0 1 0 20 16M20 3v5h-5"/>',
 };
 function icon(name) {

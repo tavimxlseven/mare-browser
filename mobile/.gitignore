@@ -3,3 +3,7 @@ __pycache__/
 state/
 *.sqlite*
 *.m4a
+
+*cookies*.txt
+*access*.txt
+backups/

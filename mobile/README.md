@@ -1,8 +1,8 @@
 # Maré Música mobile
 
-Private, single-user music PWA for iPhone. This is the mobile companion service. The Windows browser uses its existing implementation.
+Private, invitation-only music PWA for Android and iPhone. This is the mobile companion service. The Windows browser uses its existing implementation.
 
-Install the web app through Safari's **Share → Add to Home Screen**, then open its icon. The browser landing page requires Home Screen installation before showing the player. Authentication protects the API independently of this installation screen.
+On iPhone, install through Safari's **Share → Add to Home Screen**. On Android, use Chrome's **Install app** or **Add to Home screen**, then open its icon. The browser landing page requires Home Screen installation before showing the player. Authentication protects the API independently of this installation screen.
 
 ## Runtime
 
@@ -16,7 +16,8 @@ Create a private environment file outside the checkout, readable only by root an
 
 - `MARE_ORIGIN` is the exact HTTPS origin of the deployment, without a trailing slash.
 - `MARE_DATA` is a persistent writable directory outside the application checkout.
-- `MARE_PASSWORD_HASH` is a Werkzeug scrypt password hash. Generate it with `werkzeug.security.generate_password_hash`.
+- `MARE_PASSWORD_HASH` is the initial administrator password hash, used only when creating that account. Generate it with `werkzeug.security.generate_password_hash`. Existing accounts retain their stored hashes.
+- `MARE_ADMIN_USERNAME` optionally sets the first administrator username. The default is `admin`.
 - `SUNNIFY_BIN` is the absolute path to the installed Sunnify executable.
 - Optional `SUNNIFY_COOKIES_FILE` points to a private Netscape-format YouTube session file. Keep it outside the checkout and public files, readable only by the service account. A supported Node.js 22+ or Deno runtime must be on the service PATH.
 - `PORT` defaults to 8787 and binds only to loopback.
@@ -38,9 +39,21 @@ Never publish environment files, SSH keys, passwords, the SQLite database, sessi
 - Wi-Fi confirmation is the default. iOS exposes no reliable Wi-Fi-only transfer API. The user chooses whether to proceed and may enable mobile data in settings.
 - Home Screen shell caches locally. First login, search, imports and new server preparations need internet.
 - Media Session and Audio Session APIs are used when available. Playback, lock-screen controls and offline storage must also be verified on a physical iPhone.
-- Single-user password authentication, revocable cookies, login throttling, same-origin mutations and a restrictive CSP.
+- Invitation-only registration, hashed passwords, administrator-only single-use invitations valid for seven days, revocation, expiring sessions, login throttling and same-origin mutations. Only invitation hashes are stored.
+- Playlists, favorites, library membership, preparation jobs and audio access are scoped to the authenticated account. Public song metadata and completed audio files may be reused internally between accounts. Removing a song from one library preserves other users’ copies.
+- Browser storage uses a separate IndexedDB database for each account. Offline audio remains local to each device. Signing out clears that account’s local data.
+- Per-track artwork is resolved through Spotify oEmbed, cached in the metadata database and gradually backfilled for previously imported songs.
+- The full-screen player uses the current artwork as its backdrop, supports favorites, upcoming queue ordering, per-device playback history and offline library search.
 - This first mobile version has separate library data from the Windows app. Playback and volume behavior are subject to iOS controls.
 
 ## Verification
 
 Run `python -m unittest discover -s tests` from this directory. Tests use a temporary database and mock provider responses, never production data or a user's library.
+
+## Upgrading the shared-library version
+
+Back up the persistent data directory before starting the new server. The migration assigns the old shared library, playlists, favorites and jobs to the administrator account. The previous password becomes that administrator's password. Legacy shared sessions are revoked so each person must sign in individually. New accounts start with an empty library.
+
+As administrator, open **Settings → Invitations → Generate invitation**, copy the code shown once and share it privately. Your friend chooses **Create account**, enters a username, a password of at least ten characters and that code. Each code can create one account and can be revoked before use. The same account can sign in on multiple phones and access its own server library. Offline downloads and playback history stay on each phone.
+
+Credentials, invitation codes, account records, cookies, host addresses, database backups and deployment environment files belong outside the source checkout. Publish only generic source and test fixtures.

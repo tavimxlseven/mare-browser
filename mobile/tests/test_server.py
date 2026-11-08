@@ -25,7 +25,7 @@ class ServerTests(unittest.TestCase):
             db.execute("DELETE FROM sessions")
             db.execute("DELETE FROM settings")
             db.execute("DELETE FROM jobs")
-        server.attempts.clear()
+        server.accounts.attempts.clear()
 
     def login(self):
         return self.client.post(
@@ -191,8 +191,8 @@ class ServerTests(unittest.TestCase):
                 db, [dict(id=i, title=i, artist="Artist", art="") for i in ids]
             )
             db.execute(
-                "INSERT INTO playlists VALUES (?,?,?)",
-                ("large", "Large", json.dumps(ids)),
+                "INSERT INTO playlists VALUES (?,?,?,?)",
+                ("large", "Large", json.dumps(ids), "admin"),
             )
         first = self.client.post(
             "/api/playlists/large/prepare", json={}, headers=self.origin

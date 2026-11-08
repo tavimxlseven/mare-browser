@@ -64,7 +64,7 @@ function updatePlaylistHeader() {
     " músicas · " +
     ready +
     " prontas" +
-    (saved ? " · " + saved + " no iPhone" : "");
+    (saved ? " · " + saved + " no aparelho" : "");
   collectionArt(p, $("playlist-art"));
   $("playlist-play").disabled = !tracks.some(
     (t) => t.status === "ready" || offlineIds.has(t.id),
@@ -75,7 +75,7 @@ function updatePlaylistHeader() {
   );
 }
 function statusLabel(t) {
-  if (offlineIds.has(t.id)) return "No iPhone";
+  if (offlineIds.has(t.id)) return "Neste aparelho";
   return (
     {
       ready: "Pronta para ouvir",
@@ -115,12 +115,12 @@ function drawIsland() {
   const importing =
     job && ["queued", "importing"].includes(job.status) && !job.total;
   const paused = job?.status === "paused";
-  let title = job?.name || "Salvando no iPhone";
+  let title = job?.name || "Salvando no aparelho";
   let detail,
     percent = 0;
   if (saving) {
     title = activeSave;
-    detail = "Salvando no iPhone";
+    detail = "Salvando no aparelho";
     const complete = deviceBatch.filter((id) => offlineIds.has(id)).length;
     percent = deviceBatch.length
       ? (100 * (complete + (deviceSize ? deviceBytes / deviceSize : 0))) /
@@ -220,7 +220,7 @@ function drawIsland() {
     summary.textContent = importing
       ? "Pode continuar navegando. A playlist aparecerá na biblioteca quando a leitura terminar."
       : job?.message ||
-        "A preparação continua na VPS mesmo com o app fechado. Salve no iPhone quando as faixas estiverem prontas.";
+        "A preparação continua na VPS mesmo com o app fechado. Salve no aparelho quando as faixas estiverem prontas.";
     $("job-list").append(summary);
     const ids = job?.track_ids || [...downloads];
     const remaining = ids

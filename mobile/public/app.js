@@ -16,14 +16,18 @@ let downloads = new Set(),
   activeSave = "",
   onlineSession = false;
 const audio = $("audio");
-const database = new Promise((resolve, reject) => {
-  const open = indexedDB.open("mare-music", 1);
-  open.onupgradeneeded = () => {
-    for (const name of ["meta", "audio"]) open.result.createObjectStore(name);
-  };
-  open.onsuccess = () => resolve(open.result);
-  open.onerror = () => reject(open.error);
-});
+let database;
+function openDatabase(name) {
+  return new Promise((resolve, reject) => {
+    const open = indexedDB.open(name, 1);
+    open.onupgradeneeded = () => {
+      for (const name of ["meta", "audio"]) open.result.createObjectStore(name);
+    };
+    open.onsuccess = () => resolve(open.result);
+    open.onerror = () => reject(open.error);
+  });
+}
+
 async function local(store, key, value, remove = false) {
   const db = await database;
   return new Promise((resolve, reject) => {
@@ -59,7 +63,9 @@ async function api(path, data) {
   const result = await response.json();
   if (!response.ok) {
     if (response.status === 401) onlineSession = false;
-    throw new Error(result.error || "Não foi possível concluir.");
+    const error = new Error(result.error || "Não foi possível concluir.");
+    error.status = response.status;
+    throw error;
   }
   return result;
 }
@@ -69,9 +75,9 @@ function task(fn) {
 }
 function artwork(track, target) {
   target.replaceChildren();
-  if (track?.art) {
+  if (track?.art || /^[A-Za-z0-9]{22}$/.test(track?.id || "")) {
     const img = new Image();
-    img.src = track.art;
+    img.src = track.art || "/artwork/" + track.id;
     img.alt = "";
     img.loading = "lazy";
     img.onerror = () => {
@@ -85,7 +91,7 @@ function sourceTracks() {
   if (view === "offline")
     return library.tracks.filter((t) => offlineIds.has(t.id));
   if (selected === "liked") return library.tracks.filter((t) => t.liked);
-  if (selected) {
+  if (selected && selected !== "all") {
     const p = library.playlists.find((p) => p.id === selected);
     return (p?.tracks || [])
       .map((id) => library.tracks.find((t) => t.id === id))
@@ -110,7 +116,7 @@ function row(track, list) {
       ? track.error || "Falha ao preparar. Tente novamente."
       : track.artist +
         (offlineIds.has(track.id)
-          ? " · No iPhone"
+          ? " · Neste aparelho"
           : track.status === "ready"
             ? " · Na nuvem"
             : "");
@@ -167,11 +173,7 @@ function render(force = false) {
   $("collections").hidden = view !== "library";
   $("collections").replaceChildren();
   if (view === "library") {
-    for (const p of [
-      { id: null, name: "Todas as músicas" },
-      { id: "liked", name: "Curtidas" },
-      ...library.playlists,
-    ]) {
+    for (const p of library.playlists) {
       const b = document.createElement("button");
       b.className = "collection";
       const art = document.createElement("div");
@@ -194,11 +196,18 @@ function render(force = false) {
       $("collections").append(b);
     }
   }
+  $("library-menu").hidden =
+    view !== "library" || library.playlists.some((p) => p.id === selected);
   const playlist = library.playlists.find((p) => p.id === selected);
   $("list-title").textContent =
     selected === "liked"
       ? "Músicas curtidas"
-      : playlist?.name || (view === "search" ? "Resultados" : "Suas músicas");
+      : playlist?.name ||
+        (view === "search"
+          ? "Resultados"
+          : selected === "all"
+            ? "Todas as músicas"
+            : "Adições recentes");
   $("download-all").hidden = !playlist || view !== "library";
   updatePlaylistHeader();
   const list = sourceTracks();
@@ -264,7 +273,7 @@ function options(track) {
     });
     dialog.append(b);
   };
-  add("Salvar no iPhone", () => saveTracks([track]));
+  add("Salvar no aparelho", () => saveTracks([track]));
   add(track.liked ? "Remover das curtidas" : "Curtir", async () => {
     await ensureSaved(track);
     await api("tracks/" + track.id, { liked: !track.liked });
@@ -328,17 +337,27 @@ async function refresh() {
   $("connection").hidden = true;
   render();
   drawIsland();
+  if (current) {
+    const updated = library.tracks.find((t) => t.id === current.id);
+    if (
+      updated &&
+      JSON.stringify({ ...current, ...updated }) !== JSON.stringify(current)
+    ) {
+      current = { ...current, ...updated };
+      drawPlayer();
+    }
+  }
 }
 async function saveTracks(tracks) {
   tracks = tracks.filter((t) => !offlineIds.has(t.id));
   if (!tracks.length) {
-    notice("Essas músicas já estão neste iPhone.");
+    notice("Essas músicas já estão neste aparelho.");
     return;
   }
   if (
     (await local("meta", "network")) !== "any" &&
     !confirm(
-      "Salvar no iPhone agora? Confirme que está no Wi-Fi. Se a rede mudar, o iPhone pode usar dados móveis.",
+      "Salvar no aparelho agora? Confirme que está no Wi-Fi. Se a rede mudar, o iPhone pode usar dados móveis.",
     )
   )
     return;
@@ -366,6 +385,7 @@ async function drain() {
   );
   if (!ready.length) return;
   saving = true;
+  const downloadOwner = currentUser?.id;
   try {
     for (const id of ready) {
       if (document.hidden) break;
@@ -375,9 +395,14 @@ async function drain() {
       deviceBytes = 0;
       deviceSize = 0;
       drawIsland();
-      const response = await fetch("/media/" + id);
+      downloadController = new AbortController();
+      const response = await fetch("/media/" + id, {
+        signal: downloadController.signal,
+      });
       if (!response.ok)
-        throw new Error("Falha ao salvar no iPhone. Abra o app para retomar.");
+        throw new Error(
+          "Falha ao salvar no aparelho. Abra o app para retomar.",
+        );
       deviceSize = Number(response.headers.get("Content-Length")) || 0;
       let blob;
       if (response.body?.getReader) {
@@ -400,6 +425,8 @@ async function drain() {
         throw new Error(
           "Transferência incompleta. O download será retomado ao voltar.",
         );
+      if (currentUser?.id !== downloadOwner)
+        throw new Error("A conta foi alterada.");
       await local("audio", id, blob);
       offlineIds.add(id);
       downloads.delete(id);
@@ -407,15 +434,16 @@ async function drain() {
       render();
       drawIsland();
     }
-    if (!downloads.size) notice("Músicas salvas neste iPhone.");
+    if (!downloads.size) notice("Músicas salvas neste aparelho.");
   } catch (error) {
     notice(
       error.name === "QuotaExceededError"
-        ? "O iPhone está sem espaço para salvar a música. Libere espaço e tente novamente."
+        ? "O aparelho está sem espaço para salvar a música. Libere espaço e tente novamente."
         : error.message,
     );
   } finally {
     saving = false;
+    downloadController = null;
     activeSave = "";
     activeSaveId = null;
     deviceBytes = 0;
@@ -463,6 +491,11 @@ async function play(track, list) {
       { once: true },
     );
   }
+  if (current && current.id !== track.id) {
+    playHistory.unshift(current.id);
+    playHistory = playHistory.slice(0, 50);
+    local("meta", "history", playHistory).catch(() => {});
+  }
   current = track;
   drawPlayer();
   await audio.play();
@@ -473,10 +506,17 @@ function drawPlayer() {
   $("mini").hidden = false;
   $("mini-title").textContent = current.title;
   $("mini-artist").textContent = current.artist;
-  $("mini-art").src = current.art || "/icon-192.png";
+  $("mini-art").src = current.art || "/artwork/" + current.id;
+  $("mini-art").onerror = () => {
+    $("mini-art").onerror = null;
+    $("mini-art").src = "/icon-192.png";
+  };
   $("player-title").textContent = current.title;
   $("player-artist").textContent = current.artist;
   artwork(current, $("cover"));
+  $("player-backdrop").src = current.art || "/artwork/" + current.id;
+  const latest = library.tracks.find((t) => t.id === current.id) || current;
+  $("player-like").setAttribute("aria-pressed", String(!!latest.liked));
   drawQueue();
   if ("mediaSession" in navigator) {
     navigator.mediaSession.metadata = new MediaMetadata({
@@ -493,13 +533,6 @@ function drawPlayer() {
             },
           ],
     });
-  }
-}
-function drawQueue() {
-  $("queue").replaceChildren();
-  for (const id of queue.slice(0, 30)) {
-    const t = library.tracks.find((t) => t.id === id);
-    if (t) $("queue").append(row(t));
   }
 }
 async function next() {
@@ -551,7 +584,7 @@ audio.ontimeupdate = () => {
 audio.onended = task(next);
 audio.onerror = () =>
   notice(
-    "Não foi possível tocar. Verifique se a música está pronta ou salva no iPhone.",
+    "Não foi possível tocar. Verifique se a música está pronta ou salva no aparelho.",
   );
 $("seek").onchange = () => {
   if (Number.isFinite(audio.duration))
@@ -583,9 +616,16 @@ $("search-form").onsubmit = task(async (e) => {
   const b = e.submitter;
   b.disabled = true;
   try {
-    results = (
-      await api("search?q=" + encodeURIComponent($("query").value.trim()))
-    ).tracks;
+    const query = $("query").value.trim();
+    if (!navigator.onLine)
+      results = library.tracks.filter(
+        (t) =>
+          offlineIds.has(t.id) &&
+          (t.title + " " + t.artist)
+            .toLocaleLowerCase()
+            .includes(query.toLocaleLowerCase()),
+      );
+    else results = (await api("search?q=" + encodeURIComponent(query))).tracks;
     render();
   } finally {
     b.disabled = false;
@@ -623,6 +663,7 @@ for (const b of document.querySelectorAll("[data-close]"))
   b.onclick = () => b.closest("dialog").close();
 $("settings").onclick = task(async () => {
   $("preferences").showModal();
+  await loadInvites();
   $("preparation-state").textContent = library.preparation?.paused
     ? "A fonte de áudio recusou o acesso. Os downloads estão pausados e a fila foi preservada."
     : "Downloads disponíveis.";
@@ -642,28 +683,11 @@ $("persist").onclick = task(async () =>
   notice(
     (await navigator.storage?.persist?.())
       ? "Armazenamento persistente autorizado."
-      : "O iPhone gerencia o espaço automaticamente. Mantenha espaço livre para preservar downloads.",
+      : "O aparelho gerencia o espaço automaticamente. Mantenha espaço livre para preservar downloads.",
   ),
 );
-$("login-form").onsubmit = task(async (e) => {
-  e.preventDefault();
-  await api("login", { password: $("password").value });
-  $("password").value = "";
-  $("login").hidden = true;
-  $("app").hidden = false;
-  await refresh();
-});
-$("logout").onclick = task(async () => {
-  if (!confirm("Sair e apagar músicas salvas deste iPhone?")) return;
-  await api("logout", {});
-  audio.pause();
-  const db = await database;
-  const tx = db.transaction(["meta", "audio"], "readwrite");
-  tx.objectStore("meta").clear();
-  tx.objectStore("audio").clear();
-  tx.oncomplete = () => location.reload();
-});
 let syncing = false;
+let downloadController = null;
 async function sync() {
   if (document.hidden || !navigator.onLine || !onlineSession || syncing) return;
   syncing = true;
@@ -698,41 +722,39 @@ async function boot() {
   };
   setTimeout(poll, 2500);
   $("install").hidden = true;
-  library = (await local("meta", "library")) || library;
-  downloads = new Set((await local("meta", "downloads")) || []);
-  deviceBatch = (await local("meta", "device-batch")) || [...downloads];
-  dismissedJobs = new Set((await local("meta", "dismissed-jobs")) || []);
-  selected = (await local("meta", "selected")) || null;
-  const db = await database;
-  offlineIds = new Set(
-    await new Promise((resolve, reject) => {
-      const r = db.transaction("audio").objectStore("audio").getAllKeys();
-      r.onsuccess = () => resolve(r.result);
-      r.onerror = () => reject(r.error);
-    }),
-  );
-  $("theme").value = (await local("meta", "theme")) || "dark";
-  document.body.classList.toggle("light", $("theme").value === "light");
-  $("network").value = (await local("meta", "network")) || "wifi";
   try {
+    const response = await api("me");
+    await useAccount(response.user);
     await refresh();
     $("app").hidden = false;
-  } catch (e) {
-    if (navigator.onLine) {
+  } catch (error) {
+    if (error.status === 401) {
       $("login").hidden = false;
-      notice(e.message);
       return;
     }
-    if (!library.tracks.length) {
+    let remembered;
+    try {
+      remembered = JSON.parse(
+        localStorage.getItem("mare-music:last-account") || "null",
+      );
+    } catch {}
+    if (!remembered) {
       $("login").hidden = false;
-      notice("Conecte à internet para o primeiro acesso.");
+      notice("Conecte à internet para entrar na sua conta.");
       return;
     }
+    await useAccount(remembered);
     $("app").hidden = false;
     $("connection").hidden = false;
-    $("connection").textContent = "Offline · músicas neste iPhone";
+    $("connection").textContent = "Offline · músicas neste aparelho";
     render();
   }
+  await restorePlayer();
+  await drain();
+}
+
+async function restorePlayer() {
+  playHistory = (await local("meta", "history")) || [];
   const saved = await local("meta", "player");
   if (saved) {
     queue = saved.queue || [];
@@ -759,7 +781,6 @@ async function boot() {
         navigator.mediaSession.setActionHandler(action, task(handler));
       } catch {}
     }
-  await drain();
 }
 window.addEventListener("online", () => {
   onlineSession = true;

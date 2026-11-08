@@ -15,6 +15,8 @@ from datetime import timedelta
 
 from flask import (
     Flask,
+    g,
+    redirect,
     abort,
     jsonify,
     request,
@@ -22,8 +24,8 @@ from flask import (
     send_from_directory,
     session,
 )
-from werkzeug.security import check_password_hash
 import provider
+import accounts
 
 ROOT = Path(__file__).resolve().parent
 DATA = Path(os.getenv("MARE_DATA", ROOT / "state")).resolve()
@@ -46,8 +48,7 @@ app.config.update(
     PERMANENT_SESSION_LIFETIME=timedelta(days=30),
 )
 wake = threading.Event()
-attempts = {}
-auth_lock = threading.Lock()
+art_slots = threading.BoundedSemaphore(2)
 
 
 @contextmanager
@@ -75,6 +76,7 @@ with db() as con:
           message TEXT DEFAULT '',created REAL,updated REAL);
         CREATE INDEX IF NOT EXISTS jobs_source ON jobs(source);
     """)
+    accounts.initialize(con)
     con.execute("UPDATE tracks SET status='queued' WHERE status='preparing'")
     con.execute("UPDATE jobs SET status='queued' WHERE status='importing'")
 
@@ -114,20 +116,14 @@ def recover_preparations():
 
 @app.before_request
 def protect():
-    if not request.path.startswith(("/api/", "/media/")):
+    if not request.path.startswith(("/api/", "/media/", "/artwork/")):
         return
     if request.method != "GET" and request.headers.get("Origin") != ORIGIN:
         abort(403)
-    if request.path == "/api/login":
+    if request.path in ("/api/login", "/api/register"):
         return
-    token = session.get("token", "")
     with db() as con:
-        valid = con.execute(
-            "SELECT token FROM sessions WHERE token=? AND expires>?",
-            (hashlib.sha256(token.encode()).hexdigest(), time.time()),
-        ).fetchone()
-    if not valid:
-        abort(401)
+        accounts.authenticate(con)
 
 
 @app.after_request
@@ -139,7 +135,7 @@ def headers(response):
             "Content-Security-Policy": "default-src 'self'; img-src 'self' https://i.scdn.co https://image-cdn-ak.spotifycdn.com data: blob:; media-src 'self' blob:; style-src 'self'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'",
         }
     )
-    if request.path.startswith(("/api/", "/media/")):
+    if request.path.startswith(("/api/", "/media/", "/artwork/")):
         response.headers["Cache-Control"] = "no-store"
     return response
 
@@ -152,7 +148,7 @@ def error(ex):
     if code >= 500:
         app.logger.warning("Operation failed (%s)", type(ex).__name__)
     message = {
-        401: "Entre novamente para acessar a VM.",
+        401: "Confira seu usuário e senha ou entre novamente.",
         403: "Solicitação recusada.",
         404: "Não encontrado.",
         503: "Downloads pausados pela fonte de áudio. Tente novamente em Ajustes.",
@@ -161,31 +157,7 @@ def error(ex):
     return jsonify(error=message), code
 
 
-@app.post("/api/login")
-def login():
-    # Global limiter is appropriate for this single-user private installation.
-    with auth_lock:
-        bucket = int(time.time() // 60)
-        if bucket not in attempts:
-            attempts.clear()
-        attempts[bucket] = attempts.get(bucket, 0) + 1
-        if attempts[bucket] > 10:
-            abort(429)
-    data = request.get_json()
-    hashed = os.getenv("MARE_PASSWORD_HASH", "")
-    if not hashed or not check_password_hash(hashed, str(data.get("password", ""))):
-        abort(401)
-    token = secrets.token_urlsafe(32)
-    with db() as con:
-        con.execute("DELETE FROM sessions WHERE expires<?", (time.time(),))
-        con.execute(
-            "INSERT INTO sessions VALUES (?,?)",
-            (hashlib.sha256(token.encode()).hexdigest(), time.time() + 30 * 86400),
-        )
-    session.clear()
-    session.permanent = True
-    session["token"] = token
-    return jsonify(ok=True)
+accounts.register_routes(app, db)
 
 
 @app.post("/api/logout")
@@ -204,17 +176,29 @@ def library():
     with db() as con:
         con.execute("BEGIN")
         tracks = [
-            dict(t) for t in con.execute("SELECT * FROM tracks ORDER BY rowid DESC")
+            dict(t)
+            for t in con.execute(
+                """SELECT t.id,t.title,t.artist,t.art,t.status,t.error,u.liked
+            FROM user_tracks u JOIN tracks t ON t.id=u.track_id WHERE u.owner=? ORDER BY u.created DESC""",
+                (g.user["id"],),
+            )
         ]
         lists = [
-            dict(p) for p in con.execute("SELECT * FROM playlists ORDER BY rowid DESC")
+            dict(p)
+            for p in con.execute(
+                "SELECT id,name,tracks FROM playlists WHERE owner=? ORDER BY rowid DESC",
+                (g.user["id"],),
+            )
         ]
         blocked = con.execute(
             "SELECT value FROM settings WHERE key='blocked_track'"
         ).fetchone()
         jobs = [
             dict(j)
-            for j in con.execute("SELECT * FROM jobs ORDER BY created DESC LIMIT 50")
+            for j in con.execute(
+                "SELECT * FROM jobs WHERE owner=? ORDER BY created DESC LIMIT 50",
+                (g.user["id"],),
+            )
         ]
     for p in lists:
         p["tracks"] = json.loads(p["tracks"])
@@ -234,13 +218,22 @@ def search():
     return jsonify(tracks=provider.search(q))
 
 
-def save_tracks(con, tracks):
+def save_tracks(con, tracks, owner=accounts.ADMIN_ID, authoritative=False):
     for t in tracks:
+        metadata = {**t, "authoritative": authoritative}
+        if not authoritative:
+            metadata["art"] = ""
         con.execute(
             """INSERT INTO tracks(id,title,artist,art) VALUES (:id,:title,:artist,:art)
-          ON CONFLICT(id) DO UPDATE SET title=excluded.title,artist=excluded.artist,
-          art=CASE WHEN excluded.art!='' THEN excluded.art ELSE tracks.art END""",
-            t,
+          ON CONFLICT(id) DO UPDATE SET
+          title=CASE WHEN :authoritative THEN excluded.title ELSE tracks.title END,
+          artist=CASE WHEN :authoritative THEN excluded.artist ELSE tracks.artist END,
+          art=CASE WHEN :authoritative AND excluded.art!='' THEN excluded.art ELSE tracks.art END""",
+            metadata,
+        )
+        con.execute(
+            "INSERT OR IGNORE INTO user_tracks(owner,track_id,created) VALUES (?,?,?)",
+            (owner, t["id"], time.time()),
         )
 
 
@@ -261,21 +254,23 @@ def import_link():
         # Serialize the check and insert so double taps and retries share one job.
         con.execute("BEGIN IMMEDIATE")
         existing = con.execute(
-            "SELECT id FROM jobs WHERE source=? AND kind='import' AND status IN ('queued','importing','preparing') ORDER BY created DESC LIMIT 1",
-            (source,),
+            "SELECT id FROM jobs WHERE source=? AND owner=? AND kind='import' AND status IN ('queued','importing','preparing') ORDER BY created DESC LIMIT 1",
+            (source, g.user["id"]),
         ).fetchone()
         if existing:
             return jsonify(ok=True, job_id=existing["id"]), 202
-        identifier = create_job(con, "import", source, "Importando playlist", [])
+        identifier = create_job(
+            con, "import", source, "Importando playlist", [], g.user["id"]
+        )
     wake.set()
     return jsonify(ok=True, job_id=identifier), 202
 
 
-def create_job(con, kind, source, name, ids):
+def create_job(con, kind, source, name, ids, owner=accounts.ADMIN_ID):
     identifier = secrets.token_hex(12)
     now = time.time()
     con.execute(
-        "INSERT INTO jobs(id,kind,source,name,tracks,status,created,updated) VALUES (?,?,?,?,?,?,?,?)",
+        "INSERT INTO jobs(id,kind,source,name,tracks,status,created,updated,owner) VALUES (?,?,?,?,?,?,?,?,?)",
         (
             identifier,
             kind,
@@ -285,32 +280,37 @@ def create_job(con, kind, source, name, ids):
             "queued" if kind == "import" else "preparing",
             now,
             now,
+            owner,
         ),
     )
     return identifier
 
 
-def enqueue_tracks(con, tracks, name="Preparando músicas", source=""):
+def enqueue_tracks(
+    con, tracks, name="Preparando músicas", source="", owner=accounts.ADMIN_ID
+):
     ids = list(dict.fromkeys(t["id"] for t in tracks))
-    save_tracks(con, tracks)
+    save_tracks(con, tracks, owner)
     for identifier in ids:
         con.execute(
             "UPDATE tracks SET status='queued',error='' WHERE id=? AND status NOT IN ('queued','preparing','ready')",
             (identifier,),
         )
     existing = con.execute(
-        "SELECT id,tracks FROM jobs WHERE kind='prepare' AND status='preparing' ORDER BY created DESC"
+        "SELECT id,tracks FROM jobs WHERE owner=? AND kind='prepare' AND status='preparing' ORDER BY created DESC",
+        (owner,),
     ).fetchall()
     for job in existing:
         if json.loads(job["tracks"]) == ids:
             return job["id"]
-    return create_job(con, "prepare", source, name, ids)
+    return create_job(con, "prepare", source, name, ids, owner)
 
 
 def job_snapshots(tracks, paused, jobs):
     by_id = {t["id"]: t for t in tracks}
     for job in jobs:
         stored_status = job["status"]
+        job.pop("owner", None)
         ids = json.loads(job.pop("tracks"))
         job["track_ids"] = ids
         items = [by_id[i] for i in ids if i in by_id]
@@ -347,11 +347,16 @@ def import_job(job):
         kind, identifier, name, tracks = provider.collection(job["source"])
         ids = list(dict.fromkeys(t["id"] for t in tracks))
         with db() as con:
-            save_tracks(con, tracks)
+            save_tracks(con, tracks, job["owner"], authoritative=True)
             if kind != "track":
                 con.execute(
-                    "INSERT OR REPLACE INTO playlists VALUES (?,?,?)",
-                    (identifier, name or "Playlist importada", json.dumps(ids)),
+                    "INSERT OR REPLACE INTO playlists(id,name,tracks,owner) VALUES (?,?,?,?)",
+                    (
+                        identifier,
+                        name or "Playlist importada",
+                        json.dumps(ids),
+                        job["owner"],
+                    ),
                 )
             for track_id in ids:
                 con.execute(
@@ -380,7 +385,7 @@ def prepare_playlist(identifier):
     with db() as con:
         con.execute("BEGIN IMMEDIATE")
         playlist = con.execute(
-            "SELECT * FROM playlists WHERE id=?", (identifier,)
+            "SELECT * FROM playlists WHERE id=? AND owner=?", (identifier, g.user["id"])
         ).fetchone()
         if not playlist:
             abort(404)
@@ -389,7 +394,7 @@ def prepare_playlist(identifier):
         tracks = [all_tracks[i] for i in ids if i in all_tracks]
         if not tracks:
             abort(400)
-        job_id = enqueue_tracks(con, tracks, playlist["name"], identifier)
+        job_id = enqueue_tracks(con, tracks, playlist["name"], identifier, g.user["id"])
     wake.set()
     return jsonify(ok=True, job_id=job_id), 202
 
@@ -411,9 +416,17 @@ def playlist():
     if not isinstance(identifier, str) or len(identifier) > 64:
         abort(400)
     with db() as con:
+        owned = {
+            r["track_id"]
+            for r in con.execute(
+                "SELECT track_id FROM user_tracks WHERE owner=?", (g.user["id"],)
+            )
+        }
+        if any(i not in owned for i in ids):
+            abort(404)
         con.execute(
-            "INSERT OR REPLACE INTO playlists VALUES (?,?,?)",
-            (identifier, name, json.dumps(ids)),
+            "INSERT OR REPLACE INTO playlists(id,name,tracks,owner) VALUES (?,?,?,?)",
+            (identifier, name, json.dumps(list(dict.fromkeys(ids))), g.user["id"]),
         )
     return jsonify(ok=True)
 
@@ -429,7 +442,7 @@ def prepare():
         abort(400)
     with db() as con:
         con.execute("BEGIN IMMEDIATE")
-        job_id = enqueue_tracks(con, normalized)
+        job_id = enqueue_tracks(con, normalized, owner=g.user["id"])
     wake.set()
     return jsonify(ok=True, job_id=job_id), 202
 
@@ -437,26 +450,45 @@ def prepare():
 @app.post("/api/tracks/<identifier>")
 def update_track(identifier):
     with db() as con:
+        con.execute("BEGIN IMMEDIATE")
+        current = con.execute(
+            """SELECT t.status FROM tracks t JOIN user_tracks u ON t.id=u.track_id
+            WHERE t.id=? AND u.owner=?""",
+            (identifier, g.user["id"]),
+        ).fetchone()
+        if not current:
+            abort(404)
         data = request.get_json()
         if data.get("action") == "delete":
-            current = con.execute(
-                "SELECT status FROM tracks WHERE id=?", (identifier,)
-            ).fetchone()
-            if current and current["status"] in ("preparing", "queued"):
-                abort(409)
-            for p in con.execute("SELECT * FROM playlists").fetchall():
+            if current["status"] in ("preparing", "queued"):
+                return (
+                    jsonify(
+                        error="A música ainda está na fila. Aguarde a preparação para excluí-la."
+                    ),
+                    409,
+                )
+            for p in con.execute(
+                "SELECT * FROM playlists WHERE owner=?", (g.user["id"],)
+            ).fetchall():
                 ids = [i for i in json.loads(p["tracks"]) if i != identifier]
                 con.execute(
-                    "UPDATE playlists SET tracks=? WHERE id=?",
-                    (json.dumps(ids), p["id"]),
+                    "UPDATE playlists SET tracks=? WHERE id=? AND owner=?",
+                    (json.dumps(ids), p["id"], g.user["id"]),
                 )
-            con.execute("DELETE FROM tracks WHERE id=?", (identifier,))
-            if provider.ID.fullmatch(identifier):
-                (MEDIA / (identifier + ".m4a")).unlink(missing_ok=True)
+            con.execute(
+                "DELETE FROM user_tracks WHERE track_id=? AND owner=?",
+                (identifier, g.user["id"]),
+            )
+            if not con.execute(
+                "SELECT track_id FROM user_tracks WHERE track_id=?", (identifier,)
+            ).fetchone():
+                con.execute("DELETE FROM tracks WHERE id=?", (identifier,))
+                if provider.ID.fullmatch(identifier):
+                    (MEDIA / (identifier + ".m4a")).unlink(missing_ok=True)
         else:
             con.execute(
-                "UPDATE tracks SET liked=? WHERE id=?",
-                (bool(data.get("liked")), identifier),
+                "UPDATE user_tracks SET liked=? WHERE track_id=? AND owner=?",
+                (bool(data.get("liked")), identifier, g.user["id"]),
             )
     return jsonify(ok=True)
 
@@ -467,12 +499,77 @@ def media(identifier):
         abort(404)
     with db() as con:
         t = con.execute(
-            "SELECT status FROM tracks WHERE id=?", (identifier,)
+            "SELECT t.status FROM tracks t JOIN user_tracks u ON t.id=u.track_id WHERE t.id=? AND u.owner=?",
+            (identifier, g.user["id"]),
         ).fetchone()
     path = MEDIA / (identifier + ".m4a")
     if not t or t["status"] != "ready" or not path.is_file():
         abort(404)
     return send_file(path, mimetype="audio/mp4", conditional=True)
+
+
+def ensure_artwork(identifier):
+    if not art_slots.acquire(blocking=False):
+        return ""
+    try:
+        with db() as con:
+            row = con.execute(
+                "SELECT art,art_checked FROM tracks WHERE id=?", (identifier,)
+            ).fetchone()
+            if not row:
+                return ""
+            if row["art"]:
+                return row["art"]
+            if row["art_checked"] > time.time() - 300:
+                return ""
+            con.execute(
+                "UPDATE tracks SET art_checked=? WHERE id=?", (time.time(), identifier)
+            )
+        try:
+            cover = provider.artwork(identifier)
+        except Exception:
+            return ""
+        if cover:
+            with db() as con:
+                con.execute("UPDATE tracks SET art=? WHERE id=?", (cover, identifier))
+        return cover
+    finally:
+        art_slots.release()
+
+
+@app.get("/artwork/<identifier>")
+def artwork(identifier):
+    if not provider.ID.fullmatch(identifier):
+        abort(404)
+    with db() as con:
+        owned = con.execute(
+            "SELECT track_id FROM user_tracks WHERE track_id=? AND owner=?",
+            (identifier, g.user["id"]),
+        ).fetchone()
+    if not owned:
+        abort(404)
+    cover = ensure_artwork(identifier)
+    if not cover:
+        abort(404)
+    return redirect(cover)
+
+
+def artwork_worker():
+    while True:
+        track = None
+        try:
+            with db() as con:
+                track = con.execute(
+                    """SELECT t.id FROM tracks t WHERE t.art='' AND t.art_checked<?
+                    AND EXISTS(SELECT 1 FROM user_tracks u WHERE u.track_id=t.id)
+                    ORDER BY t.rowid DESC LIMIT 1""",
+                    (time.time() - 300,),
+                ).fetchone()
+            if track:
+                ensure_artwork(track["id"])
+        except sqlite3.Error:
+            app.logger.warning("Artwork metadata temporarily unavailable")
+        time.sleep(1 if track else 10)
 
 
 @app.get("/")
@@ -572,6 +669,7 @@ if __name__ == "__main__":
         raise SystemExit("MARE_PASSWORD_HASH is required")
     recover_preparations()
     threading.Thread(target=worker, daemon=True).start()
+    threading.Thread(target=artwork_worker, daemon=True).start()
     from waitress import serve
 
     serve(app, host="127.0.0.1", port=int(os.getenv("PORT", "8787")), threads=6)

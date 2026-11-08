@@ -65,6 +65,23 @@ def search(query):
     ]
 
 
+def artwork(identifier):
+    """Resolve the cover of this exact track, independent of its playlist cover."""
+    if not ID.fullmatch(identifier):
+        raise ValueError("track id")
+    endpoint = "https://open.spotify.com/oembed?" + urlencode(
+        {"url": f"https://open.spotify.com/track/{identifier}"}
+    )
+    with urlopen(
+        Request(endpoint, headers={"User-Agent": "MareMusic/1"}), timeout=6
+    ) as response:
+        metadata = json.loads(response.read(1_048_577))
+    cover = str(metadata.get("thumbnail_url", ""))
+    if cover.startswith(("https://i.scdn.co/", "https://image-cdn-ak.spotifycdn.com/")):
+        return cover
+    return ""
+
+
 def cli(args, timeout):
     env = {k: v for k, v in os.environ.items() if not k.startswith("MARE_")}
     env.update(QT_QPA_PLATFORM="offscreen", PYTHONIOENCODING="utf-8")
