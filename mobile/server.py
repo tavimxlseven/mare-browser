@@ -276,4 +276,3 @@ if __name__ == "__main__":
     threading.Thread(target=worker, daemon=True).start()
     from waitress import serve
     serve(app, host="127.0.0.1", port=int(os.getenv("PORT", "8787")), threads=6)
-

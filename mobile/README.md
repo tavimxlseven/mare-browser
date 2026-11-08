@@ -40,4 +40,3 @@ Never publish environment files, SSH keys, passwords, the SQLite database, sessi
 ## Verification
 
 Run `python -m unittest discover -s tests` from this directory. Tests use a temporary database and mock provider responses, never production data or a user's library.
-
