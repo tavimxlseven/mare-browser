@@ -30,6 +30,7 @@ struct Progress {
     last: Value,
     done: u64,
     latest: Value,
+    total: u64,
 }
 struct Download {
     child: Child,
@@ -341,6 +342,9 @@ impl Music {
         let (events, last) = if let Ok(mut progress) = download.progress.lock() {
             self.last_download["completed_tracks"] = json!(progress.done);
             self.last_download["last_track"] = progress.latest.clone();
+            if progress.total > 0 {
+                self.last_download["total_tracks"] = json!(progress.total);
+            }
             (std::mem::take(&mut progress.events), progress.last.clone())
         } else {
             (Vec::new(), Value::Null)
@@ -389,10 +393,10 @@ impl Music {
                 let _ = self.save();
             }
             let confirmed = status.success()
-                && self
-                    .tracks
-                    .iter()
-                    .any(|t| t.source_uri == source_uri && t.path.is_file());
+                && self.last_download["completed_tracks"].as_u64().unwrap_or(0) > 0
+                && self.tracks.iter().any(|t| {
+                    Some(t.id) == self.last_download["ready_track_id"].as_u64() && t.path.is_file()
+                });
             self.last_download["state"] = json!(if confirmed { "completed" } else { "failed" });
             self.last_download["exit_code"] = json!(status.code());
             if last["event"] == "run_summary" {
@@ -591,6 +595,12 @@ impl Music {
                     while let Ok(Some(line)) = crate::native_app::read_protocol_line(&mut reader) {
                         if let Ok(event) = serde_json::from_str::<Value>(&line) {
                             if let Ok(mut state) = sink.lock() {
+                                if let Some(total) = event["total_tracks"]
+                                    .as_u64()
+                                    .filter(|n| (1..=2000).contains(n))
+                                {
+                                    state.total = total;
+                                }
                                 if matches!(
                                     event["event"].as_str(),
                                     Some("track_done" | "track_skipped")
@@ -784,6 +794,52 @@ impl Drop for Music {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn reused_audio_finishes_a_new_playlist_without_rewriting_its_source() {
+        let dir = std::env::temp_dir().join(format!(
+            "mare-reuse-events-{}-{}",
+            std::process::id(),
+            crate::model::now_ms()
+        ));
+        let mut music = Music::new(&dir).unwrap();
+        let file = dir.join("audio/existing.m4a");
+        fs::write(&file, [0; 16]).unwrap();
+        assert!(music.add_file(&file, "Song", "Artist"));
+        let track_uri = "spotify:track:0000000000000000000001";
+        music.tracks[0].source_uri = track_uri.into();
+        use std::os::windows::process::CommandExt;
+        let mut child = Command::new("cmd")
+            .args(["/C", "exit", "0"])
+            .creation_flags(0x08000000)
+            .spawn()
+            .unwrap();
+        child.wait().unwrap();
+        let event = json!({"event":"track_skipped","file":file,"title":"Song","artists":"Artist","spotify_id":"0000000000000000000001"});
+        music.download = Some(Download {
+            child,
+            started: std::time::Instant::now(),
+            progress: Arc::new(Mutex::new(Progress {
+                events: vec![event.clone()],
+                done: 1,
+                latest: event,
+                last: json!({"event":"run_summary","landed":0,"skipped":1}),
+                total: 1,
+            })),
+            reader: None,
+            tree: None,
+            temporary: dir.join("temp"),
+            source_uri: "spotify:playlist:0000000000000000000002".into(),
+            play_after: false,
+        });
+        music.poll_download();
+        assert_eq!(music.last_download["state"], "completed");
+        assert_eq!(music.last_download["completed_tracks"], 1);
+        assert_eq!(music.last_download["total_tracks"], 1);
+        assert_eq!(music.tracks[0].source_uri, track_uri);
+        assert_eq!(music.tracks[0].track_uri, track_uri);
+        drop(music);
+        fs::remove_dir_all(dir).unwrap();
+    }
     #[test]
     fn playlist_download_can_be_reused_by_track_id_after_restart() {
         let dir = std::env::temp_dir().join(format!(

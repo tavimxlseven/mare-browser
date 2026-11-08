@@ -27,7 +27,8 @@ pub fn select<'a>(
     artists: &str,
     duration: f64,
 ) -> Option<&'a Value> {
-    let expected = normalized(title.split('(').next().unwrap_or(title));
+    let base = title.split('(').next().unwrap_or(title).trim();
+    let expected = normalized(if base.is_empty() { title } else { base });
     let artist = normalized(artists.split([',', '&']).next().unwrap_or(artists));
     entries
         .iter()

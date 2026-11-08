@@ -49,6 +49,10 @@ class AudioSourceTests(unittest.TestCase):
         self.assertIs(choose([item], "Song", "Singer", 200), item)
         live = self.candidate("Singer - Song (Live) (Official Audio)")
         self.assertIs(choose([live], "Song (Live)", "Singer", 200), live)
+        parenthetical = self.candidate("Singer - (My) Song (Lyrics)")
+        self.assertIs(
+            choose([parenthetical], "(My) Song", "Singer", 200), parenthetical
+        )
 
 
 if __name__ == "__main__":

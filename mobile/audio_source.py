@@ -17,7 +17,7 @@ def contains(text, words):
 
 
 def choose(entries, title, artists, duration):
-    expected = normalized(title.split("(")[0])
+    expected = normalized(title.split("(")[0].strip() or title)
     artist = normalized(re.split("[,&]", artists)[0])
     candidates = []
     for entry in entries:

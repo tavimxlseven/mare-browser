@@ -5,6 +5,7 @@
 - Aproxima o visual do Maré Música no Windows e no celular, com player inferior, modo imersivo com capa, transições ao navegar e respeito à redução de movimento.
 - Novos downloads Spotify procuram edições de áudio ou lyrics e verificam título, artista e duração. Videoclipes, covers e outras edições não solicitadas são descartados; se não houver fonte compatível, a faixa informa uma falha em vez de usar um clipe como alternativa.
 - O webapp permite renomear e excluir playlists, oferece repetição de playlist ou de faixa, embaralha a fila visível e preserva seu contexto por conta e aparelho.
+- Confirma corretamente playlists que reaproveitam áudio baixado por outra origem e mantém a contagem de faixas durante o trabalho do componente.
 - A navegação do webapp evita recarregar a página pelo logotipo, reduz gestos de navegador e adapta os controles a telas amplas. Contas, biblioteca e arquivos existentes continuam no diretório de dados persistente.
 
 ## 0.3.9 — 2026-11-07
