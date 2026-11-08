@@ -1,5 +1,6 @@
 param([string]$BinaryDirectory, [string]$Compiler)
 . "$PSScriptRoot\environment.ps1"
+. "$PSScriptRoot\github-asset.ps1"
 if (-not $BinaryDirectory) { $BinaryDirectory=Join-Path $(if($env:CARGO_TARGET_DIR){$env:CARGO_TARGET_DIR}else{Join-Path $projectRoot 'target'}) 'release' }
 if (-not $Compiler) { $Compiler=@('D:\DevTools\InnoSetup\ISCC.exe',"${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe","$env:ProgramFiles\Inno Setup 7\ISCC.exe","$env:ProgramFiles\Inno Setup 6\ISCC.exe") | Where-Object {Test-Path -LiteralPath $_} | Select-Object -First 1 }
 if (-not $Compiler) { throw 'Compilador Inno Setup não encontrado. O build Windows do GitHub inclui esse compilador.' }
@@ -15,7 +16,7 @@ if(-not $icon){throw 'Ícone compilado ausente.'};Copy-Item -LiteralPath $icon.F
 $sunnify=Join-Path $app 'components\sunnify';New-Item -ItemType Directory -Force -Path $sunnify | Out-Null
 & "$PSScriptRoot\music-components.ps1" -Destination (Join-Path $app 'components\music')
 $exe=Join-Path $sunnify 'Sunnify.exe';$hash='abb16d22cabebf99d82c3eaf8ca60a0b5511dd99eb86b17f16d53d7077fb57ba'
-if(-not(Test-Path -LiteralPath $exe)){Invoke-WebRequest 'https://github.com/sunnypatell/sunnify-spotify-downloader/releases/download/v2.6.0/Sunnify-Windows-CLI.exe' -OutFile $exe}
+if(-not(Test-Path -LiteralPath $exe)){Save-GitHubReleaseAsset 'sunnypatell/sunnify-spotify-downloader' 'v2.6.0' 'Sunnify-Windows-CLI.exe' $exe}
 if((Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash -ne $hash){throw 'Hash do Sunnify inesperado.'}
 Invoke-WebRequest 'https://raw.githubusercontent.com/sunnypatell/sunnify-spotify-downloader/v2.6.0/LICENSE' -OutFile (Join-Path $sunnify 'LICENSE.txt')
 $bootstrap=Join-Path $payload 'MicrosoftEdgeWebview2Setup.exe'
