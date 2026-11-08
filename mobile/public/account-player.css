@@ -494,6 +494,180 @@ html {
 #mini.playing #mini-art {
   box-shadow: 0 3px 14px #0004;
 }
+
+/* Keep the artwork anchored while titles ellipsize inside their own grid cell. */
+#mini {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px 44px;
+  gap: 2px;
+  padding: 10px 10px 13px;
+  border-radius: 24px;
+  min-height: 74px;
+}
+#mini .now {
+  width: 100%;
+  justify-content: flex-start;
+  overflow: hidden;
+  padding: 0;
+}
+#mini .now img {
+  flex: 0 0 46px;
+  width: 46px;
+  height: 46px;
+  object-fit: cover;
+  border-radius: 11px;
+}
+#mini .now > span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+#mini .now strong,
+#mini .now small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin: 0;
+}
+#mini .icon-button {
+  width: 44px;
+  height: 44px;
+  padding: 10px;
+  border-radius: 50%;
+}
+#mini-progress {
+  left: 14px;
+  bottom: 5px;
+  width: calc(100% - 28px);
+  height: 3px;
+  border-radius: 20px;
+}
+#player #seek {
+  height: 36px;
+  --scrub-height: 5px;
+  touch-action: none;
+  cursor: pointer;
+}
+#player #seek:is(:hover, :focus-visible, .scrubbing) {
+  --scrub-height: 8px;
+}
+#player #seek::-webkit-slider-runnable-track {
+  height: var(--scrub-height);
+  border-radius: 20px;
+  background: linear-gradient(
+    to right,
+    #fff var(--seek-fill, 0%),
+    #ffffff32 var(--seek-fill, 0%)
+  );
+  transition: height 0.2s ease;
+}
+#player #seek::-webkit-slider-thumb {
+  width: 4px;
+  height: 18px;
+  margin-top: calc((var(--scrub-height) - 18px) / 2);
+  border-radius: 4px;
+  opacity: 0;
+  box-shadow: none;
+  transition:
+    width 0.2s ease,
+    opacity 0.2s ease,
+    box-shadow 0.2s ease;
+}
+#player #seek:is(:hover, :focus-visible, .scrubbing)::-webkit-slider-thumb {
+  opacity: 1;
+  width: 7px;
+  box-shadow: 0 2px 8px #0004;
+}
+#player #seek::-moz-range-track {
+  height: var(--scrub-height);
+  border-radius: 20px;
+  background: #ffffff32;
+}
+#player #seek::-moz-range-progress {
+  height: var(--scrub-height);
+  border-radius: 20px;
+  background: #fff;
+}
+#player #seek::-moz-range-thumb {
+  width: 5px;
+  height: 18px;
+  border-radius: 4px;
+}
+.seek-control {
+  position: relative;
+  isolation: isolate;
+  height: 36px;
+}
+.seek-control::before,
+.seek-control::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 100%;
+  height: 5px;
+  border-radius: 99px;
+  background: #ffffff32;
+  z-index: -1;
+  pointer-events: none;
+  transition: height 0.2s ease;
+}
+.seek-control::after {
+  width: var(--seek-fill, 0%);
+  background: #fff;
+}
+.seek-control:has(input:is(:active, :focus-visible, .scrubbing))::before,
+.seek-control:has(input:is(:active, :focus-visible, .scrubbing))::after {
+  height: 8px;
+}
+#player .seek-control #seek::-webkit-slider-runnable-track {
+  background: transparent;
+}
+#seek-preview {
+  position: absolute;
+  left: clamp(24px, var(--seek-fill, 0%), calc(100% - 24px));
+  bottom: calc(50% + 16px);
+  transform: translate(-50%, 6px) scale(0.94);
+  color: #24212c;
+  background: #fff;
+  padding: 5px 9px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  box-shadow: 0 3px 10px #0003;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.18s,
+    transform 0.2s var(--ease);
+}
+.seek-control:has(input:is(:active, :focus-visible, .scrubbing)) #seek-preview {
+  opacity: 1;
+  transform: translate(-50%, 0) scale(1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .seek-control::before,
+  .seek-control::after,
+  #seek-preview {
+    transition: none;
+  }
+}
+.job-track-error {
+  align-items: flex-start;
+  gap: 14px;
+}
+.job-track-error small {
+  max-width: 55%;
+  white-space: normal;
+  text-align: right;
+  color: #ffbac8;
+  line-height: 1.5;
+}
 @media (min-width: 1000px) {
   #app > header {
     max-width: none;

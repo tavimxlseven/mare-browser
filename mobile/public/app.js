@@ -17,6 +17,10 @@ let downloads = new Set(),
   activeSave = "",
   onlineSession = false;
 const audio = $("audio");
+let seeking = false;
+let searchVersion = 0,
+  searchController = null;
+const pendingMutations = new Map();
 let database;
 function openDatabase(name) {
   return new Promise((resolve, reject) => {
@@ -54,14 +58,60 @@ function notice(message) {
   clearTimeout(notice.timer);
   notice.timer = setTimeout(() => ($("notice").hidden = true), 6500);
 }
-async function api(path, data) {
+async function api(path, data, signal) {
+  const dedupe =
+    data &&
+    (path === "prepare" ||
+      path === "import" ||
+      /^playlists\/[^/]+\/prepare$/.test(path));
+  const identity = data?.tracks
+    ? [...new Set(data.tracks.map((t) => t.id))].sort()
+    : data?.url?.replace(/[?#].*$/, "") || "";
+  const key = dedupe
+    ? (currentUser?.id || "") + ":" + path + ":" + JSON.stringify(identity)
+    : null;
+  if (key && pendingMutations.has(key)) return pendingMutations.get(key);
+  const promise = (async () => {
+    try {
+      return await performApi(path, data, signal);
+    } catch (error) {
+      if (
+        !dedupe ||
+        !navigator.onLine ||
+        error.name === "AbortError" ||
+        !(error instanceof TypeError || error.status >= 500)
+      )
+        throw error;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      return performApi(path, data, signal);
+    }
+  })();
+  if (key) pendingMutations.set(key, promise);
+  try {
+    return await promise;
+  } finally {
+    if (key && pendingMutations.get(key) === promise)
+      pendingMutations.delete(key);
+  }
+}
+async function performApi(path, data, signal) {
   const response = await fetch("/api/" + path, {
     method: data === undefined ? "GET" : "POST",
     headers: data === undefined ? {} : { "Content-Type": "application/json" },
     body: data === undefined ? undefined : JSON.stringify(data),
     credentials: "same-origin",
+    signal,
   });
-  const result = await response.json();
+  let result;
+  try {
+    result = await response.json();
+  } catch {
+    const error = new Error(
+      "O serviço não respondeu. Sua fila foi preservada; tente novamente.",
+    );
+    error.status = response.status;
+    throw error;
+  }
   if (!response.ok) {
     if (response.status === 401) onlineSession = false;
     const error = new Error(result.error || "Não foi possível concluir.");
@@ -122,7 +172,15 @@ function row(track, list) {
             ? " · Na nuvem"
             : "");
   title.append(name, artist);
-  title.onclick = task(() => play(track, list));
+  title.onclick = task(async () => {
+    if (title.disabled) return;
+    title.disabled = true;
+    try {
+      await play(track, list);
+    } finally {
+      title.disabled = false;
+    }
+  });
   const more = document.createElement("button");
   more.className = "more";
   more.innerHTML = icon("more");
@@ -138,6 +196,7 @@ function row(track, list) {
         : "cloud",
   );
   status.ariaLabel = statusLabel(track);
+  status.disabled = ["queued", "preparing"].includes(track.status);
   status.classList.toggle(
     "ready",
     offlineIds.has(track.id) || track.status === "ready",
@@ -243,7 +302,8 @@ function showEntry(title, label, callback) {
   $("entry-value").inputMode = title === "Importar do Spotify" ? "url" : "text";
   $("entry-form").onsubmit = task(async (e) => {
     e.preventDefault();
-    const button = e.submitter;
+    const button = e.submitter || $("entry-form").querySelector(".primary");
+    if (button.disabled) return;
     button.disabled = true;
     try {
       await callback($("entry-value").value);
@@ -255,7 +315,7 @@ function showEntry(title, label, callback) {
       button.disabled = false;
     }
   });
-  $("entry").showModal();
+  openSheet($("entry"));
 }
 function options(track) {
   const old = $("track-options");
@@ -270,7 +330,7 @@ function options(track) {
     b.textContent = label;
     b.className = "option";
     b.onclick = task(async () => {
-      dialog.close();
+      closeSheet(dialog);
       await fn();
     });
     dialog.append(b);
@@ -322,7 +382,7 @@ function options(track) {
   });
   add("Cancelar", () => {});
   document.body.append(dialog);
-  dialog.showModal();
+  openSheet(dialog);
 }
 async function ensureSaved(t) {
   if (!library.tracks.some((x) => x.id === t.id)) {
@@ -336,6 +396,7 @@ async function refresh() {
   library = await api("library");
   onlineSession = true;
   await local("meta", "library", library);
+  await reconcileDownloads();
   $("connection").hidden = true;
   render();
   drawIsland();
@@ -379,6 +440,17 @@ async function saveTracks(tracks) {
   await refresh();
   expandIsland();
   await drain();
+}
+async function reconcileDownloads() {
+  const stale = [...downloads].filter((id) => {
+    const track = library.tracks.find((t) => t.id === id);
+    return !track || track.status === "error";
+  });
+  if (!stale.length) return;
+  for (const id of stale) downloads.delete(id);
+  deviceBatch = deviceBatch.filter((id) => !stale.includes(id));
+  await local("meta", "downloads", [...downloads]);
+  await local("meta", "device-batch", deviceBatch);
 }
 async function drain() {
   if (saving || !navigator.onLine || document.hidden || !downloads.size) return;
@@ -466,22 +538,40 @@ function savePlayer() {
 }
 async function play(track, list) {
   track = library.tracks.find((t) => t.id === track.id) || track;
+  if (["queued", "preparing"].includes(track.status)) {
+    const job = (library.jobs || []).find(
+      (j) =>
+        j.track_ids?.includes(track.id) &&
+        ["queued", "importing", "preparing"].includes(j.status),
+    );
+    if (job) {
+      islandJobId = job.id;
+      dismissedJobs.delete(job.id);
+    }
+    notice(
+      "Esta música já está sendo preparada. Acompanhe o andamento na ilha.",
+    );
+    expandIsland();
+    return;
+  }
+  if (!offlineIds.has(track.id) && track.status !== "ready") {
+    const prepared = await api("prepare", {
+      tracks: [{ ...track, artists: track.artist, thumbnail: track.art }],
+    });
+    islandJobId = prepared.job_id;
+    dismissedJobs.delete(islandJobId);
+    await refresh();
+    notice(
+      "Preparando na nuvem. Toque em reproduzir quando a faixa estiver pronta.",
+    );
+    return;
+  }
   if (list) {
     playbackContext = list.map((t) => t.id);
     const position = playbackContext.indexOf(track.id);
     queue = shuffle
       ? shuffleItems(playbackContext.filter((id) => id !== track.id))
       : playbackContext.slice(position + 1);
-  }
-  if (!offlineIds.has(track.id) && track.status !== "ready") {
-    await api("prepare", {
-      tracks: [{ ...track, artists: track.artist, thumbnail: track.art }],
-    });
-    await refresh();
-    notice(
-      "Preparando na nuvem. Toque em reproduzir quando a faixa estiver pronta.",
-    );
-    return;
   }
   const blob = await local("audio", track.id);
   audio.pause();
@@ -607,13 +697,21 @@ audio.onplay = audio.onpause = () => {
     navigator.mediaSession.playbackState = audio.paused ? "paused" : "playing";
   savePlayer();
 };
+function paintMobileSeek(percent, position) {
+  $("seek").value = percent;
+  $("seek").parentElement.style.setProperty("--seek-fill", percent + "%");
+  $("seek-preview").textContent = stamp(position);
+  $("elapsed").textContent = stamp(position);
+}
 audio.ontimeupdate = () => {
-  $("elapsed").textContent = stamp(audio.currentTime);
   $("duration").textContent = stamp(audio.duration);
-  $("seek").value = audio.duration
+  const actual = audio.duration
     ? (audio.currentTime / audio.duration) * 100
     : 0;
-  $("mini-progress").value = Number($("seek").value);
+  if (!seeking) {
+    paintMobileSeek(actual, audio.currentTime);
+  }
+  $("mini-progress").value = actual;
   if (Math.floor(audio.currentTime) % 5 === 0) savePlayer();
 };
 audio.onended = task(() => next(true));
@@ -624,7 +722,27 @@ audio.onerror = () =>
 $("seek").onchange = () => {
   if (Number.isFinite(audio.duration))
     audio.currentTime = (audio.duration * Number($("seek").value)) / 100;
+  seeking = false;
+  $("seek").classList.remove("scrubbing");
   savePlayer();
+};
+$("seek").onpointerdown = () => {
+  seeking = true;
+  $("seek").classList.add("scrubbing");
+};
+$("seek").onpointerup = () => {
+  seeking = false;
+  $("seek").classList.remove("scrubbing");
+};
+$("seek").oninput = () => {
+  seeking = true;
+  const fraction = Number($("seek").value) / 100;
+  paintMobileSeek(100 * fraction, (audio.duration || 0) * fraction);
+};
+$("seek").onpointercancel = $("seek").onblur = () => {
+  seeking = false;
+  $("seek").classList.remove("scrubbing");
+  audio.ontimeupdate();
 };
 $("mini-play").onclick = $("big-play").onclick = toggle;
 $("next").onclick = $("forward").onclick = task(() => next(false));
@@ -657,28 +775,46 @@ $("repeat").onclick = () => {
   savePlayer();
 };
 $("open-player").onclick = () => {
-  $("player").showModal();
+  openSheet($("player"));
   drawQueue();
 };
 $("save-current").onclick = task(() => current && saveTracks([current]));
 $("search-form").onsubmit = task(async (e) => {
   e.preventDefault();
   const b = e.submitter;
-  b.disabled = true;
+  if (b?.disabled) return;
+  if (b) b.disabled = true;
+  searchController?.abort();
+  const controller = new AbortController();
+  searchController = controller;
+  const version = ++searchVersion;
   try {
     const query = $("query").value.trim();
+    let found;
     if (!navigator.onLine)
-      results = library.tracks.filter(
+      found = library.tracks.filter(
         (t) =>
           offlineIds.has(t.id) &&
           (t.title + " " + t.artist)
             .toLocaleLowerCase()
             .includes(query.toLocaleLowerCase()),
       );
-    else results = (await api("search?q=" + encodeURIComponent(query))).tracks;
+    else
+      found = (
+        await api(
+          "search?q=" + encodeURIComponent(query),
+          undefined,
+          controller.signal,
+        )
+      ).tracks;
+    if (version !== searchVersion || view !== "search") return;
+    results = found;
+    $("query").blur();
     render();
+  } catch (error) {
+    if (error.name !== "AbortError") throw error;
   } finally {
-    b.disabled = false;
+    if (b) b.disabled = false;
   }
 });
 $("import").onclick = () =>
@@ -704,15 +840,12 @@ $("download-all").onclick = task(() =>
 );
 for (const b of document.querySelectorAll("[data-view]"))
   b.onclick = () => {
-    view = b.dataset.view;
-    selected = null;
-    render();
-    animateView();
+    navigateView(b.dataset.view, null);
   };
 for (const b of document.querySelectorAll("[data-close]"))
-  b.onclick = () => b.closest("dialog").close();
+  b.onclick = () => closeSheet(b.closest("dialog"));
 $("settings").onclick = task(async () => {
-  $("preferences").showModal();
+  openSheet($("preferences"));
   await loadInvites();
   $("preparation-state").textContent = library.preparation?.paused
     ? "A fonte de áudio recusou o acesso. Os downloads estão pausados e a fila foi preservada."
@@ -804,6 +937,7 @@ async function boot() {
 }
 
 async function restorePlayer() {
+  history.replaceState(appRoute(), "", location.pathname);
   playHistory = (await local("meta", "history")) || [];
   const saved = await local("meta", "player");
   if (saved) {
@@ -861,10 +995,7 @@ $("resume-preparation").onclick = task(async () => {
 
 document.querySelector(".wordmark").onclick = (event) => {
   event.preventDefault();
-  view = "library";
-  selected = null;
-  render();
-  animateView();
+  navigateView("library", null);
 };
 document.addEventListener("keydown", (event) => {
   if (

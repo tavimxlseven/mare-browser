@@ -4,6 +4,24 @@ import provider
 
 
 class ProviderTests(unittest.TestCase):
+    def test_preparation_reuses_verified_metadata_and_reports_unmatched_songs(self):
+        import audio_source
+
+        metadata = dict(id="a" * 22, title="Song", artist="Singer", duration_ms=200000)
+        with patch("provider.cli") as cli, patch(
+            "audio_source.download", return_value="audio.m4a"
+        ) as download:
+            self.assertEqual(
+                provider.download(metadata["id"], "fixture", metadata), "audio.m4a"
+            )
+            cli.assert_not_called()
+            self.assertEqual(download.call_args.args[2]["duration_ms"], 200000)
+        with patch("audio_source.download", side_effect=audio_source.NoMatchingAudio()):
+            with self.assertRaisesRegex(
+                provider.TrackPreparationError, "resultado compatível"
+            ):
+                provider.download(metadata["id"], "fixture", metadata)
+
     def test_shared_spotify_links_have_one_canonical_identity(self):
         identifier = "p" * 22
         expected = (

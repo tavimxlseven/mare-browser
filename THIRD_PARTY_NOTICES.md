@@ -40,7 +40,7 @@ Os arquivos `LICENSE.txt` e `NOTICE.txt` desse pacote foram preservados integral
 
 ## Dependências transitivas
 
-A lista abaixo contém os **168 crates externos** alcançáveis a partir do pacote raiz no grafo retornado por Cargo com filtro Windows GNU. Inclui dependências de build/macros para conservar os avisos mesmo quando partes não são ligadas ao executável.
+A lista abaixo contém os **170 crates externos** alcançáveis a partir do pacote raiz no grafo retornado por Cargo com filtro Windows GNU. Inclui dependências de build/macros para conservar os avisos mesmo quando partes não são ligadas ao executável.
 
 | Crate | Versão | Licença declarada |
 | --- | --- | --- |
@@ -165,12 +165,14 @@ A lista abaixo contém os **168 crates externos** alcançáveis a partir do paco
 | time-core | 0.1.9 | MIT OR Apache-2.0 |
 | time-macros | 0.2.32 | MIT OR Apache-2.0 |
 | tinystr | 0.8.5 | Unicode-3.0 |
+| tinyvec | 1.13.3 | Zlib OR Apache-2.0 OR MIT |
 | toml | 1.2.0+spec-1.1.0 | MIT OR Apache-2.0 |
 | toml_datetime | 1.1.2+spec-1.1.0 | MIT OR Apache-2.0 |
 | toml_parser | 1.1.5+spec-1.1.0 | MIT OR Apache-2.0 |
 | toml_writer | 1.2.0+spec-1.1.0 | MIT OR Apache-2.0 |
 | typenum | 1.20.1 | MIT OR Apache-2.0 |
 | unicode-ident | 1.0.27 | (MIT OR Apache-2.0) AND Unicode-3.0 |
+| unicode-normalization | 0.1.26 | (MIT OR Apache-2.0) AND Unicode-3.0 |
 | unicode-segmentation | 1.13.3 | MIT OR Apache-2.0 |
 | untrusted | 0.9.0 | ISC |
 | url | 2.5.8 | MIT OR Apache-2.0 |

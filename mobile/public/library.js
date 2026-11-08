@@ -34,20 +34,21 @@ function collectionArt(playlist, target) {
 }
 function animateView() {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  for (const animation of document.querySelector("main").getAnimations())
+  for (const animation of document.querySelector("main").getAnimations()) {
+    animation.finished.catch(() => {});
     animation.cancel();
-  document.querySelector("main").animate(
+  }
+  const transition = document.querySelector("main").animate(
     [
       { opacity: 0.4, transform: "translateY(7px)" },
       { opacity: 1, transform: "translateY(0)" },
     ],
     { duration: 240, easing: "cubic-bezier(.2,.8,.2,1)" },
   );
+  transition.finished.catch(() => {});
 }
 function showPlaylist(id) {
-  selected = id;
-  render();
-  animateView();
+  navigateView("library", id);
   local("meta", "selected", id).catch(() => {});
 }
 function updatePlaylistHeader() {
@@ -72,6 +73,11 @@ function updatePlaylistHeader() {
     (t) => t.status === "ready" || offlineIds.has(t.id),
   );
   $("prepare-all").hidden = ready === tracks.length;
+  const actionable = tracks.some(
+    (t) => !["ready", "queued", "preparing"].includes(t.status),
+  );
+  $("prepare-all").disabled = !actionable;
+  $("prepare-all").textContent = actionable ? "Preparar" : "Em preparação";
   $("download-all").disabled = !tracks.some(
     (t) => t.status === "ready" && !offlineIds.has(t.id),
   );
@@ -87,8 +93,21 @@ function statusLabel(t) {
     }[t.status] || "Ainda não preparada"
   );
 }
+function visibleJobs() {
+  const seen = new Set();
+  return [...(library.jobs || [])]
+    .sort((a, b) => Number(b.kind === "import") - Number(a.kind === "import"))
+    .filter((job) => {
+      const key = job.track_ids?.length
+        ? [...job.track_ids].sort().join(",")
+        : job.id;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
 function selectedJob() {
-  const jobs = library.jobs || [];
+  const jobs = visibleJobs();
   const pinned = jobs.find(
     (j) => j.id === islandJobId && !dismissedJobs.has(j.id),
   );
@@ -106,7 +125,10 @@ function drawIsland() {
   const job = selectedJob();
   const deviceActive = saving || downloads.size > 0;
   $("island").hidden = !job && !deviceActive;
-  if ($("island").hidden) return;
+  if ($("island").hidden) {
+    collapseActivity();
+    return;
+  }
   const active = saving
     ? library.tracks.find((t) => t.id === activeSaveId)
     : job?.current;
@@ -136,7 +158,7 @@ function drawIsland() {
   } else if (job?.status === "error") {
     detail = job.message;
   } else if (job) {
-    percent = job.total ? (job.ready / job.total) * 100 : 0;
+    percent = job.total ? ((job.ready + job.failed) / job.total) * 100 : 0;
     detail =
       job.ready +
       " de " +
@@ -185,7 +207,7 @@ function drawIsland() {
   if ($("job-list").dataset.signature !== detailSignature) {
     $("job-list").dataset.signature = detailSignature;
     $("job-list").replaceChildren();
-    const jobs = library.jobs || [];
+    const jobs = visibleJobs();
     if (jobs.length > 1) {
       const selector = document.createElement("div");
       selector.className = "job-tabs";
@@ -227,7 +249,10 @@ function drawIsland() {
     const ids = job?.track_ids || [...downloads];
     const remaining = ids
       .map((id) => library.tracks.find((t) => t.id === id))
-      .filter(Boolean);
+      .filter(Boolean)
+      .sort(
+        (a, b) => Number(b.status === "error") - Number(a.status === "error"),
+      );
     for (const t of remaining.slice(0, 10)) {
       const line = document.createElement("div");
       line.className = "job-track";
@@ -235,6 +260,10 @@ function drawIsland() {
       name.textContent = t.title;
       const state = document.createElement("small");
       state.textContent = statusLabel(t);
+      if (t.status === "error") {
+        line.classList.add("job-track-error");
+        state.textContent = t.error || "Falha ao preparar. Tente novamente.";
+      }
       line.append(name, state);
       $("job-list").append(line);
     }
@@ -261,13 +290,14 @@ function expandIsland() {
   $("island-toggle").setAttribute("aria-expanded", "true");
   $("island").classList.add("expanded");
 }
-function closeSheet(dialog) {
+function hideSheet(dialog) {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
     dialog.close();
     return;
   }
   dialog.classList.add("closing");
-  setTimeout(() => {
+  clearTimeout(dialog.closeTimer);
+  dialog.closeTimer = setTimeout(() => {
     dialog.close();
     dialog.classList.remove("closing");
   }, 170);
@@ -280,11 +310,18 @@ $("playlist-play").onclick = task(() => {
   if (tracks.length) return play(tracks[0], tracks);
 });
 $("prepare-all").onclick = task(async () => {
-  const result = await api("playlists/" + selected + "/prepare", {});
-  islandJobId = result.job_id;
-  dismissedJobs.delete(islandJobId);
-  await refresh();
-  expandIsland();
+  if ($("prepare-all").disabled) return;
+  $("prepare-all").disabled = true;
+  const playlistId = selected;
+  try {
+    const result = await api("playlists/" + selected + "/prepare", {});
+    islandJobId = result.job_id;
+    dismissedJobs.delete(islandJobId);
+    await refresh();
+    if (view === "library" && selected === playlistId) expandIsland();
+  } finally {
+    updatePlaylistHeader();
+  }
 });
 $("jobs-open").onclick = () => {
   const jobs = library.jobs || [];
@@ -336,6 +373,18 @@ $("island-retry").onclick = task(async () => {
       });
   }
   await refresh();
+});
+$("clear-activity").onclick = task(async () => {
+  const button = $("clear-activity");
+  button.disabled = true;
+  try {
+    await api("jobs/cleanup", {});
+    islandJobId = null;
+    await refresh();
+    notice("Atividades concluídas e com falha removidas.");
+  } finally {
+    button.disabled = false;
+  }
 });
 for (const b of document.querySelectorAll("[data-close]"))
   b.onclick = () => closeSheet(b.closest("dialog"));

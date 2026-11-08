@@ -1,4 +1,4 @@
-THIRD-PARTY LICENSES — MARÉ BROWSER 0.3.2
+THIRD-PARTY LICENSES — MARÉ BROWSER 0.3.11
 
 Generated from the resolved Cargo dependency graph for x86_64-pc-windows-gnu.
 Includes runtime and build/procedural-macro crates in that graph. Some items may
@@ -39327,3 +39327,9 @@ Apache License
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
+
+
+ADDITIONAL DEPENDENCIES — MARÉ 0.3.11
+
+tinyvec 1.13.3 — Zlib OR Apache-2.0 OR MIT — https://github.com/Lokathor/tinyvec
+unicode-normalization 0.1.26 — (MIT OR Apache-2.0) AND Unicode-3.0 — https://github.com/unicode-rs/unicode-normalization

@@ -4,6 +4,69 @@ from audio_source import choose
 
 
 class AudioSourceTests(unittest.TestCase):
+    def test_accents_and_official_visualizers_do_not_hide_compatible_audio(self):
+        item = self.candidate("Singer - Introducao (Áudio Oficial)")
+        self.assertIs(choose([item], "Introdução", "Singer", 200), item)
+        item = self.candidate("Singer - Song (Visualizer)")
+        self.assertIs(choose([item], "Song", "Singer", 200), item)
+
+    def test_japanese_subtitles_and_unspaced_titles_match(self):
+        item = self.candidate("7!!『ラヴァーズ』中日字幕", uploader="Lyrics")
+        item["duration"] = 222
+        self.assertIs(choose([item], "ラヴァーズ", "7!!", 222), item)
+        self.assertIsNone(choose([item], "カワキヲアメク", "7!!", 222))
+
+    def test_first_compatible_result_is_the_fallback_when_lyrics_are_absent(self):
+        import tempfile, sys
+        from pathlib import Path
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        import audio_source
+
+        requests = []
+
+        class Downloader:
+            def __init__(self, options):
+                self.options = options
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                pass
+
+            def extract_info(self, url, download=False):
+                if url.endswith("lyrics") or url.endswith("official audio"):
+                    return {"entries": []}
+                return {
+                    "entries": [
+                        dict(
+                            id="wrongartist", title="Someone Else - Song", duration=200
+                        ),
+                        dict(
+                            id="abcdefghijk",
+                            title="Singer - Song (Official Music Video)",
+                            duration=215,
+                        ),
+                        dict(id="otherresult", title="Singer - Song", duration=200),
+                    ]
+                }
+
+            def download(self, urls):
+                requests.extend(urls)
+                Path(self.options["outtmpl"]).write_bytes(b"completed-audio")
+
+        with tempfile.TemporaryDirectory() as folder, patch.dict(
+            sys.modules, {"yt_dlp": SimpleNamespace(YoutubeDL=Downloader)}
+        ):
+            result = audio_source.download(
+                "a" * 22,
+                folder,
+                dict(title="Song", artist="Singer", duration_ms=200000),
+            )
+            self.assertTrue(result.is_file())
+            self.assertEqual(requests, ["https://www.youtube.com/watch?v=abcdefghijk"])
+
     def candidate(self, title, **fields):
         return dict(id="abcdefghijk", title=title, duration=200, **fields)
 

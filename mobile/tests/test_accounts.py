@@ -10,6 +10,26 @@ from test_server import server
 
 
 class AccountTests(unittest.TestCase):
+    def test_activity_cleanup_is_account_scoped(self):
+        friend = self.friend()
+        with server.db() as con:
+            job = server.create_job(
+                con,
+                "prepare",
+                "",
+                "Private activity",
+                [],
+                friend.get("/api/me").json["user"]["id"],
+            )
+        self.admin.post("/api/jobs/cleanup", json={}, headers=self.origin)
+        with server.db() as con:
+            self.assertEqual(
+                con.execute("SELECT archived FROM jobs WHERE id=?", (job,)).fetchone()[
+                    0
+                ],
+                0,
+            )
+
     def setUp(self):
         self.origin = {"Origin": "https://music.example"}
         self.admin = server.app.test_client()

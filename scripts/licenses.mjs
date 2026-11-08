@@ -4,6 +4,7 @@ const metadata = JSON.parse(
   fs.readFileSync(process.argv[2], "utf8").replace(/^\uFEFF/, ""),
 );
 const ids = new Set(metadata.resolve.nodes.map((n) => n.id));
+const version = metadata.packages.find((p) => p.name === "mare-browser").version;
 const packages = metadata.packages
   .filter((p) => ids.has(p.id) && p.name !== "mare-browser")
   .sort(
@@ -12,12 +13,12 @@ const packages = metadata.packages
   );
 let output = fs
   .readFileSync("THIRD_PARTY_LICENSES.txt", "utf8")
-  .replace("MARÉ BROWSER 0.3.0", "MARÉ BROWSER 0.3.2");
+  .replace(/MARÉ BROWSER \d+\.\d+\.\d+/, `MARÉ BROWSER ${version}`);
 const added = packages.filter(
   (p) => !output.includes(`${p.name} ${p.version} —`),
 );
 if (added.length) {
-  output += "\n\nADDITIONAL DEPENDENCIES — MARÉ 0.3.2\n\n";
+  output += `\n\nADDITIONAL DEPENDENCIES — MARÉ ${version}\n\n`;
   for (const p of added)
     output += `${p.name} ${p.version} — ${p.license || "see upstream license"} — ${p.repository || p.homepage || "https://crates.io/crates/" + p.name}\n`;
   for (const p of added) {

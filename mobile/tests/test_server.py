@@ -16,6 +16,122 @@ import server
 
 
 class ServerTests(unittest.TestCase):
+    def test_completed_activity_expires_and_reused_work_can_return(self):
+        import time
+
+        self.login()
+        track = dict(id="a" * 22, title="Song", artist="Artist", art="")
+        with server.db() as db:
+            server.save_tracks(db, [track])
+            db.execute("UPDATE tracks SET status='ready'")
+            job = server.create_job(
+                db, "prepare", "", "Fixture", [track["id"]], "admin"
+            )
+        self.assertEqual(
+            self.client.get("/api/library").json["jobs"][0]["status"], "complete"
+        )
+        with server.db() as db:
+            db.execute("UPDATE jobs SET updated=? WHERE id=?", (time.time() - 20, job))
+        self.assertEqual(self.client.get("/api/library").json["jobs"], [])
+        with server.db() as db:
+            db.execute("UPDATE tracks SET status='new'")
+        response = self.client.post(
+            "/api/prepare", json={"tracks": [track]}, headers=self.origin
+        )
+        self.assertEqual(response.json["job_id"], job)
+        self.assertEqual(self.client.get("/api/library").json["jobs"][0]["id"], job)
+
+    def test_cleanup_keeps_active_work_and_song_data(self):
+        self.login()
+        with server.db() as db:
+            server.save_tracks(
+                db, [dict(id=c * 22, title=c, artist="Artist", art="") for c in "abc"]
+            )
+            for c, status in zip("abc", ("ready", "error", "queued")):
+                db.execute("UPDATE tracks SET status=? WHERE id=?", (status, c * 22))
+                server.create_job(db, "prepare", "", c, [c * 22], "admin")
+            importing = server.create_job(
+                db, "import", "source", "Reading", [], "admin"
+            )
+        response = self.client.post("/api/jobs/cleanup", json={}, headers=self.origin)
+        self.assertEqual(response.json["cleared"], 2)
+        jobs = self.client.get("/api/library").json["jobs"]
+        self.assertEqual(len(jobs), 2)
+        self.assertIn(importing, {j["id"] for j in jobs})
+        with server.db() as db:
+            self.assertEqual(db.execute("SELECT count(*) FROM tracks").fetchone()[0], 3)
+
+    def test_prepare_reuses_import_jobs_for_reordered_subsets_and_ready_tracks(self):
+        self.login()
+        tracks = [dict(id=c * 22, title=c, artist="Artist", art="") for c in "ab"]
+        with server.db() as db:
+            server.save_tracks(db, tracks)
+            original = server.create_job(
+                db, "import", "source", "Playlist", [t["id"] for t in tracks], "admin"
+            )
+            db.execute("UPDATE jobs SET status='preparing' WHERE id=?", (original,))
+        for values in (tracks, list(reversed(tracks)), tracks[:1]):
+            response = self.client.post(
+                "/api/prepare", json={"tracks": values}, headers=self.origin
+            )
+            self.assertEqual(response.json["job_id"], original)
+        with server.db() as db:
+            db.execute("UPDATE tracks SET status='ready'")
+        self.client.get("/api/library")
+        response = self.client.post(
+            "/api/prepare", json={"tracks": tracks}, headers=self.origin
+        )
+        self.assertEqual(response.json["job_id"], original)
+        with server.db() as db:
+            self.assertEqual(db.execute("SELECT count(*) FROM jobs").fetchone()[0], 1)
+            self.assertEqual(
+                db.execute(
+                    "SELECT count(*) FROM tracks WHERE status='queued'"
+                ).fetchone()[0],
+                0,
+            )
+
+    def test_two_workers_claim_distinct_tracks_and_respect_pause(self):
+        from concurrent.futures import ThreadPoolExecutor
+
+        with server.db() as db:
+            server.save_tracks(
+                db, [dict(id=c * 22, title=c, artist="Artist", art="") for c in "abc"]
+            )
+            db.execute("UPDATE tracks SET status='queued'")
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            work = list(pool.map(lambda _: server.take_work(), range(2)))
+        ids = [entry[1] for entry in work]
+        self.assertEqual(len(set(ids)), 2)
+        self.assertNotIn(None, ids)
+        with server.db() as db:
+            self.assertEqual(
+                db.execute(
+                    "SELECT count(*) FROM tracks WHERE status='queued'"
+                ).fetchone()[0],
+                1,
+            )
+            db.execute(
+                "INSERT OR REPLACE INTO settings VALUES ('blocked_track','fixture')"
+            )
+        self.assertEqual(server.take_work(), (None, None))
+
+    def test_only_verified_metadata_populates_duration_cache(self):
+        identifier = "a" * 22
+        track = dict(
+            id=identifier, title="Song", artist="Artist", art="", duration_ms=200000
+        )
+        with server.db() as db:
+            server.save_tracks(db, [track])
+            self.assertEqual(
+                db.execute("SELECT duration_ms FROM tracks").fetchone()[0], 0
+            )
+            server.save_tracks(db, [track], authoritative=True)
+            server.save_tracks(db, [dict(track, duration_ms=999999)])
+            self.assertEqual(
+                db.execute("SELECT duration_ms FROM tracks").fetchone()[0], 200000
+            )
+
     def setUp(self):
         self.client = server.app.test_client()
         self.origin = {"Origin": "https://music.example"}

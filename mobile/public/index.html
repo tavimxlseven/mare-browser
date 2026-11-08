@@ -359,14 +359,18 @@
         <div id="queue"></div>
       </div>
       <div class="player-controls">
-        <input
-          id="seek"
-          type="range"
-          min="0"
-          max="100"
-          value="0"
-          aria-label="Posição na música"
-        />
+        <div class="seek-control">
+          <input
+            id="seek"
+            type="range"
+            step="0.01"
+            min="0"
+            max="100"
+            value="0"
+            aria-label="Posição na música"
+          />
+          <output id="seek-preview" aria-hidden="true">0:00</output>
+        </div>
         <div class="times">
           <span id="elapsed">0:00</span><span id="duration">0:00</span>
         </div>
@@ -455,6 +459,7 @@
         <button id="resume-preparation">
           <span data-icon="retry"></span>Tentar downloads novamente
         </button>
+        <button id="clear-activity">Limpar atividades concluídas</button>
         <p>
           A preparação continua na VPS ao fechar o app. A fila é salva
           automaticamente.
@@ -496,5 +501,6 @@
     <script src="/library.js" defer></script>
     <script src="/accounts.js" defer></script>
     <script src="/player-ui.js" defer></script>
+    <script src="/navigation.js" defer></script>
   </body>
 </html>

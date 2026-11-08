@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.11 — 2026-11-08
+
+- O webapp prefere lyrics/áudio e usa o primeiro resultado compatível como alternativa. Atividades concluídas/com falha são arquivadas automaticamente e podem ser limpas em Ajustes.
+- Reaproveita tarefas de preparação repetidas e bloqueia os controles de faixas já na fila. O gesto Voltar percorre as telas e fecha painéis; buscas pendentes são canceladas ao sair da tela.
+- Troca a barra inferior larga do desktop por um player compacto no topo. Os controles de posição e volume usam preenchimento arredondado, resposta animada ao arraste e prévia de tempo/volume.
+- Corrige a capa e o alinhamento do miniplayer no celular, mantém a barra de progresso dentro do painel e evita que atualizações de reprodução interrompam o arraste da posição.
+- Reaproveita metadados verificados na preparação móvel e adianta buscas, mantendo a reserva de tarefas em transações SQLite e uma extração pesada por vez para limitar a memória.
+- Reconhece títulos japoneses sem espaços e edições com legendas locais. Faixas de áudio sem indicação Topic só são aceitas depois de conferir a identificação automática na descrição da fonte.
+- Exibe motivos de falha por faixa e inclui falhas no avanço de processamento da fila, sem apresentá-las como músicas prontas.
+
 ## 0.3.10 — 2026-11-08
 
 - Aproxima o visual do Maré Música no Windows e no celular, com player inferior, modo imersivo com capa, transições ao navegar e respeito à redução de movimento.

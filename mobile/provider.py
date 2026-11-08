@@ -14,6 +14,10 @@ class PreparationError(Exception):
     """A safe, actionable error for the player."""
 
 
+class TrackPreparationError(ValueError):
+    """A safe per-song error that does not pause unrelated songs."""
+
+
 ID = re.compile(r"[a-zA-Z0-9]{22}")
 LINK = re.compile(
     r"(?:https://open\.spotify\.com/(?:intl-[a-zA-Z-]+/)?(track|playlist|album)/|spotify:(track|playlist|album):)([A-Za-z0-9]{22})(?:\?[^\s]*)?"
@@ -40,8 +44,18 @@ def track(raw):
         ("https://i.scdn.co/", "https://image-cdn-ak.spotifycdn.com/")
     ):
         art = ""
+    duration = raw.get("duration_ms", 0)
+    duration = (
+        int(duration)
+        if isinstance(duration, (int, float)) and 0 < duration <= 86_400_000
+        else 0
+    )
     return dict(
-        id=identifier, title=title.strip()[:300], artist=str(artists)[:300], art=art
+        id=identifier,
+        title=title.strip()[:300],
+        artist=str(artists)[:300],
+        art=art,
+        duration_ms=duration,
     )
 
 
@@ -83,6 +97,13 @@ def artwork(identifier):
 
 
 def cli(args, timeout):
+    from audio_source import EXTRACTION_SLOTS
+
+    with EXTRACTION_SLOTS:
+        return _cli(args, timeout)
+
+
+def _cli(args, timeout):
     env = {k: v for k, v in os.environ.items() if not k.startswith("MARE_")}
     env.update(QT_QPA_PLATFORM="offscreen", PYTHONIOENCODING="utf-8")
     child = subprocess.Popen(
@@ -138,14 +159,24 @@ def collection(link):
     return kind, identifier, str(data.get("name", ""))[:200], tracks
 
 
-def download(identifier, directory):
+def download(identifier, directory, metadata=None):
     if not ID.fullmatch(identifier):
         raise ValueError("track id")
-    from audio_source import download as audio_download
+    from audio_source import download as audio_download, NoMatchingAudio
 
-    metadata = json.loads(
-        cli(["info", f"https://open.spotify.com/track/{identifier}", "--json"], 90)
-    )
+    if not metadata or not metadata.get("duration_ms"):
+        resolved = json.loads(
+            cli(["info", f"https://open.spotify.com/track/{identifier}", "--json"], 90)
+        )
+        if not track(resolved) or resolved["id"] != identifier:
+            raise TrackPreparationError(
+                "Não foi possível confirmar os dados desta música."
+            )
+        if metadata is not None:
+            metadata.clear()
+            metadata.update(resolved)
+        else:
+            metadata = resolved
     try:
         return audio_download(
             identifier,
@@ -154,14 +185,28 @@ def download(identifier, directory):
             os.getenv("SUNNIFY_COOKIES_FILE", "").strip(),
         )
     except Exception as error:
+        if isinstance(error, NoMatchingAudio):
+            raise TrackPreparationError(
+                "Não encontramos um resultado compatível com esta gravação."
+            ) from None
         message = str(error).lower()
         if any(
             marker in message
-            for marker in ("not a bot", "sign in to confirm", "session unavailable")
+            for marker in (
+                "not a bot",
+                "sign in to confirm",
+                "session unavailable",
+                "http error 429",
+                "too many requests",
+            )
         ):
             raise PreparationError(
                 "A fonte de áudio pediu uma nova autenticação. A fila foi preservada."
             ) from None
-        raise ValueError(
-            "Não foi encontrada uma versão de áudio ou lyrics compatível."
+        if "requested format" in message:
+            raise TrackPreparationError(
+                "Esta fonte não disponibilizou áudio compatível. Tente novamente mais tarde."
+            ) from None
+        raise TrackPreparationError(
+            "A fonte de áudio não concluiu a transferência. Toque em tentar novamente."
         ) from None

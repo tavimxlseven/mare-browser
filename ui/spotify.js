@@ -91,6 +91,10 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
     )) {
       input.value = n;
       input.style.setProperty("--range-fill", n + "%");
+      if (input.parentElement.classList.contains("music-scrubber")) {
+        input.parentElement.style.setProperty("--range-fill", n + "%");
+        input.parentElement.querySelector("output").textContent = n + "%";
+      }
       input.setAttribute("aria-valuetext", n + "%");
     }
     for (const output of element.querySelectorAll(
@@ -143,6 +147,7 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
     }
   }
   function bindVolume(input) {
+    decorateSlider(input);
     input.oninput = (e) => setVolume(e.target.value);
     input.onchange = (e) => setVolume(e.target.value, true);
     input.addEventListener(
@@ -802,6 +807,15 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
       time(ms) + " de " + time(data.player?.duration_ms),
     );
     $(".music-stage-position").textContent = time(ms);
+    for (const input of [seekBar, $(".music-stage-seek")]) {
+      if (input.parentElement.classList.contains("music-scrubber")) {
+        input.parentElement.style.setProperty(
+          "--range-fill",
+          ((100 * ms) / max).toFixed(2) + "%",
+        );
+        input.parentElement.querySelector("output").textContent = time(ms);
+      }
+    }
     const label = time(ms);
     if (
       elapsedLabel.textContent !== label ||
@@ -830,19 +844,48 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
     visualFrame = requestAnimationFrame(smoothProgress);
   }
 
-  $(".music-stage-seek").onpointerdown = () => {
-    draggingSeek = true;
-  };
-  $(".music-stage-seek").oninput = (event) => {
-    paintSeek(Number(event.target.value));
-  };
-  $(".music-stage-seek").onchange = async (event) => {
-    draggingSeek = false;
-    await invoke("seek", { position_ms: Number(event.target.value) });
-  };
-  $(".music-stage-seek").onpointercancel = () => {
-    draggingSeek = false;
-  };
+  function decorateSlider(input) {
+    if (input.parentElement.classList.contains("music-scrubber")) return;
+    const wrap = document.createElement("span");
+    wrap.className =
+      "music-scrubber" +
+      (input.matches("[data-settings-volume],.music-volume-slider")
+        ? " is-volume"
+        : "");
+    input.before(wrap);
+    wrap.append(input);
+    const value = document.createElement("output");
+    value.className = "music-scrub-value";
+    value.setAttribute("aria-hidden", "true");
+    wrap.append(value);
+  }
+  function bindSeek(input) {
+    decorateSlider(input);
+    input.step = "100";
+    const end = () => {
+      draggingSeek = false;
+      input.classList.remove("is-scrubbing");
+    };
+    input.onpointerdown = () => {
+      draggingSeek = true;
+      input.classList.add("is-scrubbing");
+    };
+    input.oninput = () => paintSeek(Number(input.value));
+    input.onpointerup = input.onpointercancel = input.onblur = end;
+    input.onchange = async () => {
+      const position = Number(input.value);
+      end();
+      pendingSeek++;
+      try {
+        await invoke("seek", { position_ms: position });
+      } finally {
+        if (!--pendingSeek && !draggingSeek)
+          paintSeek(data.player?.position_ms);
+      }
+    };
+  }
+  bindSeek($(".music-stage-seek"));
+  decorateSlider($("[data-stage-volume]"));
   $("[data-stage-volume]").oninput = (event) => setVolume(event.target.value);
   $("[data-stage-volume]").onchange = (event) =>
     setVolume(event.target.value, true);
@@ -1521,25 +1564,8 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
     query = event.target.value;
     renderLibrary();
   };
-  seekBar.onpointerdown = () => {
-    draggingSeek = true;
-  };
-  seekBar.onpointerup =
-    seekBar.onpointercancel =
-    seekBar.onblur =
-      () => {
-        draggingSeek = false;
-      };
-  seekBar.oninput = () => paintSeek(Number(seekBar.value));
-  seekBar.onchange = async () => {
-    draggingSeek = false;
-    pendingSeek++;
-    try {
-      await invoke("seek", { position_ms: Number(seekBar.value) });
-    } finally {
-      if (!--pendingSeek && !draggingSeek) paintSeek(data.player?.position_ms);
-    }
-  };
+  bindSeek(seekBar);
+  decorateSlider($(".music-volume-slider"));
   bindVolume($(".music-volume-slider"));
 
   /* ── State update (merge delta) ─────────────────────────────────────── */

@@ -6,9 +6,11 @@ use std::{
     path::Path,
     process::{Command, Stdio},
 };
+use unicode_normalization::{char::is_combining_mark, UnicodeNormalization};
 
 fn normalized(text: &str) -> String {
-    text.chars()
+    text.nfkd()
+        .filter(|c| !is_combining_mark(*c))
         .flat_map(char::to_lowercase)
         .map(|c| if c.is_alphanumeric() { c } else { ' ' })
         .collect::<String>()
@@ -18,6 +20,12 @@ fn normalized(text: &str) -> String {
 }
 
 fn contains(text: &str, words: &str) -> bool {
+    if words
+        .chars()
+        .any(|c| ('\u{3040}'..='\u{9fff}').contains(&c))
+    {
+        return text.contains(words);
+    }
     format!(" {text} ").contains(&format!(" {words} "))
 }
 
@@ -75,9 +83,12 @@ pub fn select<'a>(
             }
             let rank = if name.contains("official audio") {
                 100.0
-            } else if name.contains("lyric") || name.contains("letra") {
+            } else if ["lyric", "letra", "歌詞", "字幕"]
+                .iter()
+                .any(|m| name.contains(m))
+            {
                 90.0
-            } else if channel.ends_with("topic") {
+            } else if channel.ends_with("topic") || name.contains("visualizer") {
                 85.0
             } else if name.contains("audio") {
                 75.0
@@ -144,8 +155,20 @@ fn run(url: &str, folder: &Path, runtime: &Path) -> Result<(), String> {
         emit(json!({"event":"matching","title":title,"artists":artists,"policy":"audio-first"}));
         let result = (|| -> Result<(), String> {
             let mut selected = None;
-            for hint in ["lyrics", "official audio"] {
-                let query = format!("ytsearch8:{artists} {title} {hint}");
+            let mut candidates = Vec::new();
+            let duration = track["duration_ms"].as_f64().unwrap_or(0.0) / 1000.0;
+            let native = title
+                .chars()
+                .chain(artists.chars())
+                .any(|c| ('\u{3040}'..='\u{9fff}').contains(&c));
+            let hints: &[&str] = if native {
+                &["歌詞 フル", "official audio", "lyrics"]
+            } else {
+                &["lyrics", "official audio"]
+            };
+            for hint in hints {
+                let primary = artists.split([',', '&']).next().unwrap_or(artists).trim();
+                let query = format!("ytsearch12:{primary} {title} {hint}");
                 let search = crate::music_search::command(runtime)?
                     .args([
                         "--flat-playlist",
@@ -162,14 +185,61 @@ fn run(url: &str, folder: &Path, runtime: &Path) -> Result<(), String> {
                 }
                 let data: Value =
                     serde_json::from_slice(&search.stdout).map_err(|_| "Busca inválida.")?;
-                if let Some(item) = select(
-                    data["entries"].as_array().map(Vec::as_slice).unwrap_or(&[]),
-                    title,
-                    artists,
-                    track["duration_ms"].as_f64().unwrap_or(0.0) / 1000.0,
-                ) {
+                let entries = data["entries"].as_array().map(Vec::as_slice).unwrap_or(&[]);
+                candidates.extend_from_slice(entries);
+                if let Some(item) = select(entries, title, artists, duration) {
                     selected = item["id"].as_str().map(String::from);
                     break;
+                }
+            }
+            if selected.is_none() {
+                let base = title.split('(').next().unwrap_or(title).trim();
+                let expected = normalized(if base.is_empty() { title } else { base });
+                let artist = normalized(artists.split([',', '&']).next().unwrap_or(artists));
+                let mut checked = std::collections::HashSet::new();
+                for entry in &candidates {
+                    let id = entry["id"].as_str().unwrap_or("");
+                    let channel = normalized(
+                        entry["uploader"]
+                            .as_str()
+                            .or(entry["channel"].as_str())
+                            .unwrap_or(""),
+                    );
+                    if normalized(entry["title"].as_str().unwrap_or("")) != expected
+                        || artist.is_empty()
+                        || !contains(&channel, &artist)
+                        || duration <= 0.0
+                        || (entry["duration"].as_f64().unwrap_or(0.0) - duration).abs() > 3.0
+                        || crate::music_search::video_id(&format!("youtube:video:{id}")).is_none()
+                        || !checked.insert(id.to_string())
+                    {
+                        continue;
+                    }
+                    let output = crate::music_search::command(runtime)?
+                        .args([
+                            "--dump-single-json",
+                            "--skip-download",
+                            "--no-playlist",
+                            &format!("https://www.youtube.com/watch?v={id}"),
+                        ])
+                        .stdin(Stdio::null())
+                        .stderr(Stdio::null())
+                        .output()
+                        .map_err(|e| e.to_string())?;
+                    if output.status.success() && output.stdout.len() < 5_000_000 {
+                        if let Ok(info) = serde_json::from_slice::<Value>(&output.stdout) {
+                            let description = info["description"].as_str().unwrap_or("");
+                            if description.contains("Auto-generated by YouTube")
+                                && description.contains("Provided to YouTube by")
+                            {
+                                selected = Some(id.to_string());
+                                break;
+                            }
+                        }
+                    }
+                    if checked.len() >= 2 {
+                        break;
+                    }
                 }
             }
             let video =
@@ -229,6 +299,14 @@ pub fn run_if_requested() -> Option<Result<(), String>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn japanese_subtitles_are_recognized_without_word_spaces() {
+        let item = json!({"id":"AAAAAAAAAAA","title":"7!!『ラヴァーズ』中日字幕","duration":222});
+        assert_eq!(
+            select(&[item], "ラヴァーズ", "7!!", 222.0).unwrap()["id"],
+            "AAAAAAAAAAA"
+        );
+    }
     #[test]
     fn prefers_audio_and_rejects_videos_wrong_artists_and_duration() {
         let candidates = json!([

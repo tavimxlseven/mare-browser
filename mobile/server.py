@@ -77,6 +77,12 @@ with db() as con:
         CREATE INDEX IF NOT EXISTS jobs_source ON jobs(source);
     """)
     accounts.initialize(con)
+    if "duration_ms" not in {
+        row[1] for row in con.execute("PRAGMA table_info(tracks)")
+    }:
+        con.execute("ALTER TABLE tracks ADD COLUMN duration_ms INTEGER DEFAULT 0")
+    if "archived" not in {row[1] for row in con.execute("PRAGMA table_info(jobs)")}:
+        con.execute("ALTER TABLE jobs ADD COLUMN archived INTEGER DEFAULT 0")
     con.execute("UPDATE tracks SET status='queued' WHERE status='preparing'")
     con.execute("UPDATE jobs SET status='queued' WHERE status='importing'")
 
@@ -178,7 +184,7 @@ def library():
         tracks = [
             dict(t)
             for t in con.execute(
-                """SELECT t.id,t.title,t.artist,t.art,t.status,t.error,u.liked
+                """SELECT t.id,t.title,t.artist,t.art,t.status,t.error,t.duration_ms,u.liked
             FROM user_tracks u JOIN tracks t ON t.id=u.track_id WHERE u.owner=? ORDER BY u.created DESC""",
                 (g.user["id"],),
             )
@@ -196,7 +202,7 @@ def library():
         jobs = [
             dict(j)
             for j in con.execute(
-                "SELECT * FROM jobs WHERE owner=? ORDER BY created DESC LIMIT 50",
+                "SELECT * FROM jobs WHERE owner=? AND archived=0 ORDER BY created DESC LIMIT 50",
                 (g.user["id"],),
             )
         ]
@@ -220,15 +226,17 @@ def search():
 
 def save_tracks(con, tracks, owner=accounts.ADMIN_ID, authoritative=False):
     for t in tracks:
-        metadata = {**t, "authoritative": authoritative}
+        metadata = {"duration_ms": 0, **t, "authoritative": authoritative}
         if not authoritative:
             metadata["art"] = ""
+            metadata["duration_ms"] = 0
         con.execute(
-            """INSERT INTO tracks(id,title,artist,art) VALUES (:id,:title,:artist,:art)
+            """INSERT INTO tracks(id,title,artist,art,duration_ms) VALUES (:id,:title,:artist,:art,:duration_ms)
           ON CONFLICT(id) DO UPDATE SET
           title=CASE WHEN :authoritative THEN excluded.title ELSE tracks.title END,
           artist=CASE WHEN :authoritative THEN excluded.artist ELSE tracks.artist END,
-          art=CASE WHEN :authoritative AND excluded.art!='' THEN excluded.art ELSE tracks.art END""",
+          art=CASE WHEN :authoritative AND excluded.art!='' THEN excluded.art ELSE tracks.art END,
+          duration_ms=CASE WHEN :authoritative AND excluded.duration_ms>0 THEN excluded.duration_ms ELSE tracks.duration_ms END""",
             metadata,
         )
         con.execute(
@@ -297,11 +305,23 @@ def enqueue_tracks(
             (identifier,),
         )
     existing = con.execute(
-        "SELECT id,tracks FROM jobs WHERE owner=? AND kind='prepare' AND status='preparing' ORDER BY created DESC",
+        "SELECT id,tracks FROM jobs WHERE owner=? AND status!='error' ORDER BY created DESC LIMIT 100",
         (owner,),
     ).fetchall()
     for job in existing:
-        if json.loads(job["tracks"]) == ids:
+        if set(ids).issubset(set(json.loads(job["tracks"]))):
+            pending = any(
+                con.execute(
+                    "SELECT 1 FROM tracks WHERE id=? AND status IN ('queued','preparing')",
+                    (identifier,),
+                ).fetchone()
+                for identifier in ids
+            )
+            if pending:
+                con.execute(
+                    "UPDATE jobs SET archived=0,status='preparing',updated=? WHERE id=? AND (archived=1 OR status IN ('complete','partial'))",
+                    (time.time(), job["id"]),
+                )
             return job["id"]
     return create_job(con, "prepare", source, name, ids, owner)
 
@@ -310,7 +330,7 @@ def job_snapshots(tracks, paused, jobs):
     by_id = {t["id"]: t for t in tracks}
     for job in jobs:
         stored_status = job["status"]
-        job.pop("owner", None)
+        owner = job.pop("owner", None)
         ids = json.loads(job.pop("tracks"))
         job["track_ids"] = ids
         items = [by_id[i] for i in ids if i in by_id]
@@ -321,6 +341,14 @@ def job_snapshots(tracks, paused, jobs):
         job["current"] = next((t for t in items if t["status"] == "preparing"), None)
         if ids and job["status"] != "error":
             pending = any(t["status"] in ("new", "queued", "preparing") for t in items)
+            if pending and stored_status in ("complete", "partial"):
+                with db() as con:
+                    con.execute(
+                        "UPDATE jobs SET archived=1 WHERE id=? AND owner=?",
+                        (job["id"], owner),
+                    )
+                job["archived"] = 1
+                continue
             job["status"] = (
                 "paused"
                 if paused and (pending or job["failed"])
@@ -336,10 +364,52 @@ def job_snapshots(tracks, paused, jobs):
             ):
                 with db() as con:
                     con.execute(
-                        "UPDATE jobs SET status=? WHERE id=?",
-                        (job["status"], job["id"]),
+                        "UPDATE jobs SET status=?,updated=? WHERE id=?",
+                        (job["status"], time.time(), job["id"]),
                     )
-    return jobs
+                job["updated"] = time.time()
+        if (
+            job["status"] in ("complete", "partial", "error")
+            and time.time() - job["updated"] >= 12
+        ):
+            with db() as con:
+                con.execute(
+                    "UPDATE jobs SET archived=1 WHERE id=? AND owner=?",
+                    (job["id"], owner),
+                )
+            job["archived"] = 1
+    return [job for job in jobs if not job.get("archived")]
+
+
+@app.post("/api/jobs/cleanup")
+def cleanup_jobs():
+    with db() as con:
+        con.execute("BEGIN IMMEDIATE")
+        rows = con.execute(
+            "SELECT id,kind,status,tracks FROM jobs WHERE owner=? AND archived=0",
+            (g.user["id"],),
+        ).fetchall()
+        pending = {
+            row[0]
+            for row in con.execute(
+                "SELECT id FROM tracks WHERE status IN ('new','queued','preparing')"
+            )
+        }
+        count = 0
+        for row in rows:
+            ids = json.loads(row["tracks"])
+            importing = row["kind"] == "import" and row["status"] in (
+                "queued",
+                "importing",
+            )
+            if row["status"] in ("complete", "partial", "error") or (
+                not importing and not pending.intersection(ids)
+            ):
+                count += con.execute(
+                    "UPDATE jobs SET archived=1 WHERE id=? AND owner=?",
+                    (row["id"], g.user["id"]),
+                ).rowcount
+    return jsonify(ok=True, cleared=count)
 
 
 def import_job(job):
@@ -614,11 +684,28 @@ def prepare_track(identifier):
         if shutil.disk_usage(DATA).free < 1_073_741_824:
             raise OSError("disk")
         with tempfile.TemporaryDirectory(prefix="prepare-", dir=DATA) as temp:
-            audio = provider.download(identifier, temp)
+            with db() as con:
+                metadata = dict(
+                    con.execute(
+                        "SELECT * FROM tracks WHERE id=?", (identifier,)
+                    ).fetchone()
+                )
+            audio = provider.download(identifier, temp, metadata)
             with audio.open("rb") as complete_file:
                 os.fsync(complete_file.fileno())
             os.replace(audio, MEDIA / (identifier + ".m4a"))
         with db() as con:
+            trusted = provider.track(metadata)
+            if trusted:
+                con.execute(
+                    "UPDATE tracks SET title=?,artist=?,duration_ms=? WHERE id=?",
+                    (
+                        trusted["title"],
+                        trusted["artist"],
+                        trusted["duration_ms"],
+                        identifier,
+                    ),
+                )
             con.execute(
                 "UPDATE tracks SET status='ready',error='' WHERE id=?", (identifier,)
             )
@@ -627,7 +714,9 @@ def prepare_track(identifier):
         with db() as con:
             message = (
                 str(ex)
-                if isinstance(ex, provider.PreparationError)
+                if isinstance(
+                    ex, (provider.PreparationError, provider.TrackPreparationError)
+                )
                 else "Falha ao preparar. Tente novamente."
             )
             con.execute(
@@ -641,45 +730,49 @@ def prepare_track(identifier):
                 )
 
 
+def take_work():
+    with db() as con:
+        con.execute("BEGIN IMMEDIATE")
+        metadata = con.execute(
+            "SELECT * FROM jobs WHERE kind='import' AND status='queued' ORDER BY created LIMIT 1"
+        ).fetchone()
+        if metadata:
+            con.execute(
+                "UPDATE jobs SET status='importing',updated=? WHERE id=?",
+                (time.time(), metadata["id"]),
+            )
+        blocked = con.execute(
+            "SELECT value FROM settings WHERE key='blocked_track'"
+        ).fetchone()
+        job = None
+        if not blocked and not metadata:
+            job = con.execute(
+                "SELECT id FROM tracks WHERE status='queued' ORDER BY rowid LIMIT 1"
+            ).fetchone()
+        if job:
+            con.execute("UPDATE tracks SET status='preparing' WHERE id=?", (job["id"],))
+    return (dict(metadata) if metadata else None, job["id"] if job else None)
+
+
 def worker():
     while True:
-        with db() as con:
-            con.execute("BEGIN IMMEDIATE")
-            metadata = con.execute(
-                "SELECT * FROM jobs WHERE kind='import' AND status='queued' ORDER BY created LIMIT 1"
-            ).fetchone()
-            if metadata:
-                con.execute(
-                    "UPDATE jobs SET status='importing',updated=? WHERE id=?",
-                    (time.time(), metadata["id"]),
-                )
-            blocked = con.execute(
-                "SELECT value FROM settings WHERE key='blocked_track'"
-            ).fetchone()
-            job = None
-            if not blocked and not metadata:
-                job = con.execute(
-                    "SELECT id FROM tracks WHERE status='queued' ORDER BY rowid LIMIT 1"
-                ).fetchone()
-            if job:
-                con.execute(
-                    "UPDATE tracks SET status='preparing' WHERE id=?", (job["id"],)
-                )
+        metadata, job = take_work()
         if metadata:
-            import_job(dict(metadata))
+            import_job(metadata)
             continue
         if not job:
             wake.wait(30)
             wake.clear()
             continue
-        prepare_track(job["id"])
+        prepare_track(job)
 
 
 if __name__ == "__main__":
     if not os.getenv("MARE_PASSWORD_HASH"):
         raise SystemExit("MARE_PASSWORD_HASH is required")
     recover_preparations()
-    threading.Thread(target=worker, daemon=True).start()
+    for _ in range(2):
+        threading.Thread(target=worker, daemon=True).start()
     threading.Thread(target=artwork_worker, daemon=True).start()
     from waitress import serve
 

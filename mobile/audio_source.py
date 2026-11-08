@@ -4,19 +4,34 @@ from pathlib import Path
 import re
 import shutil
 import tempfile
+import threading
+import os
+import unicodedata
 
 VIDEO_ID = re.compile(r"[A-Za-z0-9_-]{11}")
+EXTRACTION_SLOTS = threading.BoundedSemaphore(1)
+
+
+class NoMatchingAudio(ValueError):
+    pass
 
 
 def normalized(value):
-    return " ".join("".join(c if c.isalnum() else " " for c in value.lower()).split())
+    value = "".join(
+        c
+        for c in unicodedata.normalize("NFKD", value.lower())
+        if not unicodedata.combining(c)
+    )
+    return " ".join("".join(c if c.isalnum() else " " for c in value).split())
 
 
 def contains(text, words):
+    if any("\u3040" <= c <= "\u9fff" for c in words):
+        return words in text
     return f" {words} " in f" {text} "
 
 
-def choose(entries, title, artists, duration):
+def choose(entries, title, artists, duration, fallback=False):
     expected = normalized(title.split("(")[0].strip() or title)
     artist = normalized(re.split("[,&]", artists)[0])
     candidates = []
@@ -33,17 +48,13 @@ def choose(entries, title, artists, duration):
             not expected
             or not contains(name, expected)
             or artist
-            and artist not in name
-            and artist not in channel
+            and not contains(name, artist)
+            and not contains(channel, artist)
         ):
             continue
         if any(
             contains(name, marker) and not contains(normalized(title), marker)
             for marker in (
-                "official video",
-                "music video",
-                "video oficial",
-                "videoclipe",
                 "live",
                 "cover",
                 "remix",
@@ -54,17 +65,34 @@ def choose(entries, title, artists, duration):
             )
         ):
             continue
+        if not fallback and any(
+            contains(name, marker)
+            for marker in (
+                "official video",
+                "music video",
+                "video oficial",
+                "videoclipe",
+            )
+        ):
+            continue
         actual = float(entry.get("duration") or 0)
         difference = abs(actual - duration)
-        if duration and (not actual or difference > max(12, duration * 0.06)):
+        tolerance = max(45, duration * 0.2) if fallback else max(12, duration * 0.06)
+        if duration and (not actual or difference > tolerance):
             continue
+        if fallback:
+            return entry
         rank = (
             100
             if "official audio" in name
             else (
                 90
-                if "lyric" in name or "letra" in name
-                else 85 if channel.endswith("topic") else 75 if "audio" in name else 0
+                if any(marker in name for marker in ("lyric", "letra", "歌詞", "字幕"))
+                else (
+                    85
+                    if channel.endswith("topic") or "visualizer" in name
+                    else 75 if "audio" in name else 0
+                )
             )
         )
         if rank:
@@ -90,6 +118,8 @@ def download(identifier, directory, metadata, session_file=""):
     from yt_dlp import YoutubeDL
 
     path = Path(directory) / f"{identifier}.m4a"
+    cache = Path(os.getenv("MARE_DATA", directory)) / "private" / "extractor-cache"
+    cache.mkdir(mode=0o700, parents=True, exist_ok=True)
     options = dict(
         quiet=True,
         no_warnings=True,
@@ -100,6 +130,7 @@ def download(identifier, directory, metadata, session_file=""):
         fragment_retries=1,
         format="bestaudio[ext=m4a]/bestaudio[ext=mp4]",
         outtmpl=str(path),
+        cachedir=str(cache),
         js_runtimes={"node": {"path": shutil.which("node") or "/opt/node/bin/node"}},
     )
     title = metadata["title"]
@@ -108,6 +139,7 @@ def download(identifier, directory, metadata, session_file=""):
         artists = ", ".join(
             str(a.get("name", "") if isinstance(a, dict) else a) for a in artists
         )
+    primary_artist = re.split("[,&]", artists)[0].strip()
     with tempfile.TemporaryDirectory(
         prefix="source-session-", dir=directory
     ) as private:
@@ -120,15 +152,24 @@ def download(identifier, directory, metadata, session_file=""):
             copy.chmod(0o600)
             options["cookiefile"] = str(copy)
         selected = None
-        for hint in ("lyrics", "official audio"):
+        native = any("\u3040" <= c <= "\u9fff" for c in title + artists)
+        hints = (
+            ("歌詞 フル", "official audio", "lyrics")
+            if native
+            else ("lyrics", "official audio")
+        )
+        candidates = []
+        for hint in hints:
             with YoutubeDL(
                 {**options, "extract_flat": True, "skip_download": True}
             ) as ydl:
                 results = ydl.extract_info(
-                    f"ytsearch8:{artists} {title} {hint}", download=False
+                    f"ytsearch12:{primary_artist} {title} {hint}", download=False
                 )
+            entries = (results or {}).get("entries") or []
+            candidates.extend(entries)
             selected = choose(
-                (results or {}).get("entries") or [],
+                entries,
                 title,
                 artists,
                 float(metadata.get("duration_ms") or 0) / 1000,
@@ -136,8 +177,30 @@ def download(identifier, directory, metadata, session_file=""):
             if selected:
                 break
         if not selected:
-            raise ValueError("No matching audio edition")
-        with YoutubeDL(options) as ydl:
+            with YoutubeDL(
+                {**options, "extract_flat": True, "skip_download": True}
+            ) as ydl:
+                plain = ydl.extract_info(
+                    f"ytsearch12:{primary_artist} {title}", download=False
+                )
+            selected = choose(
+                (plain or {}).get("entries") or [],
+                title,
+                artists,
+                float(metadata.get("duration_ms") or 0) / 1000,
+                fallback=True,
+            )
+            if not selected:
+                selected = choose(
+                    candidates,
+                    title,
+                    artists,
+                    float(metadata.get("duration_ms") or 0) / 1000,
+                    fallback=True,
+                )
+        if not selected:
+            raise NoMatchingAudio("No matching audio edition")
+        with EXTRACTION_SLOTS, YoutubeDL(options) as ydl:
             ydl.download(["https://www.youtube.com/watch?v=" + selected["id"]])
     if not path.is_file() or path.stat().st_size == 0:
         raise ValueError("Incomplete audio")
