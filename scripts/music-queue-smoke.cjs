@@ -44,6 +44,21 @@ assert.equal(restored.current(), 1);
 assert.deepEqual(restored.upcoming(), [3, 4]);
 assert.equal(restored.shuffled, true);
 assert.equal(restored.repeat, "all");
+const priority = new Queue();
+priority.start([1, 2, 3, 4], 1);
+priority.playNext(4);
+assert.equal(priority.current(), 1);
+assert.deepEqual(priority.upcoming(), [4, 2, 3]);
+priority.playNext(4);
+assert.deepEqual(priority.upcoming(), [4, 2, 3]);
+priority.playNext(5);
+assert.deepEqual(priority.upcoming(), [5, 4, 2, 3]);
+const resumed = new Queue();
+resumed.restore(priority.snapshot(), new Set([1, 2, 3, 4, 5]));
+assert.equal(resumed.next(), 5);
+const empty = new Queue();
+empty.playNext(8);
+assert.equal(empty.next(), 8);
 console.log(
   "PASS all 170 shuffled tracks appear once; history, repeat, reorder, removal and pruning",
 );

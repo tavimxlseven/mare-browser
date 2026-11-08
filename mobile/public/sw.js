@@ -1,9 +1,10 @@
-const CACHE = "mare-music-shell-v9";
+const CACHE = "mare-music-shell-v10";
 const SHELL = [
   "/",
   "/style.css",
   "/account-player.css",
   "/app.js",
+  "/music-actions.js",
   "/icons.js",
   "/library.js",
   "/accounts.js",

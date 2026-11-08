@@ -51,6 +51,9 @@ Never publish environment files, SSH keys, passwords, the SQLite database, sessi
 - Per-track artwork is resolved through Spotify oEmbed, cached in the metadata database and gradually backfilled for previously imported songs.
 - The full-screen player uses the current artwork as its backdrop, supports favorites, upcoming queue ordering, per-device playback history and offline library search.
 - This first mobile version has separate library data from the Windows app. Playback and volume behavior are subject to iOS controls.
+- Song options include Play next (promotes an existing upcoming occurrence without duplication), append to queue and a searchable playlist chooser. Imported and created playlists are editable copies in Maré, independent of Spotify. Per-account manual additions survive reimporting the original source.
+- Saving a search result or adding it to a playlist persists metadata without starting audio preparation. Download/preparation remains an explicit action; queueing an unavailable song requests preparation.
+- Confirmations and preference pickers use app-owned dialogs. Cancellation, Escape and Android Back resolve a confirmation without performing the action. System installation and operating-system permissions still use the platform's required prompts.
 
 ## Verification
 

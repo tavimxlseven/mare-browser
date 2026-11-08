@@ -81,6 +81,7 @@ async function useAccount(user) {
   $("theme").value = (await local("meta", "theme")) || "dark";
   document.body.classList.toggle("light", $("theme").value === "light");
   $("network").value = (await local("meta", "network")) || "wifi";
+  for (const id of ["theme", "network"]) $(id).settingTrigger?.refreshValue();
 }
 
 function authMode(register) {
@@ -184,9 +185,12 @@ $("copy-invite").onclick = task(async () => {
 });
 $("logout").onclick = task(async () => {
   if (
-    !confirm(
-      "Sair desta conta? Os downloads e dados offline desta conta serão apagados neste aparelho.",
-    )
+    !(await confirmAction(
+      "Sair da conta?",
+      "Os downloads e dados offline desta conta serão apagados neste aparelho.",
+      "Sair da conta",
+      true,
+    ))
   )
     return;
   downloadController?.abort();

@@ -369,6 +369,9 @@
             value="0"
             aria-label="Posição na música"
           />
+          <span class="seek-track" aria-hidden="true"
+            ><i class="seek-fill"></i><i class="seek-handle"></i
+          ></span>
           <output id="seek-preview" aria-hidden="true">0:00</output>
         </div>
         <div class="times">
@@ -498,6 +501,7 @@
     <audio id="audio" preload="metadata"></audio>
     <script src="/icons.js" defer></script>
     <script src="/app.js" defer></script>
+    <script src="/music-actions.js" defer></script>
     <script src="/library.js" defer></script>
     <script src="/accounts.js" defer></script>
     <script src="/player-ui.js" defer></script>

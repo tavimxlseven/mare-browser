@@ -341,26 +341,9 @@ function options(track) {
     await api("tracks/" + track.id, { liked: !track.liked });
     await refresh();
   });
-  add("Adicionar à fila", () => {
-    queue.push(track.id);
-    savePlayer();
-    drawQueue();
-    notice("Adicionada à fila");
-  });
-  add("Adicionar à playlist", () =>
-    showEntry("Adicionar à playlist", "Nome da playlist", async (name) => {
-      await ensureSaved(track);
-      const p = library.playlists.find(
-        (p) => p.name.toLowerCase() === name.trim().toLowerCase(),
-      );
-      await api("playlists", {
-        id: p?.id,
-        name: name.trim(),
-        tracks: [...new Set([...(p?.tracks || []), track.id])],
-      });
-      await refresh();
-    }),
-  );
+  add("Tocar a seguir", () => addToQueue(track, true));
+  add("Adicionar ao fim da fila", () => addToQueue(track, false));
+  add("Adicionar à playlist", () => choosePlaylist(track));
   if (offlineIds.has(track.id))
     add("Remover download deste iPhone", async () => {
       await local("audio", track.id, undefined, true);
@@ -368,7 +351,15 @@ function options(track) {
       render();
     });
   add("Excluir da biblioteca", async () => {
-    if (!confirm("Excluir esta música da biblioteca e do iPhone?")) return;
+    if (
+      !(await confirmAction(
+        "Excluir música?",
+        "Ela será removida da biblioteca e dos downloads deste aparelho.",
+        "Excluir música",
+        true,
+      ))
+    )
+      return;
     await api("tracks/" + track.id, { action: "delete" });
     await local("audio", track.id, undefined, true);
     offlineIds.delete(track.id);
@@ -386,9 +377,7 @@ function options(track) {
 }
 async function ensureSaved(t) {
   if (!library.tracks.some((x) => x.id === t.id)) {
-    await api("prepare", {
-      tracks: [{ ...t, artists: t.artist, thumbnail: t.art }],
-    });
+    await api("tracks", { ...t, artists: t.artist, thumbnail: t.art });
     await refresh();
   }
 }
@@ -419,9 +408,11 @@ async function saveTracks(tracks) {
   }
   if (
     (await local("meta", "network")) !== "any" &&
-    !confirm(
-      "Salvar no aparelho agora? Confirme que está no Wi-Fi. Se a rede mudar, o iPhone pode usar dados móveis.",
-    )
+    !(await confirmAction(
+      "Salvar no aparelho?",
+      "Confira se está no Wi-Fi. Se a rede mudar, a transferência poderá usar dados móveis.",
+      "Salvar músicas",
+    ))
   )
     return;
   const unprepared = tracks.filter((t) => t.status !== "ready");

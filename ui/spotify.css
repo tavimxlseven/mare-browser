@@ -2525,6 +2525,67 @@
   color: var(--music-ink);
   border-color: var(--music-divider);
 }
+.spotify-app .music-playlist-picker {
+  max-width: 480px;
+}
+.spotify-app .music-playlist-picker .music-destinations {
+  max-height: 300px;
+  overflow: auto;
+  display: grid;
+  gap: 4px;
+  margin: 15px 0;
+}
+.spotify-app .music-playlist-picker [data-target-playlist] {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 20px;
+  gap: 12px;
+  min-height: 66px;
+  padding: 10px;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 15px;
+}
+.spotify-app .music-playlist-picker [data-target-playlist]:hover {
+  background: var(--music-elevated);
+}
+.spotify-app .music-playlist-picker [data-target-playlist] > span:nth-child(2) {
+  min-width: 0;
+}
+.spotify-app .music-playlist-picker :is(strong, small) {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.spotify-app .music-playlist-picker small {
+  margin-top: 4px;
+  color: var(--music-muted);
+  font-size: 12px;
+}
+.spotify-app .music-destination-art {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  color: var(--music-green);
+  background: var(--music-elevated);
+}
+.spotify-app .music-playlist-picker .music-create-destination {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: end;
+  padding-top: 15px;
+  border-top: 1px solid var(--music-divider);
+}
+.spotify-app .music-playlist-picker .music-create-destination label {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+}
 .spotify-app .music-settings-dialog {
   width: min(860px, 94vw);
   height: min(660px, 86vh);
@@ -3597,7 +3658,7 @@
 }
 .spotify-app .music-scrubber::before,
 .spotify-app .music-scrubber::after {
-  content: "";
+  content: none;
   position: absolute;
   left: 0;
   top: 50%;
@@ -3609,6 +3670,151 @@
   pointer-events: none;
   transition: height 0.2s ease;
   z-index: -1;
+}
+
+/* One painted control for playback and appearance; the native range handles input only. */
+.spotify-app .music-scrubber {
+  height: 40px;
+  --control-rail: 5px;
+}
+.spotify-app .music-scrubber > input[type="range"] {
+  appearance: none;
+  -webkit-appearance: none;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  z-index: 2;
+  cursor: ew-resize;
+  touch-action: none;
+}
+.spotify-app
+  .music-scrubber
+  > input[type="range"]::-webkit-slider-runnable-track {
+  height: 40px;
+  background: transparent;
+  border: 0;
+}
+.spotify-app .music-scrubber > input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 20px;
+  height: 40px;
+  margin: 0;
+  opacity: 0;
+  transform: none;
+}
+.spotify-app .music-scrubber > input[type="range"]::-moz-range-track {
+  background: transparent;
+  border: 0;
+}
+.spotify-app .music-scrubber > input[type="range"]::-moz-range-thumb {
+  width: 20px;
+  height: 40px;
+  opacity: 0;
+  border: 0;
+}
+.spotify-app .music-range-track {
+  position: absolute;
+  inset: 50% 10px auto;
+  height: var(--control-rail);
+  border-radius: 99px;
+  background: var(--range-rest);
+  transform: translateY(-50%);
+  pointer-events: none;
+  transition: height 180ms ease;
+}
+.spotify-app .music-range-fill {
+  display: block;
+  width: var(--range-fill, 0%);
+  height: 100%;
+  border-radius: inherit;
+  background: var(--range-active);
+}
+.spotify-app .music-range-thumb {
+  position: absolute;
+  left: var(--range-fill, 0%);
+  top: 50%;
+  width: 12px;
+  height: 16px;
+  border-radius: 7px;
+  background: var(--music-ink);
+  box-shadow:
+    0 1px 4px #0003,
+    0 0 0 1px #0001;
+  transform: translate(-50%, -50%);
+  transition:
+    width 180ms ease,
+    height 180ms ease,
+    box-shadow 180ms ease;
+}
+.spotify-app
+  .music-scrubber:has(
+    input:is(:hover, :focus-visible, :active, .is-scrubbing)
+  ) {
+  --control-rail: 7px;
+}
+.spotify-app
+  .music-scrubber:has(input:is(:focus-visible, :active, .is-scrubbing))
+  .music-range-thumb {
+  width: 18px;
+  height: 23px;
+  box-shadow: 0 3px 10px #0003;
+}
+.spotify-app .music-stage .music-range-thumb {
+  background: #fff;
+}
+.spotify-app .music-scrubber .music-scrub-value {
+  color: var(--music-surface);
+}
+.spotify-app .music-choice-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 3px;
+  padding: 4px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--music-ink) 7%, transparent);
+}
+.spotify-app .music-choice-row button {
+  min-width: 0;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--music-muted);
+  box-shadow: none;
+  transition:
+    background 180ms ease,
+    color 180ms ease,
+    box-shadow 180ms ease;
+}
+.spotify-app .music-choice-row button[aria-pressed="true"] {
+  background: var(--music-surface);
+  color: var(--music-ink);
+  box-shadow:
+    0 1px 5px #0002,
+    inset 0 0 0 1px var(--music-divider);
+}
+.spotify-app .music-choice-row:has([data-preference="accent"]) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-flow: row;
+}
+.spotify-app .music-choice-row button:focus-visible {
+  outline: 2px solid var(--music-green);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .spotify-app
+    :is(.music-range-track, .music-range-thumb, .music-choice-row button) {
+    transition: none;
+  }
 }
 .spotify-app .music-scrubber::after {
   width: var(--range-fill, 0%);

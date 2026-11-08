@@ -11,6 +11,8 @@ struct Library {
     entries: Vec<Entry>,
     collections: Vec<Collection>,
     next_id: u64,
+    #[serde(default)]
+    playlist_additions: std::collections::BTreeMap<String, Vec<String>>,
 }
 #[derive(Clone, Serialize, Deserialize)]
 struct Entry {
@@ -214,6 +216,7 @@ impl Spotify {
             result.extend(music.clone());
         }
         result["playlist"] = self.playlists.snapshot();
+        result["playlist_additions"] = json!(self.library.playlist_additions);
         result["search"] = self.search.snapshot();
         if let Some(object) = result.as_object_mut() {
             object.extend(self.covers.snapshot().as_object().unwrap().clone());
@@ -368,12 +371,19 @@ impl Spotify {
                             .chars()
                             .take(300)
                             .collect(),
-                        String::new(),
+                        params["thumbnail"]
+                            .as_str()
+                            .filter(|s| safe_artwork(s))
+                            .unwrap_or("")
+                            .into(),
                     )
                 };
                 if let Some(entry) = next.entries.iter_mut().find(|e| e.uri == uri) {
                     entry.title = title;
                     entry.thumbnail = thumbnail;
+                    if let Some(artists) = params["artists"].as_str() {
+                        entry.artists = artists.chars().take(300).collect();
+                    }
                 } else {
                     if next.entries.len() >= 1000 {
                         return Err("O limite inicial é de 1000 itens.".into());
@@ -381,7 +391,12 @@ impl Spotify {
                     next.entries.insert(
                         0,
                         Entry {
-                            artists: String::new(),
+                            artists: params["artists"]
+                                .as_str()
+                                .unwrap_or("")
+                                .chars()
+                                .take(300)
+                                .collect(),
                             uri,
                             url,
                             kind,
@@ -393,12 +408,54 @@ impl Spotify {
                     );
                 }
             }
+            "add_to_playlist" => {
+                let uri = params["uri"].as_str().ok_or("Selecione uma música.")?;
+                if !next
+                    .entries
+                    .iter()
+                    .any(|entry| entry.uri == uri && entry.kind == "track")
+                {
+                    return Err("Salve esta música na biblioteca primeiro.".into());
+                }
+                if let Some(target) = params["playlist"].as_str() {
+                    if !next
+                        .entries
+                        .iter()
+                        .any(|entry| entry.uri == target && entry.kind == "playlist")
+                    {
+                        return Err("Playlist importada não encontrada.".into());
+                    }
+                    let tracks = next.playlist_additions.entry(target.into()).or_default();
+                    if !tracks.iter().any(|track| track == uri) {
+                        if tracks.len() >= 2000 {
+                            return Err("Esta playlist atingiu 2000 músicas adicionadas.".into());
+                        }
+                        tracks.push(uri.into());
+                    }
+                } else {
+                    let id = params["collection"]
+                        .as_u64()
+                        .ok_or("Escolha uma playlist.")?;
+                    let collection = next
+                        .collections
+                        .iter_mut()
+                        .find(|c| c.id == id)
+                        .ok_or("Playlist não encontrada.")?;
+                    if !collection.uris.iter().any(|track| track == uri) {
+                        collection.uris.push(uri.into());
+                    }
+                }
+            }
             "favorite" | "remove" | "set_collection" => {
                 let uri = params["uri"].as_str().ok_or("Selecione um item.")?;
                 if method == "remove" {
                     next.entries.retain(|e| e.uri != uri);
                     for collection in &mut next.collections {
                         collection.uris.retain(|item| item != uri);
+                    }
+                    next.playlist_additions.remove(uri);
+                    for tracks in next.playlist_additions.values_mut() {
+                        tracks.retain(|item| item != uri);
                     }
                 } else {
                     let collection = params["collection"].as_u64();
@@ -634,6 +691,42 @@ fn fetch_metadata(_: &str) -> Result<Value, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn imported_and_local_playlist_additions_survive_restart_and_removal() {
+        let dir = std::env::temp_dir().join(format!(
+            "mare-playlist-additions-{}-{}",
+            std::process::id(),
+            crate::model::now_ms()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        let mut app = Spotify::new(&dir).unwrap();
+        let uri = "spotify:track:4uLU6hMCjMI75M1A2tKUQC";
+        let playlist = "spotify:playlist:4uLU6hMCjMI75M1A2tKUQC";
+        app.handle("save_link", &json!({"url":uri,"title":"Song"}))
+            .unwrap();
+        app.handle("save_link", &json!({"url":playlist,"title":"Imported"}))
+            .unwrap();
+        app.handle("create_collection", &json!({"name":"Created"}))
+            .unwrap();
+        for _ in 0..2 {
+            app.handle("add_to_playlist", &json!({"uri":uri,"playlist":playlist}))
+                .unwrap();
+            app.handle("add_to_playlist", &json!({"uri":uri,"collection":1}))
+                .unwrap();
+        }
+        assert!(app
+            .handle("add_to_playlist", &json!({"uri":uri,"playlist":uri}))
+            .is_err());
+        drop(app);
+        let mut app = Spotify::new(&dir).unwrap();
+        let snapshot = app.snapshot();
+        assert_eq!(snapshot["playlist_additions"][playlist], json!([uri]));
+        assert_eq!(snapshot["collections"][0]["uris"], json!([uri]));
+        app.handle("remove", &json!({"uri":uri})).unwrap();
+        assert_eq!(app.snapshot()["playlist_additions"][playlist], json!([]));
+        drop(app);
+        fs::remove_dir_all(dir).unwrap();
+    }
     #[test]
     fn links_are_canonical_and_cannot_target_other_services() {
         let id = "4uLU6hMCjMI75M1A2tKUQC";

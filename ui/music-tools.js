@@ -7,6 +7,7 @@ window.attachMusicTools = function ({
   escape: esc,
   localFor,
   layout,
+  decorateSlider,
   queue,
   queueChanged,
   currentCollection,
@@ -198,6 +199,104 @@ window.attachMusicTools = function ({
   }
 
   /* ── songMenu ───────────────────────────────────────────────────────── */
+  function playlistPicker(row) {
+    const imported = data().entries.filter(
+      (entry) => entry.kind === "playlist",
+    );
+    const choices = [
+      ...data().collections.map((c) => ({
+        key: "c:" + c.id,
+        name: c.name,
+        detail: c.uris.length + " músicas",
+        added: c.uris.includes(row.uri),
+      })),
+      ...imported.map((p) => ({
+        key: p.uri,
+        name: p.title,
+        detail: "Importada · cópia no Maré",
+        added:
+          (data().playlist_additions?.[p.uri] || []).includes(row.uri) ||
+          (data().playlist?.uri === p.uri &&
+            data().playlist.tracks?.some((t) => t.uri === row.uri)),
+      })),
+    ];
+    const d = modal(
+      "Adicionar à playlist",
+      "<p>" +
+        esc(row.title) +
+        '</p><input class="music-destination-search" type="search" placeholder="Buscar playlist" aria-label="Buscar playlist"><div class="music-destinations"></div><form class="music-create-destination"><label>Nova playlist<input name="name" maxlength="60" required placeholder="Nome da playlist"></label><button class="music-green">Criar e adicionar</button></form><p role="status"></p>',
+    );
+    d.classList.add("music-playlist-picker");
+    const list = d.querySelector(".music-destinations");
+    let saving = false;
+    const addTo = async (key) => {
+      if (saving) return;
+      saving = true;
+      paint();
+      const result = await invoke("add_to_playlist", {
+        uri: row.uri,
+        ...(key.startsWith("c:")
+          ? { collection: Number(key.slice(2)) }
+          : { playlist: key }),
+      });
+      saving = false;
+      if (result) {
+        d.close();
+        redraw();
+        notify("Música adicionada à playlist.");
+      } else {
+        d.querySelector("[role=status]").textContent =
+          "Não foi possível adicionar. Tente novamente.";
+        paint();
+      }
+    };
+    const paint = () => {
+      const term = d
+        .querySelector(".music-destination-search")
+        .value.toLocaleLowerCase();
+      list.innerHTML =
+        choices
+          .filter((c) => c.name.toLocaleLowerCase().includes(term))
+          .map(
+            (c) =>
+              '<button data-target-playlist="' +
+              esc(c.key) +
+              '" ' +
+              (c.added || saving ? "disabled" : "") +
+              '><span class="music-destination-art">' +
+              icon("library") +
+              "</span><span><strong>" +
+              esc(c.name) +
+              "</strong><small>" +
+              (c.added ? "Já adicionada" : esc(c.detail)) +
+              "</small></span>" +
+              icon(c.added ? "check" : "plus") +
+              "</button>",
+          )
+          .join("") || "<p>Nenhuma playlist encontrada. Crie uma abaixo.</p>";
+      list
+        .querySelectorAll("[data-target-playlist]")
+        .forEach(
+          (button) =>
+            (button.onclick = () => addTo(button.dataset.targetPlaylist)),
+        );
+      d.querySelector("form button").disabled = saving;
+    };
+    d.querySelector(".music-destination-search").oninput = paint;
+    d.querySelector("form").onsubmit = async (event) => {
+      event.preventDefault();
+      if (saving) return;
+      saving = true;
+      paint();
+      const result = await invoke("create_collection", {
+        name: event.target.elements.name.value.trim(),
+      });
+      saving = false;
+      if (result) await addTo("c:" + result.collections.at(-1).id);
+      else paint();
+    };
+    paint();
+  }
   function songMenu(row, x, y) {
     element.querySelector(".music-context")?.remove();
     const menu = document.createElement("div");
@@ -213,6 +312,7 @@ window.attachMusicTools = function ({
       "</button>";
     menu.innerHTML =
       item("play", "Reproduzir", !row.local?.available) +
+      item("play_next", "Tocar a seguir", !row.local?.available) +
       item("queue", "Adicionar à fila", !row.local?.available) +
       item(
         "favorite",
@@ -258,10 +358,15 @@ window.attachMusicTools = function ({
       const action = event.target.closest("[data-song-menu]")?.dataset.songMenu;
       if (!action) return;
       menu.remove();
-      if (action === "queue") {
-        queue.add(row.local.id);
+      if (action === "queue" || action === "play_next") {
+        if (action === "play_next") queue.playNext(row.local.id);
+        else queue.add(row.local.id);
         queueChanged(row);
-        notify("Música adicionada à fila.");
+        notify(
+          action === "play_next"
+            ? "Esta música toca a seguir."
+            : "Música adicionada ao fim da fila.",
+        );
         return;
       }
       if (action === "play") {
@@ -312,7 +417,12 @@ window.attachMusicTools = function ({
       if (action === "favorite" || action === "collection") {
         if (
           !data().entries.some((t) => t.uri === row.uri) &&
-          !(await invoke("save_link", { url: row.uri, title: row.title }))
+          !(await invoke("save_link", {
+            url: row.uri,
+            title: row.title,
+            artists: row.artists,
+            thumbnail: row.thumbnail,
+          }))
         )
           return;
         if (action === "favorite") {
@@ -320,36 +430,7 @@ window.attachMusicTools = function ({
           redraw();
           return;
         }
-        const d = modal(
-          "Adicionar à playlist",
-          '<div class="music-destinations">' +
-            data()
-              .collections.map(
-                (c) =>
-                  '<button data-target-collection="' +
-                  c.id +
-                  '">' +
-                  esc(c.name) +
-                  "</button>",
-              )
-              .join("") +
-            "</div><p>Crie uma playlist pelo botão + da biblioteca.</p>",
-        );
-        d.querySelectorAll("[data-target-collection]").forEach(
-          (button) =>
-            (button.onclick = async () => {
-              if (
-                await invoke("set_collection", {
-                  uri: row.uri,
-                  collection: Number(button.dataset.targetCollection),
-                })
-              ) {
-                d.close();
-                redraw();
-              }
-            }),
-        );
-        return;
+        return playlistPicker(row);
       }
       const wanted = action === "delete" ? "delete_local" : "download";
       const button = [
@@ -444,7 +525,7 @@ window.attachMusicTools = function ({
     configure(d) {
       const c = layout.config;
       const group = (label, key, choices) =>
-        `<fieldset class="music-preference-group"><legend>${label}</legend><div class="music-choice-row">${choices.map(([value, name]) => `<button type="button" data-preference="${key}" data-value="${value}" aria-pressed="${c[key] === value}">${name}</button>`).join("")}</div></fieldset>`;
+        `<fieldset class="music-preference-group"><legend>${label}</legend><div class="music-choice-row" role="group" aria-label="${label}">${choices.map(([value, name]) => `<button type="button" data-preference="${key}" data-value="${value}" aria-pressed="${c[key] === value}">${name}</button>`).join("")}</div></fieldset>`;
       const range = (label, key, min, max, unit) =>
         `<label class="music-setting-range">${label}<output data-output="${key}">${c[key]}${unit}</output><input type="range" data-preference-range="${key}" min="${min}" max="${max}" step="1" value="${c[key]}" aria-label="${label}"></label>`;
       const target = d.querySelector(".music-appearance-options");
@@ -473,13 +554,15 @@ window.attachMusicTools = function ({
           ))
             other.setAttribute("aria-pressed", String(other === button));
         };
-      for (const input of target.querySelectorAll("[data-preference-range]"))
+      for (const input of target.querySelectorAll("[data-preference-range]")) {
+        decorateSlider(input, (value) => value + "px");
         input.oninput = () => {
           const key = input.dataset.preferenceRange;
           layout.update({ [key]: Number(input.value) });
           target.querySelector(`[data-output=${key}]`).textContent =
             input.value + "px";
         };
+      }
       for (const input of target.querySelectorAll("[data-preference-toggle]"))
         input.onchange = () =>
           layout.update({ [input.dataset.preferenceToggle]: input.checked });
@@ -520,6 +603,7 @@ window.attachMusicTools = function ({
             other.setAttribute("aria-pressed", String(other === button));
         };
       const opacity = paper.querySelector("[data-preference-range]");
+      decorateSlider(opacity, (value) => value + "%");
       opacity.oninput = () => {
         layout.update({ panelOpacity: Number(opacity.value) });
         paper.querySelector("[data-output=panelOpacity]").textContent =

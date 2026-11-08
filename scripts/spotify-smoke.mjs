@@ -73,6 +73,15 @@ try {
   assert.ok(!state.collections.find((c) => c.id === 2).uris.includes(uri));
   state = await call("rename_collection", { id: 1, name: "Renamed playlist" });
   assert.equal(state.collections[0].name, "Renamed playlist");
+  const importedPlaylist = "spotify:playlist:4uLU6hMCjMI75M1A2tKUQC";
+  await call("save_link", { url: importedPlaylist, title: "Imported fixture" });
+  for (let i = 0; i < 2; i++)
+    await call("add_to_playlist", { uri, playlist: importedPlaylist });
+  await stop();
+  start();
+  state = await call("list");
+  assert.deepEqual(state.playlist_additions[importedPlaylist], [uri]);
+  await call("remove", { uri: importedPlaylist });
   await call("delete_collection", { id: 2 });
   const delta = await call("playback_status", {
     revision: state.library_revision,

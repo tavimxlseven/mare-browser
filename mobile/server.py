@@ -77,6 +77,8 @@ with db() as con:
         CREATE INDEX IF NOT EXISTS jobs_source ON jobs(source);
     """)
     accounts.initialize(con)
+    if "added_tracks" not in {row[1] for row in con.execute("PRAGMA table_info(playlists)")}:
+        con.execute("ALTER TABLE playlists ADD COLUMN added_tracks TEXT DEFAULT '[]'")
     if "duration_ms" not in {
         row[1] for row in con.execute("PRAGMA table_info(tracks)")
     }:
@@ -419,8 +421,13 @@ def import_job(job):
         with db() as con:
             save_tracks(con, tracks, job["owner"], authoritative=True)
             if kind != "track":
+                previous = con.execute(
+                    "SELECT added_tracks FROM playlists WHERE id=? AND owner=?", (identifier, job["owner"])
+                ).fetchone()
+                additions = json.loads(previous["added_tracks"]) if previous else []
+                ids = list(dict.fromkeys(ids + additions))
                 con.execute(
-                    "INSERT OR REPLACE INTO playlists(id,name,tracks,owner) VALUES (?,?,?,?)",
+                    "INSERT INTO playlists(id,name,tracks,owner) VALUES (?,?,?,?) ON CONFLICT(owner,id) DO UPDATE SET name=excluded.name,tracks=excluded.tracks",
                     (
                         identifier,
                         name or "Playlist importada",
@@ -506,8 +513,48 @@ def playlist():
         if any(i not in owned for i in ids):
             abort(404)
         con.execute(
-            "INSERT OR REPLACE INTO playlists(id,name,tracks,owner) VALUES (?,?,?,?)",
+            "INSERT INTO playlists(id,name,tracks,owner) VALUES (?,?,?,?) ON CONFLICT(owner,id) DO UPDATE SET name=excluded.name,tracks=excluded.tracks",
             (identifier, name, json.dumps(list(dict.fromkeys(ids))), g.user["id"]),
+        )
+    return jsonify(ok=True)
+
+
+@app.post("/api/tracks")
+def save_library_track():
+    data = request.get_json()
+    track = provider.track(data) if isinstance(data, dict) else None
+    if not track:
+        abort(400)
+    with db() as con:
+        save_tracks(con, [track], g.user["id"])
+    return jsonify(ok=True)
+
+
+@app.post("/api/playlists/<identifier>/tracks")
+def add_playlist_track(identifier):
+    data = request.get_json()
+    track = provider.track(data) if isinstance(data, dict) else None
+    if not track:
+        abort(400)
+    with db() as con:
+        con.execute("BEGIN IMMEDIATE")
+        row = con.execute(
+            "SELECT tracks,added_tracks FROM playlists WHERE id=? AND owner=?",
+            (identifier, g.user["id"]),
+        ).fetchone()
+        if not row:
+            abort(404)
+        ids = json.loads(row["tracks"])
+        additions = json.loads(row["added_tracks"])
+        if track["id"] not in ids:
+            if len(ids) >= 2000:
+                abort(400)
+            ids.append(track["id"])
+            additions.append(track["id"])
+        save_tracks(con, [track], g.user["id"])
+        con.execute(
+            "UPDATE playlists SET tracks=?,added_tracks=? WHERE id=? AND owner=?",
+            (json.dumps(ids), json.dumps(additions), identifier, g.user["id"]),
         )
     return jsonify(ok=True)
 
@@ -552,9 +599,10 @@ def update_track(identifier):
                 "SELECT * FROM playlists WHERE owner=?", (g.user["id"],)
             ).fetchall():
                 ids = [i for i in json.loads(p["tracks"]) if i != identifier]
+                additions = [i for i in json.loads(p["added_tracks"]) if i != identifier]
                 con.execute(
-                    "UPDATE playlists SET tracks=? WHERE id=? AND owner=?",
-                    (json.dumps(ids), p["id"], g.user["id"]),
+                    "UPDATE playlists SET tracks=?,added_tracks=? WHERE id=? AND owner=?",
+                    (json.dumps(ids), json.dumps(additions), p["id"], g.user["id"]),
                 )
             con.execute(
                 "DELETE FROM user_tracks WHERE track_id=? AND owner=?",

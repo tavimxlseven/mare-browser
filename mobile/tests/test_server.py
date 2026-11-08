@@ -16,6 +16,37 @@ import server
 
 
 class ServerTests(unittest.TestCase):
+    def test_playlist_additions_are_idempotent_private_and_survive_reimport(self):
+        self.login()
+        identifier = "p" * 22
+        track = dict(id="a" * 22, title="Added song", artists="Artist", thumbnail="")
+        self.client.post("/api/playlists", json=dict(id=identifier, name="Imported"), headers=self.origin)
+        for _ in range(2):
+            response = self.client.post(f"/api/playlists/{identifier}/tracks", json=track, headers=self.origin)
+            self.assertEqual(response.status_code, 200)
+        library = self.client.get("/api/library").json
+        self.assertEqual(library["playlists"][0]["tracks"], [track["id"]])
+        self.assertEqual(library["tracks"][0]["status"], "new")
+        self.assertEqual(library["jobs"], [])
+        self.assertEqual(self.client.post("/api/playlists/unknown/tracks", json=track, headers=self.origin).status_code, 404)
+        with server.db() as db:
+            job_id = server.create_job(db, "import", "source", "Import", [], "admin")
+            job = dict(db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone())
+            # A playlist in another account with the same ID must be untouched.
+            db.execute("INSERT INTO playlists(id,name,tracks,owner) VALUES (?,?,?,?)", (identifier,"Other",'[]',"other"))
+        original = dict(id="b" * 22, title="Original song", artist="Artist", art="")
+        with patch("provider.collection", return_value=("playlist", identifier, "Imported again", [original])):
+            server.import_job(job)
+        with server.db() as db:
+            self.assertEqual(json.loads(db.execute("SELECT tracks FROM playlists WHERE id=? AND owner='admin'", (identifier,)).fetchone()[0]), [original["id"], track["id"]])
+            self.assertEqual(db.execute("SELECT tracks FROM playlists WHERE id=? AND owner='other'", (identifier,)).fetchone()[0], '[]')
+        with server.db() as db:
+            db.execute("UPDATE tracks SET status='ready'")
+        response = self.client.post("/api/tracks/" + track["id"], json={"action":"delete"}, headers=self.origin)
+        self.assertEqual(response.status_code, 200)
+        with server.db() as db:
+            self.assertEqual(db.execute("SELECT added_tracks FROM playlists WHERE id=? AND owner='admin'", (identifier,)).fetchone()[0], '[]')
+
     def test_completed_activity_expires_and_reused_work_can_return(self):
         import time
 
@@ -307,7 +338,7 @@ class ServerTests(unittest.TestCase):
                 db, [dict(id=i, title=i, artist="Artist", art="") for i in ids]
             )
             db.execute(
-                "INSERT INTO playlists VALUES (?,?,?,?)",
+                "INSERT INTO playlists(id,name,tracks,owner) VALUES (?,?,?,?)",
                 ("large", "Large", json.dumps(ids), "admin"),
             )
         first = self.client.post(

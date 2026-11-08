@@ -781,6 +781,132 @@ input[type="range"] {
   max-width: 65%;
   font-size: 14px;
 }
+.setting .setting-picker {
+  min-width: 140px;
+  justify-content: space-between;
+  background: var(--elevated);
+  border-radius: 16px;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.setting-picker svg {
+  width: 16px;
+  height: 16px;
+  opacity: 0.6;
+}
+.setting-options .option {
+  justify-content: space-between;
+}
+.setting-options .option[aria-pressed="true"] {
+  color: var(--accent);
+  background: var(--elevated);
+}
+dialog.music-confirm {
+  max-width: 390px;
+  padding: 28px;
+  border-radius: 30px;
+  text-align: center;
+}
+.music-confirm h2 {
+  font-size: 23px;
+  margin: 0 0 12px;
+  letter-spacing: -0.6px;
+}
+.music-confirm p {
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.55;
+  margin: 0;
+}
+.sheet-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 25px;
+}
+.sheet-actions button {
+  min-height: 48px;
+  border-radius: 16px;
+  padding: 10px;
+}
+.sheet-actions button:not(.primary) {
+  background: var(--elevated);
+}
+.playlist-picker header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0;
+}
+.playlist-picker header > div {
+  min-width: 0;
+}
+.playlist-picker h2 {
+  margin: 0;
+  font-size: 23px;
+}
+.playlist-picker header p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--muted);
+}
+.playlist-picker input {
+  width: 100%;
+  margin: 14px 0;
+}
+.playlist-destinations {
+  display: grid;
+  gap: 5px;
+  max-height: 45dvh;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.playlist-destination {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 20px;
+  gap: 12px;
+  text-align: left;
+  padding: 10px 8px;
+  background: transparent;
+}
+.playlist-destination:hover {
+  background: var(--elevated);
+}
+.playlist-destination > span:nth-child(2) {
+  min-width: 0;
+}
+.playlist-destination strong,
+.playlist-destination small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.playlist-destination small {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 3px;
+}
+.destination-art {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  color: var(--accent);
+  background: var(--elevated);
+  border-radius: 13px;
+}
+.playlist-picker .new-playlist {
+  width: 100%;
+  margin-top: 14px;
+  background: var(--elevated);
+}
+.picker-status {
+  color: var(--accent);
+  font-size: 13px;
+}
 #preferences p {
   font-size: 13px;
 }
@@ -810,7 +936,7 @@ input[type="range"] {
     border-radius 0.25s var(--ease),
     box-shadow 0.25s var(--ease);
 }
-body:has(#island:not([hidden])) header {
+body:has(#island:not([hidden])) #app > header {
   padding-top: calc(86px + env(safe-area-inset-top));
 }
 #island.expanded {

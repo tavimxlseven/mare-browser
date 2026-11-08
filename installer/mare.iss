@@ -1,5 +1,5 @@
 #ifndef MareVersion
-#define MareVersion "0.3.11"
+#define MareVersion "0.3.12"
 #endif
 #ifndef Payload
 #define Payload "..\dist\InstallerPayload"

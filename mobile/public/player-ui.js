@@ -134,7 +134,12 @@ $("playlist-options").onclick = () => {
   remove.hidden = false;
   remove.onclick = task(async () => {
     if (
-      !confirm("Excluir esta playlist? As músicas continuam na sua biblioteca.")
+      !(await confirmAction(
+        "Excluir playlist?",
+        "As músicas continuam na sua biblioteca.",
+        "Excluir playlist",
+        true,
+      ))
     )
       return;
     await api("playlists/" + playlist.id + "/delete", {});

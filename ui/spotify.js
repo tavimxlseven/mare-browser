@@ -210,6 +210,7 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
     escape: esc,
     localFor,
     layout: musicLayout,
+    decorateSlider,
     queue: playback,
     currentCollection: () =>
       data.collections.find((c) => String(c.id) === String(filter))?.id,
@@ -551,7 +552,16 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
   function rowsForView() {
     if (selectedPlaylist) {
       const p = data.playlist;
-      const source = p?.uri === selectedPlaylist ? p.tracks || [] : [];
+      const base = p?.uri === selectedPlaylist ? p.tracks || [] : [];
+      const extra = (data.playlist_additions?.[selectedPlaylist] || [])
+        .map((uri) => data.entries.find((entry) => entry.uri === uri))
+        .filter(Boolean);
+      const source = [
+        ...base,
+        ...extra.filter(
+          (entry) => !base.some((track) => track.uri === entry.uri),
+        ),
+      ];
       return source.map((e) => {
         const local = localFor(e, selectedPlaylist);
         return {
@@ -597,6 +607,7 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
       data.artwork,
       data.entries,
       data.collections,
+      data.playlist_additions,
       data.local_tracks,
       data.completed_sources,
       data.playlist,
@@ -844,7 +855,7 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
     visualFrame = requestAnimationFrame(smoothProgress);
   }
 
-  function decorateSlider(input) {
+  function decorateSlider(input, format) {
     if (input.parentElement.classList.contains("music-scrubber")) return;
     const wrap = document.createElement("span");
     wrap.className =
@@ -854,10 +865,33 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
         : "");
     input.before(wrap);
     wrap.append(input);
+    const rail = document.createElement("span");
+    rail.className = "music-range-track";
+    rail.setAttribute("aria-hidden", "true");
+    rail.innerHTML =
+      '<i class="music-range-fill"></i><i class="music-range-thumb"></i>';
+    wrap.append(rail);
     const value = document.createElement("output");
     value.className = "music-scrub-value";
     value.setAttribute("aria-hidden", "true");
     wrap.append(value);
+    const paint = () => {
+      const min = Number(input.min) || 0,
+        max = Number(input.max) || 100;
+      wrap.style.setProperty(
+        "--range-fill",
+        ((Number(input.value) - min) / (max - min)) * 100 + "%",
+      );
+      if (format) {
+        value.textContent = format(Number(input.value));
+        input.setAttribute("aria-valuetext", value.textContent);
+      } else
+        value.textContent = wrap.classList.contains("is-volume")
+          ? input.value + "%"
+          : time(Number(input.value));
+    };
+    input.addEventListener("input", paint);
+    paint();
   }
   function bindSeek(input) {
     decorateSlider(input);

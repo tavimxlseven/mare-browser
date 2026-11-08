@@ -104,6 +104,16 @@
       this.order.push(id);
       if (!this.original.includes(id)) this.original.push(id);
     }
+    playNext(id) {
+      // Promote an upcoming occurrence rather than leaving the same song twice.
+      const played = this.order.slice(0, this.position + 1);
+      this.order = [
+        ...played,
+        id,
+        ...this.upcoming().filter((item) => item !== id),
+      ];
+      if (!this.original.includes(id)) this.original.push(id);
+    }
     removeAt(index) {
       if (index <= this.position || index >= this.order.length) return;
       this.order.splice(index, 1);
