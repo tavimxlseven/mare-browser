@@ -34,7 +34,7 @@ Never publish environment files, SSH keys, passwords, the SQLite database, sessi
 - SQLite stores imports, track state and progress. Interrupted imports restart, incomplete preparation retries, and atomically promoted audio is reconciled after a crash. Work directories are cleaned on startup. Data lives outside the source checkout.
 - Audio preparation depends on upstream availability. Datacenter IP addresses may be refused by the source. Preparation failures are shown explicitly, and failed tracks cannot be streamed. A source refusal pauses the persisted queue until the user explicitly retries from Settings. See the [upstream session setup](https://github.com/sunnypatell/sunnify-spotify-downloader/blob/main/docs/CLI.md#youtube-cookies) for authenticated access. A session may expire and authentication does not guarantee that the source accepts the network.
 - Prepared tracks stream from the server with range support. Queue, shuffle and repeat run locally.
-- Verified duration metadata is cached from imports and successful preparation, avoiding an extra metadata CLI invocation for each imported track. At most two workers claim distinct tracks in SQLite transactions and prefetch searches; a semaphore limits expensive extraction/download to one at a time on small VMs. Extractor caches use a private persistent directory. Authentication or source-rate refusals preserve and pause queued work.
+- Verified duration metadata is cached from imports and successful preparation, avoiding an extra metadata CLI invocation for each imported track. At most two workers claim distinct tracks in SQLite transactions and prefetch searches; a semaphore limits expensive extraction to one at a time on small VMs. Completed extraction information is kept in a private temporary file so network transfers can overlap without two simultaneous JavaScript extractors. Extractor caches use a private persistent directory. Authentication or source-rate refusals preserve and pause queued work.
 - Japanese song titles need no artificial word boundaries, native subtitle labels and accented titles are recognized, and searches use the primary artist to avoid overlong collaborator queries. Failures expose a safe per-track explanation.
 - New Spotify preparations prefer audio/lyric editions and compare song title, artist and duration. When no preferred edition is available, the webapp uses the first compatible result from a plain song search. This fallback can include the audio of a music video, including its introduction. Unrequested covers and alternate editions are rejected. Existing files are retained. Source metadata cannot guarantee an exact recording.
 - Completed/failed activities leave the island automatically after about 15 seconds. Settings can clear old finished activities immediately. Archiving activity never removes songs or running tasks; an explicit retry can reactivate the same task. Prepare requests deduplicate across import/prepare jobs, reordered lists and already-ready songs.
@@ -50,12 +50,14 @@ Never publish environment files, SSH keys, passwords, the SQLite database, sessi
 - Browser storage uses a separate IndexedDB database for each account. Offline audio remains local to each device. Signing out clears that account’s local data.
 - Per-track artwork is resolved through Spotify oEmbed, cached in the metadata database and gradually backfilled for previously imported songs.
 - The full-screen player uses the current artwork as its backdrop, supports favorites, upcoming queue ordering, per-device playback history and offline library search.
-- This first mobile version has separate library data from the Windows app. Playback and volume behavior are subject to iOS controls.
+- Optional account pairing synchronizes playlist metadata, order, favorites and library membership with the Windows app. Search and audio download on Windows remain local; newly added PC tracks/playlists also request server preparation. Existing audio files are retained. Offline audio stays on each device; playback and volume behavior remain subject to iOS controls.
 - Song options include Play next (promotes an existing upcoming occurrence without duplication), append to queue and a searchable playlist chooser. Imported and created playlists are editable copies in Maré, independent of Spotify. Per-account manual additions survive reimporting the original source.
 - Saving a search result or adding it to a playlist persists metadata without starting audio preparation. Download/preparation remains an explicit action; queueing an unavailable song requests preparation.
 - Confirmations and preference pickers use app-owned dialogs. Cancellation, Escape and Android Back resolve a confirmation without performing the action. System installation and operating-system permissions still use the platform's required prompts.
 
 ## Verification
+
+Administrators can open `/admin` in a desktop browser without installing the PWA. It uses the same authenticated session and administrator-only invite endpoints; the install requirement continues to apply to the normal app entry.
 
 Run `python -m unittest discover -s tests` from this directory. Tests use a temporary database and mock provider responses, never production data or a user's library.
 
@@ -66,3 +68,13 @@ Back up the persistent data directory before starting the new server. The migrat
 As administrator, open **Settings → Invitations → Generate invitation**, copy the code shown once and share it privately. Your friend chooses **Create account**, enters a username, a password of at least ten characters and that code. Each code can create one account and can be revoked before use. The same account can sign in on multiple phones and access its own server library. Offline downloads and playback history stay on each phone.
 
 Credentials, invitation codes, account records, cookies, host addresses, database backups and deployment environment files belong outside the source checkout. Publish only generic source and test fixtures.
+
+## Connect Windows and mobile
+
+On the phone, sign into the intended account and open **Settings → PC and mobile → Connect a PC**. In the Windows music app, open **Music settings → Connections → PC and mobile**, enter your own server HTTPS address and the eight-character code. The code expires after five minutes and can be claimed once. Pairing does not require a Spotify account or an application ID.
+
+The Windows session is protected with Windows DPAPI. Device credentials can synchronize music and control that account's devices, but cannot manage invitations or accounts. Disconnecting the PC revokes its credential. No server address or credential is included in the public source.
+
+Both apps must be open and online to receive playback controls or a handoff. The device list shows current playback; choose **Continue here** or **Listen on this device** to transfer the current track, position and upcoming queue. The target prepares missing audio through its own pipeline. An installed PWA cannot be remotely awakened when the operating system suspends it. Volume buttons are shown for native PC targets; phone volume remains under system control. The existing Wi-Fi-only remote panel remains available separately.
+
+Playlist drag handles support pointer/touch and Arrow Up/Down/Home/End. The server validates complete account-owned permutations and preserves manual order through reimports. A stale list is refreshed rather than silently dropping tracks.

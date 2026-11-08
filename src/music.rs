@@ -564,6 +564,15 @@ impl Music {
                         .args(["--music-source-worker", &url])
                         .arg(self.directory.join("audio"))
                         .arg(&self.directory);
+                    if params["metadata"].is_object() {
+                        let metadata = temp.join("metadata.json");
+                        fs::write(
+                            &metadata,
+                            serde_json::to_vec(&params["metadata"]).map_err(|e| e.to_string())?,
+                        )
+                        .map_err(|e| e.to_string())?;
+                        command.arg(metadata);
+                    }
                 }
                 command
                     .env("APPDATA", &runtime)

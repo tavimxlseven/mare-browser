@@ -100,6 +100,8 @@ pub fn read_protocol_line(reader: &mut impl BufRead) -> io::Result<Option<String
 
 #[derive(Clone, Serialize, Deserialize)]
 struct Note {
+    #[serde(default)]
+    pinned: bool,
     id: u64,
     title: String,
     body: String,
@@ -219,6 +221,7 @@ impl NativeApp {
                 notebook.notes.insert(
                     0,
                     Note {
+                        pinned: false,
                         id,
                         title,
                         body,
@@ -239,6 +242,9 @@ impl NativeApp {
                 }
                 if let Some(body) = note_text(params, "body", 65_536)? {
                     note.body = body;
+                }
+                if let Some(pinned) = params.get("pinned") {
+                    note.pinned = pinned.as_bool().ok_or("Fixação inválida.")?;
                 }
                 note.updated_at = timestamp();
                 selected_id = Some(id);
@@ -484,10 +490,13 @@ mod tests {
         assert!(response["error"].is_null());
         let invalid = app.handle(json!({"id":2,"method":"update","params":{"id":id,"body":123}}));
         assert!(invalid["error"].is_object());
+        let pinned = app.handle(json!({"id":6,"method":"update","params":{"id":id,"pinned":true}}));
+        assert_eq!(pinned["result"]["notes"][0]["pinned"], true);
         drop(app);
         let mut reopened = NativeApp::new("notes", &directory).unwrap();
         let list = reopened.handle(json!({"id":3,"method":"list","params":{}}));
         assert_eq!(list["result"]["notes"][0]["body"], "Primeiro texto");
+        assert_eq!(list["result"]["notes"][0]["pinned"], true);
         let update = reopened.handle(
             json!({"id":4,"method":"update","params":{"id":id,"title":"B","body":"Salvo"}}),
         );

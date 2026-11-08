@@ -36,6 +36,8 @@ class AudioSourceTests(unittest.TestCase):
                 pass
 
             def extract_info(self, url, download=False):
+                if url.startswith("https://www.youtube.com/watch"):
+                    return {"url": url}
                 if url.endswith("lyrics") or url.endswith("official audio"):
                     return {"entries": []}
                 return {
@@ -55,6 +57,12 @@ class AudioSourceTests(unittest.TestCase):
             def download(self, urls):
                 requests.extend(urls)
                 Path(self.options["outtmpl"]).write_bytes(b"completed-audio")
+            def sanitize_info(self, info):
+                return info
+            def download_with_info_file(self, path):
+                import json
+                self.download([json.loads(Path(path).read_text())["url"]])
+                return 0
 
         with tempfile.TemporaryDirectory() as folder, patch.dict(
             sys.modules, {"yt_dlp": SimpleNamespace(YoutubeDL=Downloader)}
@@ -69,6 +77,30 @@ class AudioSourceTests(unittest.TestCase):
 
     def candidate(self, title, **fields):
         return dict(id="abcdefghijk", title=title, duration=200, **fields)
+
+    def test_metadata_editions_collaborators_and_bzrp_numbering(self):
+        item = self.candidate("Blur - For Tomorrow (Official Audio)")
+        self.assertIs(choose([item], "For Tomorrow - 2012 Remaster", "Blur", 200), item)
+        item = self.candidate("QUEVEDO || BZRP Music Sessions #52 (Lyrics)")
+        self.assertIs(choose([item], "Quevedo: Bzrp Music Sessions, Vol. 52/66", "Bizarrap, Quevedo", 200), item)
+        item = self.candidate("KayBlack - Vai Por Mim (Lyrics)")
+        self.assertIs(choose([item], "VAI POR MIM", "GDM, KayBlack, Mc Paiva ZS", 200), item)
+
+    def test_distributor_alias_fallback_requires_nearly_identical_duration(self):
+        item = self.candidate("Singer - Unreleased Song (Lyrics)")
+        self.assertIsNone(choose([item], "Unreleased Song", "Distribution alias", 200, fallback=True))
+        self.assertIs(choose([item], "Unreleased Song", "Distribution alias", 200, fallback=True, artist_fallback=True), item)
+        self.assertIsNone(choose([item], "Unreleased Song", "Distribution alias", 0, fallback=True, artist_fallback=True))
+        item["duration"] = 208
+        self.assertIsNone(choose([item], "Unreleased Song", "Distribution alias", 200, fallback=True, artist_fallback=True))
+
+    def test_specific_alias_title_allows_short_upload_padding_but_not_altered_audio(self):
+        title='Meet Me in the Pale Moonlight'
+        item=self.candidate('Singer - '+title)
+        item['duration']=207
+        self.assertIs(choose([item],title,'Distributor',202.536,True,True),item)
+        item['title']+=' (432Hz)'
+        self.assertIsNone(choose([item],title,'Distributor',202.536,True,True))
 
     def test_prefers_audio_and_checks_recording_duration(self):
         lyrics = self.candidate("Singer - Song (Lyrics)")

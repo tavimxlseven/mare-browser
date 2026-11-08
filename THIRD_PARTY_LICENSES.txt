@@ -1,4 +1,4 @@
-THIRD-PARTY LICENSES — MARÉ BROWSER 0.3.12
+THIRD-PARTY LICENSES — MARÉ BROWSER 0.4.0
 
 Generated from the resolved Cargo dependency graph for x86_64-pc-windows-gnu.
 Includes runtime and build/procedural-macro crates in that graph. Some items may

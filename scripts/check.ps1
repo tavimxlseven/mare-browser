@@ -17,7 +17,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Verificação da interface empacotada inválida.' }
     node --check ui/spotify.js
     if ($LASTEXITCODE -ne 0) { throw 'JavaScript inválido.' }
-    foreach ($script in @('ui/music-tools.js','ui/music-queue.js','ui/music-layout.js')) { node --check $script; if ($LASTEXITCODE -ne 0) { throw 'JavaScript de música inválido.' } }
+    foreach ($script in @('ui/music-tools.js','ui/music-queue.js','ui/music-layout.js','ui/browser-tools.js','mobile/public/sortable.js','mobile/public/devices-ui.js','mobile/public/device-link.js')) { node --check $script; if ($LASTEXITCODE -ne 0) { throw 'JavaScript de música inválido.' } }
     node scripts/music-remote-check.cjs
     if ($LASTEXITCODE -ne 0) { throw 'JavaScript do controle remoto inválido.' }
     node scripts/music-queue-smoke.cjs

@@ -11,6 +11,7 @@ mod icon;
 mod icon_pixels;
 mod model;
 mod music;
+mod music_cloud;
 mod music_remote;
 mod music_search;
 mod music_session;
@@ -31,7 +32,6 @@ use serde_json::{json, Value};
 use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
-    process::Command,
 };
 use tao::{
     dpi::LogicalSize,
@@ -155,20 +155,25 @@ fn embedded_ui() -> String {
         &mut html,
         "STYLES",
         &format!(
-            "<style>{}</style><style>{}</style>",
+            "<style>{}</style><style>{}</style><style>{}</style><style>{}</style>",
             include_str!("../ui/styles.css"),
-            include_str!("../ui/spotify.css")
+            include_str!("../ui/spotify.css"),
+            include_str!("../mobile/public/music-polish.css"),
+            include_str!("../ui/browser-tools.css")
         ),
     );
     inline_section(
         &mut html,
         "SCRIPTS",
         &format!(
-            "<script>{}\n{}\n{}\n{}\n{}</script>",
+            "<script>{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}</script>",
+            include_str!("../mobile/public/sortable.js"),
+            include_str!("../mobile/public/devices-ui.js"),
             include_str!("../ui/music-queue.js"),
             include_str!("../ui/music-layout.js"),
             include_str!("../ui/music-tools.js"),
             include_str!("../ui/spotify.js"),
+            include_str!("../ui/browser-tools.js"),
             include_str!("../ui/app.js")
         ),
     );
@@ -1410,10 +1415,19 @@ impl Browser {
                     self.notify("Link do Spotify inválido.");
                 }
             }
-            "cancel_download" | "resume_download" => {
+            "clear_downloads" | "forget_download" => {
+                self.state.downloads.retain(|download| {
+                    matches!(
+                        download.status.as_str(),
+                        "choosing" | "downloading" | "paused" | "pending" | "started"
+                    ) || (cmd == "forget_download" && download.id != id)
+                });
+                self.prune_downloads();
+            }
+            "cancel_download" | "resume_download" | "pause_download" => {
                 if let Some((&token, _)) = self.download_ids.iter().find(|(_, value)| **value == id)
                 {
-                    if let Err(e) = self.downloads.command(token, cmd == "resume_download") {
+                    if let Err(e) = self.downloads.command(token, cmd) {
                         self.notify(&e);
                     }
                 }
@@ -1440,6 +1454,24 @@ impl Browser {
             self.save();
         }
     }
+    fn prune_downloads(&mut self) {
+        self.state.trim_downloads();
+        let live = self
+            .state
+            .downloads
+            .iter()
+            .map(|d| d.id)
+            .collect::<std::collections::HashSet<_>>();
+        let manager = self.downloads.clone();
+        self.download_ids.retain(|token, id| {
+            let keep = live.contains(id);
+            if !keep {
+                manager.release(*token);
+            }
+            keep
+        });
+        self.private_downloads.retain(|id| live.contains(id));
+    }
     fn open_download(&self, id: u64, open: bool) {
         let Some(item) = self
             .state
@@ -1463,13 +1495,43 @@ impl Browser {
         ]
         .contains(&extension.as_str());
         #[cfg(windows)]
-        {
+        unsafe {
+            use tao::platform::windows::WindowExtWindows;
+            use windows::{
+                core::{w, HSTRING},
+                Win32::{
+                    Foundation::HWND,
+                    System::Com::CoTaskMemFree,
+                    UI::{
+                        Shell::{SHOpenFolderAndSelectItems, SHParseDisplayName, ShellExecuteW},
+                        WindowsAndMessaging::SW_SHOWNORMAL,
+                    },
+                },
+            };
             if open && safe_document {
-                let _ = Command::new("explorer.exe").arg(&path).spawn();
+                let result = ShellExecuteW(
+                    Some(HWND(self.window.hwnd() as *mut _)),
+                    w!("open"),
+                    &HSTRING::from(path.as_path()),
+                    None,
+                    None,
+                    SW_SHOWNORMAL,
+                );
+                if result.0 as isize <= 32 {
+                    self.notify("Não foi possível abrir este arquivo.");
+                }
             } else {
-                let _ = Command::new("explorer.exe")
-                    .arg(format!("/select,{}", path.display()))
-                    .spawn();
+                let mut item = std::ptr::null_mut();
+                match SHParseDisplayName(&HSTRING::from(path.as_path()), None, &mut item, 0, None) {
+                    Ok(()) => {
+                        let result = SHOpenFolderAndSelectItems(item, None, 0);
+                        CoTaskMemFree(Some(item.cast()));
+                        if result.is_err() {
+                            self.notify("Não foi possível mostrar o arquivo na pasta.");
+                        }
+                    }
+                    Err(_) => self.notify("Não foi possível localizar o arquivo no Explorador."),
+                }
             }
         }
         #[cfg(not(windows))]
@@ -1827,6 +1889,11 @@ impl Browser {
                 }
             }
             BrowserEvent::DownloadChanged(update) => {
+                let terminal = !matches!(
+                    update.status.as_str(),
+                    "choosing" | "downloading" | "paused" | "pending" | "started"
+                ) && !update.resumable;
+                let token = update.token;
                 let id = if let Some(id) = self.download_ids.get(&update.token) {
                     *id
                 } else {
@@ -1865,6 +1932,10 @@ impl Browser {
                         self.save();
                     }
                 }
+                if terminal {
+                    self.downloads.release(token);
+                }
+                self.prune_downloads();
             }
             BrowserEvent::DownloadSelected(token, result) => {
                 match self.downloads.selected(token, result) {

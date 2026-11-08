@@ -1,8 +1,54 @@
 "use strict";
 let playHistory = [];
 let queueMode = "upcoming";
+let queueBeforeDrag = [];
+const queueSort = attachMusicSort($("queue"), {
+  onStart: () => {
+    queueBeforeDrag = [...queue];
+  },
+  onCommit: (keys) => {
+    queue = keys.map((key) => queueBeforeDrag[Number(key)]).filter(Boolean);
+    savePlayer();
+    drawQueue();
+  },
+});
+const playlistSort = attachMusicSort($("tracks"), {
+  onCommit: async (order) => {
+    const playlist = library.playlists.find((p) => p.id === selected);
+    if (!playlist) return;
+    try {
+      await api("playlists/" + encodeURIComponent(playlist.id) + "/reorder", {
+        order,
+      });
+      playlist.tracks = order;
+      await local("meta", "library", library);
+      render(true);
+    } catch (error) {
+      notice(error.message);
+      await refresh();
+    }
+  },
+});
+function dragHandle(name) {
+  const button = document.createElement("button");
+  button.className = "sort-handle";
+  button.dataset.sortHandle = "";
+  button.ariaLabel = "Reordenar " + name + ". Use as setas para mover.";
+  button.innerHTML = icon("grip");
+  return button;
+}
+async function selectQueue(index) {
+  const before = [...queue];
+  const track = library.tracks.find((t) => t.id === before[index]);
+  if (track && (await play(track))) {
+    queue = before.slice(index + 1);
+    savePlayer();
+    drawQueue();
+  }
+}
 
 function drawQueue() {
+  if (queueSort.dragging) return;
   const container = $("queue");
   container.replaceChildren();
   const ids = queueMode === "history" ? playHistory : queue;
@@ -26,30 +72,15 @@ function drawQueue() {
     return;
   }
   for (const [index, id] of ids.entries()) {
-    if (index >= 50) break;
     const t = library.tracks.find((t) => t.id === id);
     if (!t) continue;
     const line = row(t);
     if (queueMode === "upcoming") {
+      line.dataset.sortKey = String(index);
+      line.querySelector(".title").onclick = task(() => selectQueue(index));
       const controls = document.createElement("span");
       controls.className = "queue-order";
-      for (const [offset, name] of [
-        [-1, "up"],
-        [1, "down"],
-      ]) {
-        const button = document.createElement("button");
-        button.innerHTML = icon(name);
-        button.ariaLabel =
-          (offset < 0 ? "Mover para cima " : "Mover para baixo ") + t.title;
-        button.disabled = index + offset < 0 || index + offset >= queue.length;
-        button.onclick = () => {
-          const target = index + offset;
-          [queue[index], queue[target]] = [queue[target], queue[index]];
-          savePlayer();
-          drawQueue();
-        };
-        controls.append(button);
-      }
+      controls.append(dragHandle(t.title));
       line.querySelector(".track-state")?.remove();
       line.append(controls);
     }

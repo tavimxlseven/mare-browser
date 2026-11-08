@@ -191,6 +191,19 @@ impl BrowserState {
         state
     }
 
+    pub fn trim_downloads(&mut self) {
+        let mut terminal = 0;
+        self.downloads.retain(|download| {
+            if matches!(
+                download.status.as_str(),
+                "choosing" | "downloading" | "paused" | "pending" | "started"
+            ) {
+                return true;
+            }
+            terminal += 1;
+            terminal <= 200
+        });
+    }
     /// Allocate IDs for downloads and other host-created records as well as tabs.
     pub fn allocate_id(&mut self) -> u64 {
         let id = self.next_id.max(1);
@@ -363,14 +376,19 @@ impl BrowserState {
             tab.can_go_forward = false;
         }
         for download in &mut self.downloads {
+            if download.status == "concluído" {
+                download.status = "completed".into();
+            }
             download.resumable = false;
             if download.status == "downloading"
                 || download.status == "pending"
                 || download.status == "choosing"
+                || download.status == "paused"
             {
                 download.status = "interrupted".into();
             }
         }
+        self.trim_downloads();
         if !self.settings.restore_session {
             self.tabs.clear();
         }
@@ -589,6 +607,35 @@ mod tests {
         assert!(state.reading_list[0].id > bookmark_id);
     }
 
+    #[test]
+    fn download_history_is_bounded_without_discarding_active_transfers() {
+        let mut state = BrowserState::new();
+        for id in 0..250 {
+            state.downloads.push(Download {
+                id,
+                filename: "fixture".into(),
+                path: String::new(),
+                status: "completed".into(),
+                received: 1,
+                total: Some(1),
+                error: None,
+                resumable: false,
+            });
+        }
+        state.downloads.push(Download {
+            id: 999,
+            filename: "active".into(),
+            path: String::new(),
+            status: "paused".into(),
+            received: 1,
+            total: Some(2),
+            error: None,
+            resumable: true,
+        });
+        state.trim_downloads();
+        assert_eq!(state.downloads.len(), 201);
+        assert_eq!(state.downloads.last().unwrap().id, 999);
+    }
     #[test]
     fn settings_reject_unimplemented_values() {
         let mut settings = Settings {

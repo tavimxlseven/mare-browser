@@ -25,6 +25,14 @@ impl Catalog {
         self.directory
             .join(format!("playlist-{}.json", uri.replace(':', "-")))
     }
+    pub fn cached(&self, uri: &str) -> Option<Value> {
+        let bytes = fs::read(self.path(uri)).ok()?;
+        if bytes.len() > 2_000_000 {
+            return None;
+        }
+        let value: Value = serde_json::from_slice(&bytes).ok()?;
+        (value["uri"] == uri && value["state"] == "ready").then_some(value)
+    }
     pub fn open(&mut self, input: &str, refresh: bool) -> Result<(), String> {
         let (uri, url, kind) = crate::spotify::normalize_link(input)?;
         if !matches!(kind.as_str(), "playlist" | "album") {

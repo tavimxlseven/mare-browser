@@ -17,13 +17,13 @@ Maré is a Windows browser built with Rust, Tao and Wry. Web content runs in Mic
 
 - Tabs, pinned tabs, session restore, bookmarks, history and a reading list.
 - Built-in ad and tracker blocking powered by Brave's `adblock-rust`, EasyList and EasyPrivacy, with site exceptions and request counters.
-- Reader mode, downloads, find in page, zoom, printing and developer tools.
+- Reader mode, a categorized download center with progress and transfer controls, find in page, zoom, printing and developer tools.
 - Private tabs with separate WebView2 storage and no persisted browsing history.
 - Light, dark and system themes, keyboard navigation and reduced-motion support.
 - A curated app catalog. Notes, Calculator and the music app run in separate Rust workers, each with its own tab. Switching tabs keeps apps running; closing an app tab stops only its worker.
-- A music workspace with independent music/artist search, public Spotify playlist imports, editable local playlists, a full playback queue and adjustable panels. Spotify metadata search uses XWolf without account login; download helpers run on demand. Optional paired Wi-Fi control keeps audio on the PC. Discord Rich Presence uses the registered Maré application ID.
+- A music workspace with independent music/artist search, public Spotify playlist imports, editable local playlists, a full playback queue and adjustable panels. Spotify metadata search uses XWolf without account login; download helpers run on demand. Optional account pairing synchronizes the music library and controls playback between PC and phone. A separate paired Wi-Fi panel keeps audio on the PC. Discord Rich Presence uses the registered Maré application ID.
 - Chrome Web Store installation for compatible Manifest V3 extensions, with signature verification, permission review and profile management.
-- An on-demand task monitor accounts for browser, WebView2 and native app processes with private RAM, committed memory and CPU.
+- An on-demand task monitor with CPU/RAM history and component meters accounts for browser, WebView2 and native app processes with private RAM, committed memory and CPU.
 - Official Discord web client in a persistent Maré tab, with normal login and explicit camera/microphone permissions.
 
 ## Download

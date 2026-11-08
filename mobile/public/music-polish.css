@@ -1,0 +1,335 @@
+/* Shared interaction polish: movement follows actions, never an idle animation loop. */
+.sort-handle {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  min-height: 44px;
+  padding: 8px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--music-muted, var(--muted));
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.sort-handle svg {
+  width: 19px;
+  height: 19px;
+  pointer-events: none;
+}
+.sort-handle:is(:hover, :focus-visible) {
+  color: var(--music-green, var(--accent));
+  background: #ffffff0c;
+}
+.sort-handle:active {
+  cursor: grabbing;
+}
+.is-sorting {
+  user-select: none;
+  -webkit-user-select: none;
+}
+.is-drag-source {
+  opacity: 0.18 !important;
+}
+.music-drag-ghost {
+  border: 1px solid var(--music-divider, var(--line));
+  border-radius: 16px;
+  background: var(--music-panel, var(--panel));
+  color: var(--music-ink, var(--text));
+  box-shadow:
+    0 20px 45px #0005,
+    0 4px 12px #0002;
+  will-change: transform;
+  overflow: hidden;
+}
+#tracks .track:has(> .sort-handle),
+.track.music-drag-ghost:has(> .sort-handle) {
+  grid-template-columns: 44px minmax(0, 1fr) 32px 32px 32px;
+  gap: 6px;
+}
+#queue .queue-order {
+  display: flex;
+  width: 36px;
+  padding: 0;
+}
+#queue .track {
+  grid-template-columns: 40px minmax(0, 1fr) 32px 36px;
+}
+.spotify-app .music-queue-actions .sort-handle {
+  width: 32px;
+  min-height: 36px;
+  opacity: 0.7;
+}
+.spotify-app .music-library-footer {
+  padding: 10px 0 0;
+  border-top: 0;
+}
+.spotify-app .music-library-footer > button {
+  min-height: 50px;
+  padding: 8px 12px;
+  border: 1px solid var(--music-divider);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--music-ink) 4%, transparent);
+  color: var(--music-ink);
+  font-size: 13px;
+  font-weight: 550;
+  gap: 10px;
+  transition:
+    background 180ms ease,
+    transform 180ms ease;
+}
+.spotify-app .music-library-footer > button svg {
+  width: 18px;
+  height: 18px;
+  padding: 6px;
+  box-sizing: content-box;
+  color: var(--music-green);
+  background: color-mix(in srgb, var(--music-green) 12%, transparent);
+  border-radius: 10px;
+}
+.spotify-app .music-library-footer > button:hover {
+  background: var(--music-elevated);
+}
+.spotify-app .music-library-footer > button:active {
+  transform: scale(0.98);
+}
+@media (prefers-reduced-motion: reduce) {
+  .spotify-app .music-library-footer > button {
+    transition: none;
+  }
+}
+.mare-device-panel {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--music-divider, var(--line));
+}
+.mare-device-panel h4 {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0 0 12px;
+  font-size: 15px;
+}
+.mare-device-panel h4 svg {
+  width: 22px;
+  height: 22px;
+}
+.mare-device-panel p,
+.mare-device-panel small {
+  color: var(--music-muted, var(--muted));
+  font-size: 12px;
+  line-height: 1.6;
+}
+.mare-device-panel form,
+.spotify-app .music-dialog .mare-device-panel form {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: stretch;
+  gap: 14px;
+}
+.mare-device-panel form label {
+  display: grid;
+  gap: 7px;
+  font-size: 12px;
+  min-width: 0;
+}
+.mare-device-panel input {
+  width: 100%;
+  min-width: 0;
+  padding: 11px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--music-divider, var(--line));
+  color: var(--music-ink, var(--text));
+  background: var(--music-elevated, var(--elevated));
+}
+.mare-device-panel .device-primary {
+  background: var(--music-green, var(--accent));
+  color: #fff;
+  border: 0;
+  padding: 12px 16px;
+  border-radius: 14px;
+  font-weight: 600;
+  min-height: 42px;
+  cursor: pointer;
+}
+.mare-device-panel .device-secondary {
+  border: 1px solid var(--music-divider, var(--line));
+  border-radius: 12px;
+  padding: 9px 14px;
+  background: transparent;
+  color: var(--music-muted, var(--muted));
+  cursor: pointer;
+}
+.device-pair-code {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0;
+  text-align: center;
+  padding: 22px;
+  border-radius: 20px;
+  background: var(--music-elevated, var(--elevated));
+}
+.device-pair-code strong {
+  font-size: 29px;
+  letter-spacing: 4px;
+  color: var(--music-ink, var(--text));
+}
+.device-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+.device-card {
+  padding: 16px;
+  border: 1px solid var(--music-divider, var(--line));
+  border-radius: 18px;
+  min-width: 0;
+}
+.mare-device-panel .device-card > header {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 8px;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  margin: 0;
+  max-width: none;
+}
+.device-card > header svg {
+  width: 23px;
+  height: 23px;
+  color: var(--music-green, var(--accent));
+}
+.device-card strong,
+.device-card small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.device-card strong {
+  font-size: 13px;
+}
+.device-online {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #8e8e93;
+}
+.device-online.active {
+  background: #32b96b;
+  box-shadow: 0 0 0 4px #32b96b15;
+}
+.device-transport {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+.device-transport button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  min-height: 36px;
+  padding: 7px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--music-elevated, var(--elevated));
+  color: var(--music-ink, var(--text));
+  cursor: pointer;
+}
+.device-transport svg {
+  width: 18px;
+  height: 18px;
+}
+.device-transport span {
+  font-size: 11px;
+  color: var(--music-muted, var(--muted));
+}
+.device-transfer {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+.device-transfer button {
+  flex: 1;
+  border: 1px solid var(--music-divider, var(--line));
+  border-radius: 12px;
+  min-height: 38px;
+  padding: 8px;
+  font-size: 11px;
+  background: transparent;
+  color: var(--music-ink, var(--text));
+  cursor: pointer;
+}
+.spotify-app
+  :is(
+    .music-green,
+    .music-add,
+    .music-row-actions button,
+    .music-queue-actions button
+  ),
+.device-transfer button,
+.device-transport button,
+body .transport button,
+body #mini button {
+  transition:
+    transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    background 180ms ease,
+    box-shadow 180ms ease;
+}
+.spotify-app
+  :is(
+    .music-green,
+    .music-add,
+    .music-row-actions button,
+    .music-queue-actions button
+  ):active,
+.device-transfer button:active,
+.device-transport button:active,
+body .transport button:active,
+body #mini button:active {
+  transform: scale(0.93);
+}
+.spotify-app .music-row,
+.track {
+  transition:
+    background 160ms ease,
+    opacity 160ms ease;
+}
+.device-card {
+  animation: device-enter 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes device-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .device-card {
+    animation: none;
+  }
+  .spotify-app
+    :is(
+      .music-green,
+      .music-add,
+      .music-row-actions button,
+      .music-queue-actions button
+    ),
+  .device-transfer button,
+  .device-transport button,
+  body .transport button,
+  body #mini button,
+  .spotify-app .music-row,
+  .track {
+    transition: none;
+  }
+}

@@ -7,6 +7,12 @@
     ...root.querySelectorAll(selector),
   ];
   const paths = {
+    play: '<path d="M7 4.5v15l12-7.5Z" fill="currentColor" stroke="none"/>',
+    pause:
+      '<rect x="6" y="4" width="4" height="16" rx="1.5" fill="currentColor" stroke="none"/><rect x="14" y="4" width="4" height="16" rx="1.5" fill="currentColor" stroke="none"/>',
+    list: '<path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>',
+    image:
+      '<rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8" cy="8" r="2"/><path d="m4 18 5-5 4 3 3-5 5 7"/>',
     sidebar:
       '<rect x="2.5" y="4" width="19" height="16" rx="3.6"/><path d="M6 4h3v16H6q-3.5 0-3.5-3.5v-9Q2.5 4 6 4Z" fill="currentColor" opacity=".24" stroke="none"/><path d="M9 4.5v15"/>',
     back: '<path d="m15 5-7 7 7 7"/>',
@@ -456,7 +462,7 @@
         [state.tabs, state.active_id, openAppTabs(), state.apps?.active_id],
         renderOverview,
       );
-    if (ui.popup === "downloads")
+    if (ui.overlay === "downloads")
       cached("downloads", state.downloads, renderDownloads);
     renderProtection();
     renderApps();
@@ -1081,12 +1087,7 @@
         menuItem("printer", "Imprimir…", "print", "Ctrl+P") +
         separator +
         menuItem("settings", "Ajustes…", "settings") +
-        menuItem(
-          "sliders",
-          "Gerenciador de tarefas",
-          "task-manager",
-          "Shift+Esc",
-        ) +
+        menuItem("sliders", "Consumo do Maré", "task-manager", "Shift+Esc") +
         menuItem("code", "Ferramentas de desenvolvedor", "devtools", "F12"),
       $("#more-button"),
       "more",
@@ -1222,14 +1223,17 @@
     );
   }
   let resourceTimer,
-    resourcesOpenedAt = 0;
+    resourcesOpenedAt = 0,
+    resourceDashboard = null;
   function showTaskManager() {
+    clearInterval(resourceTimer);
     showOverlay(
       "resources",
       "Gerenciador de tarefas",
-      `<p class="resource-intro">Consumo desta instância do Maré, incluindo motor e apps abertos.</p><div class="resource-totals"><div><small>RAM privada</small><strong id="resource-ram">—</strong></div><div><small>Memória privada</small><strong id="resource-private">—</strong></div><div><small>CPU do computador</small><strong id="resource-cpu">Coletando…</strong></div><div><small>Processos</small><strong id="resource-count">—</strong></div></div><div class="resource-table-scroll"><table class="resource-table"><thead><tr><th>Processo</th><th>PID</th><th>RAM privada</th><th>Residente</th><th>Memória privada</th><th>CPU</th></tr></thead><tbody id="resource-rows"></tbody></table></div><p class="resource-explanation">RAM privada é a memória residente exclusiva. Memória privada inclui memória comprometida que pode estar fora da RAM. A coluna residente inclui páginas compartilhadas; sua soma pode contá-las mais de uma vez. Renderizadores podem atender mais de uma aba.</p><div class="resource-actions"><small id="resource-status" role="status">Lendo processos do Maré…</small><button class="button" id="resource-engine">Detalhes WebView2</button><button class="button" id="resource-refresh">Atualizar</button></div>`,
+      `<p class="resource-intro">Consumo desta instância do Maré, incluindo motor e apps abertos.</p><div class="resource-totals"><div><small>RAM privada</small><strong id="resource-ram">—</strong></div><div><small>Memória privada</small><strong id="resource-private">—</strong></div><div><small>CPU do Maré</small><strong id="resource-cpu">Coletando…</strong></div><div><small>Processos</small><strong id="resource-count">—</strong></div></div><div class="resource-table-scroll"><table class="resource-table"><thead><tr><th>Processo</th><th>PID</th><th>RAM privada</th><th>Residente</th><th>Memória privada</th><th>CPU</th></tr></thead><tbody id="resource-rows"></tbody></table></div><p class="resource-explanation">RAM privada é a memória residente exclusiva. Memória privada inclui memória comprometida que pode estar fora da RAM. A coluna residente inclui páginas compartilhadas; sua soma pode contá-las mais de uma vez. Renderizadores podem atender mais de uma aba.</p><div class="resource-actions"><small id="resource-status" role="status">Lendo processos do Maré…</small><button class="button" id="resource-engine">Detalhes WebView2</button><button class="button" id="resource-refresh">Atualizar</button></div>`,
       "resources-panel",
     );
+    resourceDashboard = window.createResourceDashboard($("#overlay-panel"));
     resourcesOpenedAt = Date.now();
     const poll = () => send({ cmd: "resources_poll" });
     $("#resource-refresh").onclick = poll;
@@ -1246,6 +1250,7 @@
   function resources(result) {
     if (ui.overlay !== "resources" || result.sampled_at < resourcesOpenedAt)
       return;
+    resourceDashboard?.update(result);
     const memory = (value) =>
       value == null
         ? "—"
@@ -1485,49 +1490,31 @@
       send({ cmd: "copy_url" });
     } else copy(active().url);
   }
+  let downloadCenter = null;
   function showDownloads() {
-    showPopup("", $("#downloads-button"), "downloads");
+    showOverlay(
+      "downloads",
+      "Downloads",
+      '<div id="download-center" class="download-center"></div>',
+      "downloads-panel",
+    );
+    downloadCenter = window.createDownloadCenter($("#download-center"), {
+      send,
+      icon,
+      esc,
+      status: downloadStatus,
+    });
     renderDownloads();
-    updateLayout();
   }
   function renderDownloads() {
-    const target = $("#popup");
-    target.innerHTML = `<div class="popup-heading">Downloads<small>${state.downloads.length || ""}</small></div>${
-      state.downloads.length
-        ? state.downloads
-            .slice()
-            .reverse()
-            .slice(0, 20)
-            .map(
-              (item) =>
-                `<div class="download-entry"><span>${icon("download")}</span><div><span class="item-title" title="${esc(item.path || item.filename)}">${esc(item.filename.replace(/^\d{13}-\d+-\d+-/, ""))}</span><span class="item-subtitle">${esc(item.error || downloadStatus(item.status))}${item.total ? ` · ${Math.floor((item.received / item.total) * 100)}%` : ""}${item.received ? ` · ${(item.received / 1048576).toFixed(1)} MB` : ""}</span></div>${item.status === "downloading" ? `<button data-transfer="cancel_download" data-transfer-id="${item.id}" aria-label="Cancelar download">${icon("close")}</button>` : ""}${item.resumable ? `<button data-transfer="resume_download" data-transfer-id="${item.id}" aria-label="Retomar download">${icon("reload")}</button>` : ""}${item.status === "completed" || item.status === "concluído" ? `<button data-open-download="${item.id}" title="Abrir arquivo" aria-label="Abrir ${esc(item.filename)}">${icon("external")}</button><button data-reveal-download="${item.id}" title="Mostrar na pasta" aria-label="Mostrar na pasta">${icon("folder")}</button>` : ""}</div>`,
-            )
-            .join("")
-        : `<div class="download-empty">${icon("download")}Seus downloads aparecem aqui.<br>Baixe um arquivo para começar.</div>`
-    }`;
-    $$("[data-transfer]", target).forEach(
-      (el) =>
-        (el.onclick = () =>
-          send({
-            cmd: el.dataset.transfer,
-            id: Number(el.dataset.transferId),
-          })),
-    );
-    $$("[data-open-download]", target).forEach((el) =>
-      el.addEventListener("click", () =>
-        send({ cmd: "open_download", id: Number(el.dataset.openDownload) }),
-      ),
-    );
-    $$("[data-reveal-download]", target).forEach((el) =>
-      el.addEventListener("click", () =>
-        send({ cmd: "reveal_download", id: Number(el.dataset.revealDownload) }),
-      ),
-    );
+    downloadCenter?.update(state.downloads);
   }
   function downloadStatus(status) {
     return (
       {
         choosing: "Escolha onde salvar…",
+        paused: "Pausado",
+        interrupted: "Interrompido ao fechar o navegador",
         missing: "Arquivo não encontrado",
         completed: "Concluído",
         downloading: "Baixando…",
@@ -1922,6 +1909,7 @@
     $("#native-app-body").replaceChildren(spotifyView.element);
     spotifyView.load();
   }
+  let notesStudio = null;
   function buildNotes() {
     $("#native-app-body").innerHTML =
       `<div class="notes-layout"><aside class="notes-sidebar"><div class="notes-heading"><h2>Notas</h2><button class="icon-button" id="note-new" title="Nova nota" aria-label="Nova nota">${icon("plus")}</button></div><div id="notes-list" class="notes-list"></div></aside><section class="note-editor" id="note-editor"><div class="note-editor-toolbar"><span id="note-date"></span><button class="button" id="note-save" disabled>Salvar</button><button class="icon-button" id="note-delete" title="Excluir nota" aria-label="Excluir nota">${icon("trash")}</button></div><input id="note-title" aria-label="Título da nota" placeholder="Sem título" maxlength="160"><textarea id="note-body" aria-label="Texto da nota" placeholder="Escreva sua nota…" maxlength="30000"></textarea></section><div id="notes-empty" class="notes-empty" hidden><span>${icon("notes")}</span><h2>Nenhuma nota</h2><p>Crie uma nota para começar.</p><button class="button primary" id="note-first">Criar nota</button></div></div>`;
@@ -1947,12 +1935,27 @@
         closeTransient();
       };
     };
+    notesStudio = window.attachNotesStudio($("#native-app-body"), {
+      notes: () => appData.notes,
+      selected: () => appData.selected_id,
+      flush: flushNote,
+      update: (params) => requestApp("update", params, "notes"),
+      dirty: markNoteDirty,
+      notify,
+      icon,
+      changed: () => {
+        rendered.delete("notes-list");
+        renderNotes();
+      },
+    });
     requestApp("list").catch((error) => notify(error.message));
   }
   function renderNotes() {
     if (!$("#notes-list")) return;
     cached("notes-list", [appData.notes, appData.selected_id], () => {
-      $("#notes-list").innerHTML = appData.notes
+      $("#notes-list").innerHTML = (
+        notesStudio?.filter(appData.notes) || appData.notes
+      )
         .map(
           (note) =>
             `<button class="note-item${note.id === appData.selected_id ? " selected" : ""}" data-note-id="${note.id}" aria-pressed="${note.id === appData.selected_id}"><strong>${esc(note.title || "Sem título")}</strong><span>${esc((note.body || "").trim().split("\n")[0] || "Nota vazia")}</span><small>${esc(formatDate(note.updated_at))}</small></button>`,
@@ -1988,6 +1991,7 @@
       $("#note-save").disabled = true;
     }
     if (!note) appData.noteOpenedId = null;
+    notesStudio?.refresh();
   }
   async function createNote() {
     try {
@@ -2730,7 +2734,7 @@
   $("#more-button").onclick = () =>
     ui.popup === "more" ? closeTransient() : showMore();
   $("#downloads-button").onclick = () =>
-    ui.popup === "downloads" ? closeTransient() : showDownloads();
+    ui.overlay === "downloads" ? closeTransient() : showDownloads();
   $("#overview-button").onclick = () =>
     ui.overlay === "overview" ? closeTransient() : showOverview();
   $("#settings-button").onclick = showSettings;

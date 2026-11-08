@@ -26,6 +26,7 @@ from flask import (
 )
 import provider
 import accounts
+import devices
 
 ROOT = Path(__file__).resolve().parent
 DATA = Path(os.getenv("MARE_DATA", ROOT / "state")).resolve()
@@ -77,8 +78,13 @@ with db() as con:
         CREATE INDEX IF NOT EXISTS jobs_source ON jobs(source);
     """)
     accounts.initialize(con)
+    for column in ("prepare_ms", "match_ms", "extract_ms"):
+        if column not in {row[1] for row in con.execute("PRAGMA table_info(tracks)")}:
+            con.execute(f"ALTER TABLE tracks ADD COLUMN {column} INTEGER DEFAULT 0")
     if "added_tracks" not in {row[1] for row in con.execute("PRAGMA table_info(playlists)")}:
         con.execute("ALTER TABLE playlists ADD COLUMN added_tracks TEXT DEFAULT '[]'")
+    if "track_order" not in {row[1] for row in con.execute("PRAGMA table_info(playlists)")}:
+        con.execute("ALTER TABLE playlists ADD COLUMN track_order TEXT DEFAULT '[]'")
     if "duration_ms" not in {
         row[1] for row in con.execute("PRAGMA table_info(tracks)")
     }:
@@ -87,6 +93,7 @@ with db() as con:
         con.execute("ALTER TABLE jobs ADD COLUMN archived INTEGER DEFAULT 0")
     con.execute("UPDATE tracks SET status='queued' WHERE status='preparing'")
     con.execute("UPDATE jobs SET status='queued' WHERE status='importing'")
+    devices.initialize(con)
 
 
 def recover_preparations():
@@ -128,10 +135,10 @@ def protect():
         return
     if request.method != "GET" and request.headers.get("Origin") != ORIGIN:
         abort(403)
-    if request.path in ("/api/login", "/api/register"):
+    if request.path in ("/api/login", "/api/register", "/api/devices/claim"):
         return
     with db() as con:
-        accounts.authenticate(con)
+        if not devices.bearer(con): accounts.authenticate(con)
 
 
 @app.after_request
@@ -422,10 +429,13 @@ def import_job(job):
             save_tracks(con, tracks, job["owner"], authoritative=True)
             if kind != "track":
                 previous = con.execute(
-                    "SELECT added_tracks FROM playlists WHERE id=? AND owner=?", (identifier, job["owner"])
+                    "SELECT added_tracks,track_order FROM playlists WHERE id=? AND owner=?", (identifier, job["owner"])
                 ).fetchone()
                 additions = json.loads(previous["added_tracks"]) if previous else []
                 ids = list(dict.fromkeys(ids + additions))
+                if previous:
+                    order = json.loads(previous["track_order"])
+                    ids = [identifier for identifier in order if identifier in ids] + [identifier for identifier in ids if identifier not in order]
                 con.execute(
                     "INSERT INTO playlists(id,name,tracks,owner) VALUES (?,?,?,?) ON CONFLICT(owner,id) DO UPDATE SET name=excluded.name,tracks=excluded.tracks",
                     (
@@ -435,6 +445,7 @@ def import_job(job):
                         job["owner"],
                     ),
                 )
+                con.execute("UPDATE playlists SET source=? WHERE owner=? AND id=?", (job["source"],job["owner"],identifier))
             for track_id in ids:
                 con.execute(
                     "UPDATE tracks SET status='queued',error='' WHERE id=? AND status NOT IN ('queued','preparing','ready')",
@@ -556,6 +567,25 @@ def add_playlist_track(identifier):
             "UPDATE playlists SET tracks=?,added_tracks=? WHERE id=? AND owner=?",
             (json.dumps(ids), json.dumps(additions), identifier, g.user["id"]),
         )
+    return jsonify(ok=True)
+
+
+@app.post("/api/playlists/<identifier>/reorder")
+def reorder_playlist(identifier):
+    data = request.get_json()
+    order = data.get("order") if isinstance(data, dict) else None
+    if not isinstance(order, list) or len(order) > 2000 or any(not isinstance(i, str) or not provider.ID.fullmatch(i) for i in order):
+        abort(400)
+    with db() as con:
+        con.execute("BEGIN IMMEDIATE")
+        row = con.execute("SELECT tracks FROM playlists WHERE id=? AND owner=?", (identifier, g.user["id"])).fetchone()
+        if not row:
+            abort(404)
+        previous = json.loads(row["tracks"])
+        if len(order) != len(previous) or len(set(order)) != len(order) or set(order) != set(previous):
+            return jsonify(error="A playlist mudou. Atualize antes de reordenar."), 409
+        encoded = json.dumps(order)
+        con.execute("UPDATE playlists SET tracks=?,track_order=? WHERE id=? AND owner=?", (encoded, encoded, identifier, g.user["id"]))
     return jsonify(ok=True)
 
 
@@ -702,6 +732,8 @@ def artwork_worker():
 
 
 @app.get("/")
+@app.get("/admin")
+@app.get("/admin/")
 def index():
     return send_from_directory(ROOT / "public", "index.html")
 
@@ -728,6 +760,7 @@ def resume_preparation():
 
 
 def prepare_track(identifier):
+    started = time.monotonic()
     try:
         if shutil.disk_usage(DATA).free < 1_073_741_824:
             raise OSError("disk")
@@ -755,7 +788,8 @@ def prepare_track(identifier):
                     ),
                 )
             con.execute(
-                "UPDATE tracks SET status='ready',error='' WHERE id=?", (identifier,)
+                "UPDATE tracks SET status='ready',error='',prepare_ms=?,match_ms=?,extract_ms=? WHERE id=?",
+                (round((time.monotonic()-started)*1000), metadata.get("_match_ms",0), metadata.get("_extract_ms",0), identifier)
             )
     except Exception as ex:
         app.logger.warning("Preparation failed (%s)", type(ex).__name__)
@@ -813,6 +847,9 @@ def worker():
             wake.clear()
             continue
         prepare_track(job)
+
+
+devices.register(app, db, save_tracks, create_job, wake, enqueue_tracks)
 
 
 if __name__ == "__main__":

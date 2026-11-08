@@ -34,6 +34,9 @@ EBWebView/
 !.env.example
 *.pem
 *.key
+cloud-session.bin
+cloud-events.json
+*cookies*.txt
 
 # Editor e sistema
 /.idea/

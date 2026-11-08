@@ -1,6 +1,21 @@
 "use strict";
 let currentUser = null;
 
+function isAdminEntry() {
+  return /^\/admin\/?$/.test(location.pathname);
+}
+function openAdminEntry() {
+  if (!isAdminEntry()) return;
+  if (currentUser?.is_admin) $("settings").click();
+  else notice("Entre com a conta de administrador para gerenciar convites.");
+}
+if (isAdminEntry()) {
+  $("register-tab").hidden = true;
+  $("auth-title").textContent = "Administração do Maré";
+  $("auth-description").textContent =
+    "Entre com sua conta de administrador para gerenciar os convites.";
+}
+
 async function useAccount(user) {
   const previous = currentUser?.id;
   if (previous && previous !== user.id) {
@@ -82,6 +97,7 @@ async function useAccount(user) {
   document.body.classList.toggle("light", $("theme").value === "light");
   $("network").value = (await local("meta", "network")) || "wifi";
   for (const id of ["theme", "network"]) $(id).settingTrigger?.refreshValue();
+  if(typeof startDeviceLink==='function')void startDeviceLink();
 }
 
 function authMode(register) {
@@ -114,6 +130,8 @@ async function submitAccount(event, register) {
         }
       : { username: $("username").value.trim(), password: $("password").value };
     const response = await api(register ? "register" : "login", payload);
+    if (isAdminEntry() && !response.user.is_admin)
+      throw new Error("Use a conta de administrador para abrir este painel.");
     await useAccount(response.user);
     $("password").value = "";
     $("register-password").value = "";
@@ -124,6 +142,7 @@ async function submitAccount(event, register) {
     await refresh();
     await restorePlayer();
     await drain();
+    openAdminEntry();
   } catch (error) {
     $("auth-error").textContent = error.message;
     $("auth-error").hidden = false;

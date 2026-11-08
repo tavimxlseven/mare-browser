@@ -40,6 +40,7 @@ struct Pending {
 struct Inner {
     pending: HashMap<u64, Pending>,
     operations: HashMap<u64, ICoreWebView2DownloadOperation>,
+    subscriptions: HashMap<u64, (i64, i64)>,
 }
 #[derive(Clone, Default)]
 pub struct Manager(Rc<RefCell<Inner>>);
@@ -80,7 +81,9 @@ fn snapshot(op: &ICoreWebView2DownloadOperation, token: u64, private: bool) -> U
             status: if state == COREWEBVIEW2_DOWNLOAD_STATE_COMPLETED {
                 "completed"
             } else if state == COREWEBVIEW2_DOWNLOAD_STATE_INTERRUPTED {
-                if reason == COREWEBVIEW2_DOWNLOAD_INTERRUPT_REASON_USER_CANCELED {
+                if reason == COREWEBVIEW2_DOWNLOAD_INTERRUPT_REASON_USER_PAUSED {
+                    "paused"
+                } else if reason == COREWEBVIEW2_DOWNLOAD_INTERRUPT_REASON_USER_CANCELED {
                     "cancelled"
                 } else {
                     "failed"
@@ -175,6 +178,7 @@ impl Manager {
                             ..Default::default()
                         });
                         let report = changed.clone();
+                        let mut state_token = 0;
                         op.add_StateChanged(
                             &StateChangedEventHandler::create(Box::new(move |op, _| {
                                 if let Some(op) = op {
@@ -182,10 +186,11 @@ impl Manager {
                                 }
                                 Ok(())
                             })),
-                            &mut 0,
+                            &mut state_token,
                         )?;
                         let report = changed.clone();
                         let mut last = Instant::now();
+                        let mut bytes_token = 0;
                         op.add_BytesReceivedChanged(
                             &BytesReceivedChangedEventHandler::create(Box::new(move |op, _| {
                                 if last.elapsed().as_millis() >= 200 {
@@ -196,8 +201,12 @@ impl Manager {
                                 }
                                 Ok(())
                             })),
-                            &mut 0,
+                            &mut bytes_token,
                         )?;
+                        inner
+                            .borrow_mut()
+                            .subscriptions
+                            .insert(token, (state_token, bytes_token));
                         let picked = picked.clone();
                         std::thread::spawn(move || {
                             #[cfg(debug_assertions)]
@@ -252,17 +261,28 @@ impl Manager {
             accepted
         }
     }
-    pub fn command(&self, token: u64, resume: bool) -> Result<(), String> {
+    pub fn release(&self, token: u64) {
+        let mut inner = self.0.borrow_mut();
+        if let Some(op) = inner.operations.remove(&token) {
+            if let Some((state, bytes)) = inner.subscriptions.remove(&token) {
+                unsafe {
+                    let _ = op.remove_StateChanged(state);
+                    let _ = op.remove_BytesReceivedChanged(bytes);
+                }
+            }
+        }
+    }
+    pub fn command(&self, token: u64, action: &str) -> Result<(), String> {
         let inner = self.0.borrow();
         let op = inner
             .operations
             .get(&token)
             .ok_or("Esta transferência não está mais ativa.")?;
         unsafe {
-            if resume {
-                op.Resume()
-            } else {
-                op.Cancel()
+            match action {
+                "resume_download" => op.Resume(),
+                "pause_download" => op.Pause(),
+                _ => op.Cancel(),
             }
         }
         .map_err(|e| e.to_string())

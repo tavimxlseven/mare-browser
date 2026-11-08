@@ -22,18 +22,28 @@ for (const name of [
   "music-tools.js",
   "spotify.js",
   "app.js",
+  "browser-tools.js",
+  "browser-tools.css",
 ]) {
   assert.ok(
     html.includes(readFileSync(join(__dirname, "../ui", name), "utf8")),
     `Executable is missing ${name}`,
   );
 }
-assert.equal((html.match(/<style>/g) || []).length, 2);
+for (const name of ["sortable.js", "devices-ui.js", "music-polish.css"]) {
+  assert.ok(
+    html.includes(
+      readFileSync(join(__dirname, "../mobile/public", name), "utf8"),
+    ),
+    `Executable is missing ${name}`,
+  );
+}
+assert.equal((html.match(/<style>/g) || []).length, 4);
 assert.ok(!/<link\s[^>]*rel=["']stylesheet["']/i.test(html));
 assert.ok(!/<script\s[^>]*src=/i.test(html));
 const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
 assert.equal(scripts.length, 1);
 new Script(scripts[0][1], { filename: "packaged-interface.js" });
 console.log(
-  "PASS packaged executable contains both stylesheets and all five valid inline scripts; no external UI files required",
+  "PASS packaged executable contains all four stylesheets and eight valid inline scripts; no external UI files required",
 );

@@ -18,6 +18,7 @@ let downloads = new Set(),
   onlineSession = false;
 const audio = $("audio");
 let seeking = false;
+let playVersion = 0;
 let searchVersion = 0,
   searchController = null;
 const pendingMutations = new Map();
@@ -212,6 +213,7 @@ function row(track, list) {
   return el;
 }
 function render(force = false) {
+  if (typeof playlistSort !== "undefined" && playlistSort.dragging) return;
   const signature = JSON.stringify({
     view,
     selected,
@@ -271,7 +273,16 @@ function render(force = false) {
   $("download-all").hidden = !playlist || view !== "library";
   updatePlaylistHeader();
   const list = sourceTracks();
-  $("tracks").replaceChildren(...list.map((t) => row(t, list)));
+  $("tracks").replaceChildren(
+    ...list.map((t) => {
+      const line = row(t, list);
+      if (playlist && view === "library") {
+        line.dataset.sortKey = t.id;
+        line.append(dragHandle(t.title));
+      }
+      return line;
+    }),
+  );
   if (!list.length) {
     const empty = document.createElement("p");
     empty.className = "empty";
@@ -528,6 +539,8 @@ function savePlayer() {
   }).catch(() => {});
 }
 async function play(track, list) {
+  window.cancelMusicTransfer?.(track.id);
+  const version = ++playVersion;
   track = library.tracks.find((t) => t.id === track.id) || track;
   if (["queued", "preparing"].includes(track.status)) {
     const job = (library.jobs || []).find(
@@ -557,6 +570,8 @@ async function play(track, list) {
     );
     return;
   }
+  const blob = await local("audio", track.id);
+  if (version !== playVersion) return false;
   if (list) {
     playbackContext = list.map((t) => t.id);
     const position = playbackContext.indexOf(track.id);
@@ -564,7 +579,6 @@ async function play(track, list) {
       ? shuffleItems(playbackContext.filter((id) => id !== track.id))
       : playbackContext.slice(position + 1);
   }
-  const blob = await local("audio", track.id);
   audio.pause();
   if (objectUrl) URL.revokeObjectURL(objectUrl);
   objectUrl = blob ? URL.createObjectURL(blob) : "";
@@ -589,8 +603,15 @@ async function play(track, list) {
   }
   current = track;
   drawPlayer();
-  await audio.play();
+  try {
+    await audio.play();
+  } catch (error) {
+    if (version !== playVersion) return false;
+    throw error;
+  }
+  if (version !== playVersion) return false;
   savePlayer();
+  return true;
 }
 function drawPlayer() {
   if (!current) return;
@@ -885,7 +906,7 @@ async function boot() {
   }
   const installed =
     navigator.standalone || matchMedia("(display-mode: standalone)").matches;
-  if (!installed) return;
+  if (!installed && !isAdminEntry()) return;
   const poll = async () => {
     await sync();
     const active =
@@ -898,12 +919,22 @@ async function boot() {
   $("install").hidden = true;
   try {
     const response = await api("me");
+    if (isAdminEntry() && !response.user.is_admin) {
+      $("login").hidden = false;
+      notice("Use a conta de administrador para abrir este painel.");
+      return;
+    }
     await useAccount(response.user);
     await refresh();
     $("app").hidden = false;
   } catch (error) {
     if (error.status === 401) {
       $("login").hidden = false;
+      return;
+    }
+    if (isAdminEntry()) {
+      $("login").hidden = false;
+      notice("Conecte à internet para abrir a administração.");
       return;
     }
     let remembered;
@@ -925,6 +956,7 @@ async function boot() {
   }
   await restorePlayer();
   await drain();
+  openAdminEntry();
 }
 
 async function restorePlayer() {

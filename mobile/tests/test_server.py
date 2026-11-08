@@ -47,6 +47,26 @@ class ServerTests(unittest.TestCase):
         with server.db() as db:
             self.assertEqual(db.execute("SELECT added_tracks FROM playlists WHERE id=? AND owner='admin'", (identifier,)).fetchone()[0], '[]')
 
+    def test_playlist_order_is_complete_private_and_survives_reimport(self):
+        self.login()
+        identifier='p'*22
+        original=[dict(id=i*22,title=i,artist='Fixture',art='') for i in 'abc']
+        with server.db() as con:
+            server.save_tracks(con,original,'admin')
+            con.execute("INSERT INTO playlists(id,name,tracks,owner) VALUES (?,?,?,?)",(identifier,'Fixture',json.dumps([t['id'] for t in original]),'admin'))
+            job_id=server.create_job(con,'import','source','Fixture',[],'admin')
+            job=dict(con.execute('SELECT * FROM jobs WHERE id=?',(job_id,)).fetchone())
+        order=[t['id'] for t in reversed(original)]
+        endpoint=f'/api/playlists/{identifier}/reorder'
+        self.assertEqual(self.client.post(endpoint,json={'order':order[:-1]},headers=self.origin).status_code,409)
+        self.assertEqual(self.client.post(endpoint,json={'order':[order[0]]*3},headers=self.origin).status_code,409)
+        self.assertEqual(self.client.post('/api/playlists/unknown/reorder',json={'order':order},headers=self.origin).status_code,404)
+        self.assertEqual(self.client.post(endpoint,json={'order':order},headers=self.origin).status_code,200)
+        with patch('provider.collection',return_value=('playlist',identifier,'Fixture',original)):
+            server.import_job(job)
+        with server.db() as con:
+            self.assertEqual(json.loads(con.execute("SELECT tracks FROM playlists WHERE owner='admin' AND id=?",(identifier,)).fetchone()[0]),order)
+
     def test_completed_activity_expires_and_reused_work_can_return(self):
         import time
 

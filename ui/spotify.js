@@ -16,6 +16,15 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
     );
   const $ = (selector) => element.querySelector(selector);
   const glyph = {
+    devices:
+      '<rect x="2" y="4" width="13" height="11" rx="2"/><path d="M5 20h7m-3-5v5"/><rect x="17" y="8" width="5" height="12" rx="1.5"/>',
+    computer:
+      '<rect x="3" y="4" width="18" height="13" rx="2.5"/><path d="M8 21h8m-4-4v4"/>',
+    phone:
+      '<rect x="6" y="2" width="12" height="20" rx="3"/><path d="M10 5h4m-3 14h2"/>',
+    grip: '<path d="M5 8h14M5 12h14M5 16h14"/>',
+    settings:
+      '<path d="M4 7h4m6 0h6M4 17h9m6 0h1"/><circle cx="11" cy="7" r="3"/><circle cx="16" cy="17" r="3"/>',
     image:
       '<rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8" cy="8" r="1.5"/><path d="m4 18 5-5 4 3 3-5 5 7"/>',
     play: '<path d="M6.2 4.8c0-1.2 1.2-1.8 2.2-1.2l12 7.2c1 .6 1 1.9 0 2.5l-12 7.1c-1 .6-2.2 0-2.2-1.2Z" fill="currentColor" stroke="none"/>',
@@ -218,6 +227,7 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
       if (row?.local)
         queueMeta.set(row.local.id, { uri: row.uri, artwork: row.thumbnail });
       queueIds = [...playback.order];
+      syncCloudQueue();
       renderPlayer();
     },
     redraw: () => {
@@ -355,7 +365,7 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
     const p = data.presence || {};
     const d = dialog(
       "Ajustes de música",
-      `<div class="music-settings-shell"><nav class="music-settings-nav" aria-label="Seções dos ajustes"><button data-settings-tab="appearance" aria-current="page">${svg("settings")} Aparência</button><button data-settings-tab="wallpaper">${svg("image")} Fundo</button><button data-settings-tab="playback">${svg("volume")} Reprodução</button><button data-settings-tab="integrations">${svg("share")} Conexões</button><button data-settings-tab="downloads">${svg("download")} Downloads</button></nav><div class="music-settings-content"><section data-settings-pane="appearance"><h4>Do seu jeito</h4><p>Cores, tamanhos e espaço para sua biblioteca.</p><div class="music-appearance-options"></div></section><section data-settings-pane="wallpaper" hidden><h4>Seu fundo</h4><p>Uma imagem para deixar a música com a sua cara. O arquivo fica somente neste computador.</p><div class="music-wallpaper-options"></div></section><section data-settings-pane="playback" hidden><h4>Reprodução</h4><p>Sua fila, playlist, posição e volume são salvos neste computador. Ao reabrir, a música aguarda seu play.</p><label class="music-setting-range">Volume <output data-settings-volume-value>${data.player?.volume ?? 80}%</output><input data-settings-volume type="range" min="0" max="100" step="1" value="${data.player?.volume ?? 80}" aria-label="Volume da reprodução"></label><small>Ajuste fino em volumes baixos. Use as setas para mudar 1% ou a roda do mouse sobre o controle.</small><div class="music-session-summary"><strong>Continuar de onde parou</strong><p>A fila é restaurada com a ordem aleatória e o modo de repetição. Faixas removidas do disco são descartadas da fila.</p></div></section><section data-settings-pane="integrations" hidden><h4>Conexões</h4><form class="music-presence"><label class="music-setting-switch"><span>Discord Rich Presence<small>Mostrar a música no seu perfil do Discord desktop.</small></span><input type="checkbox" name="enabled" ${p.enabled ? "checked" : ""}></label><small role="status" data-presence-status>${esc({ disabled: "Desativada", discord_closed: "Abra o Discord no computador", connecting: "Conectando…", ready: "Pronta para compartilhar", active: "Música compartilhada", rejected: "O Discord recusou a atividade" }[p.state] || "Aguardando o Discord")}</small></form><section class="music-remote-settings"></section></section><section data-settings-pane="downloads" hidden><h4>Downloads</h4><p>As músicas ficam na biblioteca deste computador e liberam o play quando o download termina.</p><div class="music-component-status"><span class="music-status-dot"></span>${data.sunnify_available ? "Downloads disponíveis" : "Componente de download ausente"}</div><button class="music-secondary" data-scan>${svg("reload")} Atualizar músicas baixadas</button><small>Os arquivos concluídos são preservados. A busca online depende da disponibilidade do catálogo.</small></section></div></div>`,
+      `<div class="music-settings-shell"><nav class="music-settings-nav" aria-label="Seções dos ajustes"><button data-settings-tab="appearance" aria-current="page">${svg("settings")} Aparência</button><button data-settings-tab="wallpaper">${svg("image")} Fundo</button><button data-settings-tab="playback">${svg("volume")} Reprodução</button><button data-settings-tab="integrations">${svg("share")} Conexões</button><button data-settings-tab="downloads">${svg("download")} Downloads</button></nav><div class="music-settings-content"><section data-settings-pane="appearance"><h4>Do seu jeito</h4><p>Cores, tamanhos e espaço para sua biblioteca.</p><div class="music-appearance-options"></div></section><section data-settings-pane="wallpaper" hidden><h4>Seu fundo</h4><p>Uma imagem para deixar a música com a sua cara. O arquivo fica somente neste computador.</p><div class="music-wallpaper-options"></div></section><section data-settings-pane="playback" hidden><h4>Reprodução</h4><p>Sua fila, playlist, posição e volume são salvos neste computador. Ao reabrir, a música aguarda seu play.</p><label class="music-setting-range">Volume <output data-settings-volume-value>${data.player?.volume ?? 80}%</output><input data-settings-volume type="range" min="0" max="100" step="1" value="${data.player?.volume ?? 80}" aria-label="Volume da reprodução"></label><small>Ajuste fino em volumes baixos. Use as setas para mudar 1% ou a roda do mouse sobre o controle.</small><div class="music-session-summary"><strong>Continuar de onde parou</strong><p>A fila é restaurada com a ordem aleatória e o modo de repetição. Faixas removidas do disco são descartadas da fila.</p></div></section><section data-settings-pane="integrations" hidden><h4>Conexões</h4><form class="music-presence"><label class="music-setting-switch"><span>Discord Rich Presence<small>Mostrar a música no seu perfil do Discord desktop.</small></span><input type="checkbox" name="enabled" ${p.enabled ? "checked" : ""}></label><small role="status" data-presence-status>${esc({ disabled: "Desativada", discord_closed: "Abra o Discord no computador", connecting: "Conectando…", ready: "Pronta para compartilhar", active: "Música compartilhada", rejected: "O Discord recusou a atividade" }[p.state] || "Aguardando o Discord")}</small></form><section class="music-cloud-settings"></section><section class="music-remote-settings"></section></section><section data-settings-pane="downloads" hidden><h4>Downloads</h4><p>As músicas ficam na biblioteca deste computador e liberam o play quando o download termina.</p><div class="music-component-status"><span class="music-status-dot"></span>${data.sunnify_available ? "Downloads disponíveis" : "Componente de download ausente"}</div><button class="music-secondary" data-scan>${svg("reload")} Atualizar músicas baixadas</button><small>Os arquivos concluídos são preservados. A busca online depende da disponibilidade do catálogo.</small></section></div></div>`,
     );
     d.classList.add("music-settings-dialog");
     musicTools.configure(d);
@@ -367,6 +377,7 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
           pane.hidden = pane.dataset.settingsPane !== tab.dataset.settingsTab;
       };
     renderRemoteSettings();
+    renderCloudSettings();
     d.querySelector("[data-scan]").onclick = async (event) => {
       event.currentTarget.disabled = true;
       await invoke("scan_local");
@@ -389,10 +400,175 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
     bindVolume(d.querySelector("[data-settings-volume]"));
   }
 
+  let cloudCommandsBusy = false,
+    cloudPublishedAt = 0,
+    pendingCloudPlayer = null,
+    cloudQueue = null;
+  const cloudSeen = new Set();
+  function cloudPlayer() {
+    const player = data.player || {},
+      track = data.local_tracks?.find((t) => t.id === player.track_id);
+    const id = track?.track_uri?.split(":").at(-1);
+    return {
+      track_id: id?.length === 22 ? id : null,
+      title: track?.title || "",
+      artist: track?.artists || "",
+      art: track?.artwork || data.artwork?.[track?.track_uri] || "",
+      state: player.state || "stopped",
+      position_ms: Math.round(player.position_ms || 0),
+      duration_ms: Math.round(player.duration_ms || 0),
+      volume: player.volume ?? 80,
+      queue:
+        cloudQueue ||
+        playback
+          .upcoming()
+          .map((id) =>
+            data.local_tracks
+              .find((t) => t.id === id)
+              ?.track_uri?.split(":")
+              .at(-1),
+          )
+          .filter((id) => id?.length === 22),
+    };
+  }
+  function syncCloudQueue(removed = null) {
+    if (!cloudQueue) return;
+    const canonical = (id) =>
+      data.local_tracks
+        .find((t) => t.id === id)
+        ?.track_uri?.split(":")
+        .at(-1);
+    const ready = new Set(
+      data.local_tracks
+        .filter((t) => t.available)
+        .map((t) => t.track_uri?.split(":").at(-1)),
+    );
+    cloudQueue = [
+      ...playback
+        .upcoming()
+        .map(canonical)
+        .filter((id) => id?.length === 22),
+      ...cloudQueue.filter((id) => !ready.has(id) && id !== removed),
+    ];
+  }
+  async function receiveCloudPlayer(player) {
+    if (player.action === "pause") {
+      await invoke("pause");
+      return;
+    }
+    const uri = "spotify:track:" + player.track_id;
+    const local = data.local_tracks.find(
+      (t) => t.available && (t.track_uri === uri || t.source_uri === uri),
+    );
+    if (!local) {
+      pendingCloudPlayer = player;
+      const result = await invoke("download", { url: uri, play_after: false });
+      if (!result) {
+        pendingCloudPlayer = null;
+        throw Error(
+          "Aguarde o download atual antes de transferir a reprodução.",
+        );
+      }
+      notify("Baixando no PC para continuar a reprodução.");
+      return;
+    }
+    pendingCloudPlayer = null;
+    cloudQueue = (player.queue || []).filter((id) =>
+      /^[A-Za-z0-9]{22}$/.test(id),
+    );
+    playback.start(
+      [
+        local.id,
+        ...cloudQueue
+          .map(
+            (id) =>
+              data.local_tracks.find(
+                (t) => t.available && t.track_uri === "spotify:track:" + id,
+              )?.id,
+          )
+          .filter(Boolean),
+      ],
+      local.id,
+    );
+    queueIds = [...playback.order];
+    await invoke("play_local", {
+      id: local.id,
+      track_uri: uri,
+      artwork: player.art || "",
+    });
+    await invoke("seek", { position_ms: Math.max(0, player.position_ms || 0) });
+    if (player.state !== "playing") await invoke("pause");
+    renderPlayer();
+    if (player.source && player.source !== data.cloud?.id)
+      await request("cloud_command", {
+        target: player.source,
+        command: { action: "pause" },
+      });
+  }
+  function renderCloudSettings() {
+    const section = $(".music-cloud-settings");
+    if (!section) return;
+    if (!section.devicePanel)
+      section.devicePanel = window.createMusicDevices(section, {
+        desktop: true,
+        getState: () => data.cloud || {},
+        localPlayer: cloudPlayer,
+        icon: svg,
+        notify,
+        connect: (origin, code) => invoke("cloud_pair", { origin, code }),
+        send: (target, command) =>
+          request("cloud_command", { target, command }),
+        receive: receiveCloudPlayer,
+        disconnect: () => invoke("cloud_disconnect"),
+      });
+    section.devicePanel.render();
+  }
+  async function processCloud() {
+    renderCloudSettings();
+    if (!data.cloud?.connected || cloudCommandsBusy) return;
+    if (performance.now() - cloudPublishedAt > 1500) {
+      cloudPublishedAt = performance.now();
+      request("cloud_publish", { player: cloudPlayer() }).catch(() => {});
+    }
+    cloudCommandsBusy = true;
+    try {
+      if (
+        pendingCloudPlayer &&
+        data.local_tracks.some(
+          (t) =>
+            t.available &&
+            t.track_uri === "spotify:track:" + pendingCloudPlayer.track_id,
+        )
+      )
+        await receiveCloudPlayer(pendingCloudPlayer);
+      for (const operation of data.cloud.commands || []) {
+        if (cloudSeen.has(operation.id)) continue;
+        cloudSeen.add(operation.id);
+        const c = operation.command;
+        try {
+          if (c.action === "transfer") await receiveCloudPlayer(c.player);
+          else if (c.action === "next" || c.action === "previous")
+            await step(c.action === "next" ? 1 : -1);
+          else if (c.action === "volume") await setVolume(c.value, true);
+          else if (c.action === "seek")
+            await invoke("seek", { position_ms: c.position_ms });
+          else if (["pause", "resume"].includes(c.action))
+            await invoke(c.action);
+        } finally {
+          await request("cloud_ack", { id: operation.id });
+        }
+      }
+    } catch (error) {
+      notify(error.message);
+    } finally {
+      cloudCommandsBusy = false;
+    }
+  }
+
   function renderRemoteSettings() {
     const section = $(".music-remote-settings");
     if (!section) return;
-    const remote = window.mare.getMusicRemote?.() || { enabled: false };
+    const remote = window.mare?.getMusicRemote?.() || { enabled: false };
     const signature = JSON.stringify(remote);
     if (section.dataset.signature === signature) return;
     section.dataset.signature = signature;
@@ -491,6 +667,33 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
     currentRows = [],
     queueIds = [];
   const queueMeta = new Map();
+  let sortingQueue = [];
+  const librarySort = window.attachMusicSort($(".spotify-library"), {
+    onCommit: async (order) => {
+      await invoke("reorder_playlist", {
+        order,
+        ...(selectedPlaylist
+          ? { playlist: selectedPlaylist }
+          : { collection: Number(filter) }),
+      });
+      signature = "";
+      renderLibrary();
+    },
+  });
+  const queueSort = window.attachMusicSort($(".music-next"), {
+    onStart: () => {
+      sortingQueue = [...playback.order];
+    },
+    onCommit: (keys) => {
+      playback.order = [
+        ...sortingQueue.slice(0, playback.position + 1),
+        ...keys.map((index) => sortingQueue[Number(index)]),
+      ];
+      queueIds = [...playback.order];
+      syncCloudQueue();
+      renderPlayer();
+    },
+  });
   let coverObserver = null,
     coverTimer = 0;
   const requestedCovers = new Set(),
@@ -556,12 +759,24 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
       const extra = (data.playlist_additions?.[selectedPlaylist] || [])
         .map((uri) => data.entries.find((entry) => entry.uri === uri))
         .filter(Boolean);
-      const source = [
+      let source = [
         ...base,
         ...extra.filter(
           (entry) => !base.some((track) => track.uri === entry.uri),
         ),
       ];
+      const order = data.playlist_orders?.[selectedPlaylist] || [];
+      if (
+        data.entries.find((e) => e.uri === selectedPlaylist)?.cloud_owned &&
+        Object.hasOwn(data.playlist_orders || {}, selectedPlaylist)
+      ) {
+        source = source.filter((e) => order.includes(e.uri));
+      }
+      source.sort(
+        (a, b) =>
+          (order.includes(a.uri) ? order.indexOf(a.uri) : Infinity) -
+          (order.includes(b.uri) ? order.indexOf(b.uri) : Infinity),
+      );
       return source.map((e) => {
         const local = localFor(e, selectedPlaylist);
         return {
@@ -570,7 +785,7 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
           favorite:
             data.entries.find((item) => item.uri === e.uri)?.favorite || false,
           local,
-          thumbnail: data.artwork?.[e.uri] || "",
+          thumbnail: data.artwork?.[e.uri] || e.thumbnail || "",
         };
       });
     }
@@ -601,6 +816,7 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
 
   /* ── renderLibrary ──────────────────────────────────────────────────── */
   function renderLibrary() {
+    if (librarySort.dragging) return;
     saveSessionSoon();
     const busy = downloadRequestPending || data.download?.state === "running";
     const next = JSON.stringify([
@@ -608,6 +824,7 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
       data.entries,
       data.collections,
       data.playlist_additions,
+      data.playlist_orders,
       data.local_tracks,
       data.completed_sources,
       data.playlist,
@@ -771,6 +988,13 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
         ).includes(normalized(query)),
     );
 
+    const canSort = !query && (!!selectedPlaylist || !!localCollection);
+    if (localCollection)
+      currentRows.sort(
+        (a, b) =>
+          localCollection.uris.indexOf(a.uri) -
+          localCollection.uris.indexOf(b.uri),
+      );
     // track rows — each track uses its own thumbnail, never the playlist cover
     $(".spotify-library").innerHTML =
       currentRows
@@ -780,7 +1004,7 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
           const trackArt = selectedPlaylist
             ? data.artwork?.[e.uri] || ""
             : e.thumbnail || e.local?.artwork || "";
-          return `<article class="music-row spotify-item ${ready ? "is-downloaded" : ""}" data-artwork-uri="${esc(e.uri || "")}"><button class="music-row-play" data-action="play_local" data-id="${e.local?.id || 0}" data-uri="${esc(e.uri || "")}" data-art="${esc(trackArt)}" ${ready ? "" : "disabled"} aria-label="${ready ? "Reproduzir" : "Baixe para reproduzir"} ${esc(e.title)}">${ready ? svg("play") : `<span>${i + 1}</span>`}</button><div class="music-row-title"><span class="spotify-art">${trackArt ? `<img src="${esc(trackArt)}" alt="" loading="lazy" decoding="async">` : svg("music")}</span><div class="spotify-item-info"><strong>${esc(e.title)}</strong><small>${esc(e.artists || e.local?.artists || "Música")}</small></div></div><small class="music-availability">${ready ? "Baixada" : data.download?.url?.endsWith(e.uri?.split(":").slice(1).join("/")) && busy ? "Baixando…" : "Não baixada"}</small><div class="music-row-actions">${e.uri ? `<button data-action="download" data-uri="${esc(e.uri)}" ${ready || busy ? "disabled" : ""} aria-label="${ready ? "Download confirmado" : "Baixar"} ${esc(e.title)}">${svg(ready ? "check" : "download")}</button>` : ""}${`<button data-action="track_menu" data-row="${i}" aria-label="Mais opções para ${esc(e.title)}">${svg("more")}</button>`}${ready ? `<button data-action="delete_local" data-id="${e.local.id}" aria-label="Excluir download de ${esc(e.title)}">${svg("trash")}</button>` : ""}${data.entries.some((x) => x.uri === e.uri) ? `<button data-action="favorite" data-uri="${esc(e.uri)}" aria-label="Curtir ${esc(e.title)}" aria-pressed="${!!e.favorite}">${svg("heart")}</button><button data-action="remove" data-uri="${esc(e.uri)}" aria-label="Remover link">${svg("close")}</button>` : ""}</div></article>`;
+          return `<article class="music-row spotify-item ${ready ? "is-downloaded" : ""}" data-artwork-uri="${esc(e.uri || "")}" ${canSort ? `data-sort-key="${esc(e.uri)}"` : ""}><button class="music-row-play" data-action="play_local" data-id="${e.local?.id || 0}" data-uri="${esc(e.uri || "")}" data-art="${esc(trackArt)}" ${ready ? "" : "disabled"} aria-label="${ready ? "Reproduzir" : "Baixe para reproduzir"} ${esc(e.title)}">${ready ? svg("play") : `<span>${i + 1}</span>`}</button><div class="music-row-title"><span class="spotify-art">${trackArt ? `<img src="${esc(trackArt)}" alt="" loading="lazy" decoding="async">` : svg("music")}</span><div class="spotify-item-info"><strong>${esc(e.title)}</strong><small>${esc(e.artists || e.local?.artists || "Música")}</small></div></div><small class="music-availability">${ready ? "Baixada" : data.download?.url?.endsWith(e.uri?.split(":").slice(1).join("/")) && busy ? "Baixando…" : "Não baixada"}</small><div class="music-row-actions">${canSort ? `<button class="sort-handle" data-sort-handle aria-label="Reordenar ${esc(e.title)}">${svg("grip")}</button>` : ""}${e.uri ? `<button data-action="download" data-uri="${esc(e.uri)}" ${ready || busy ? "disabled" : ""} aria-label="${ready ? "Download confirmado" : "Baixar"} ${esc(e.title)}">${svg(ready ? "check" : "download")}</button>` : ""}${`<button data-action="track_menu" data-row="${i}" aria-label="Mais opções para ${esc(e.title)}">${svg("more")}</button>`}${ready ? `<button data-action="delete_local" data-id="${e.local.id}" aria-label="Excluir download de ${esc(e.title)}">${svg("trash")}</button>` : ""}${data.entries.some((x) => x.uri === e.uri) ? `<button data-action="favorite" data-uri="${esc(e.uri)}" aria-label="Curtir ${esc(e.title)}" aria-pressed="${!!e.favorite}">${svg("heart")}</button><button data-action="remove" data-uri="${esc(e.uri)}" aria-label="Remover link">${svg("close")}</button>` : ""}</div></article>`;
         })
         .join("") ||
       '<div class="music-empty"><span>' +
@@ -1047,7 +1271,10 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
       data.artwork,
       queueIds,
     ]);
-    if ($(".music-next").dataset.signature !== queueSignature) {
+    if (
+      !queueSort.dragging &&
+      $(".music-next").dataset.signature !== queueSignature
+    ) {
       $(".music-next").dataset.signature = queueSignature;
       const upcoming = playback.upcoming();
       $(".music-next").innerHTML =
@@ -1063,7 +1290,9 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
               t.artwork ||
               "";
             return (
-              '<article class="music-queue-row" draggable="true" data-queue-index="' +
+              '<article class="music-queue-row" data-sort-key="' +
+              at +
+              '" data-queue-index="' +
               at +
               '"><button data-action="queue_play" data-index="' +
               at +
@@ -1077,10 +1306,10 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
               esc(t.title) +
               "</strong><small>" +
               esc(t.artists || "Música baixada") +
-              '</small></div></button><div class="music-queue-actions"><button data-action="queue_up" data-index="' +
-              at +
-              '" aria-label="Subir na fila">' +
-              svg("up") +
+              '</small></div></button><div class="music-queue-actions"><button class="sort-handle" data-sort-handle aria-label="Reordenar ' +
+              esc(t.title) +
+              '">' +
+              svg("grip") +
               '</button><button data-action="queue_remove" data-index="' +
               at +
               '" aria-label="Remover da fila">' +
@@ -1251,6 +1480,7 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
     if (id == null) return;
     const meta = queueMeta.get(id);
     queueIds = [...playback.order];
+    syncCloudQueue();
     autoStarting = true;
     try {
       await invoke("play_local", {
@@ -1265,8 +1495,20 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
   }
 
   async function step(direction, automatic = false) {
+    if (automatic && playback.repeat === "one")
+      return playQueued(playback.current());
     if (direction < 0 && data.player?.position_ms > 3000)
       return invoke("seek", { position_ms: 0 });
+    if (direction > 0 && cloudQueue?.length) {
+      const id = cloudQueue.shift();
+      return receiveCloudPlayer({
+        ...cloudPlayer(),
+        track_id: id,
+        position_ms: 0,
+        state: "playing",
+        queue: [...cloudQueue],
+      });
+    }
     if (!data.local_tracks.some((t) => t.available)) return;
     if (!playback.order.length)
       playback.start(
@@ -1277,32 +1519,6 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
       direction > 0 ? playback.next(automatic) : playback.previous(),
     );
   }
-
-  /* ── Drag-to-reorder queue ──────────────────────────────────────────── */
-  let draggingQueue = null;
-  element.addEventListener("dragstart", (event) => {
-    const row = event.target.closest("[data-queue-index]");
-    if (row) {
-      draggingQueue = Number(row.dataset.queueIndex);
-      event.dataTransfer.effectAllowed = "move";
-      event.dataTransfer.setData("text/plain", String(draggingQueue));
-    }
-  });
-  element.addEventListener("dragover", (event) => {
-    if (draggingQueue !== null && event.target.closest("[data-queue-index]"))
-      event.preventDefault();
-  });
-  element.addEventListener("drop", (event) => {
-    const row = event.target.closest("[data-queue-index]");
-    if (row && draggingQueue !== null) {
-      event.preventDefault();
-      playback.move(draggingQueue, Number(row.dataset.queueIndex));
-      queueIds = [...playback.order];
-      renderPlayer();
-    }
-    draggingQueue = null;
-  });
-  element.addEventListener("dragend", () => (draggingQueue = null));
 
   /* ── Click delegation ───────────────────────────────────────────────── */
   element.addEventListener("click", async (event) => {
@@ -1450,6 +1666,7 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
           playback.repeat
         ];
       queueIds = [...playback.order];
+      if (action === "shuffle") syncCloudQueue();
       button.setAttribute(
         "aria-pressed",
         String(
@@ -1474,9 +1691,14 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
       return playQueued(playback.selectAt(Number(button.dataset.index)));
     if (action === "queue_remove" || action === "queue_up") {
       const index = Number(button.dataset.index);
+      const removed = data.local_tracks
+        .find((t) => t.id === playback.order[index])
+        ?.track_uri?.split(":")
+        .at(-1);
       if (action === "queue_remove") playback.removeAt(index);
       else playback.move(index, index - 1);
       queueIds = [...playback.order];
+      syncCloudQueue(action === "queue_remove" ? removed : null);
       renderPlayer();
       return;
     }
@@ -1514,6 +1736,8 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
       return;
     }
     if (action === "play_local") {
+      cloudQueue = null;
+      pendingCloudPlayer = null;
       if (currentRows.some((e) => e.local?.id === Number(button.dataset.id))) {
         queueIds = currentRows
           .filter((e) => e.local?.available)
@@ -1658,6 +1882,7 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
     renderPlayer();
     renderDownload();
     renderRemoteSettings();
+    void processCloud();
   }
 
   /* ── Polling loop ───────────────────────────────────────────────────── */
@@ -1718,6 +1943,8 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
     dispose: () => {
       flushSession();
       flushVolume();
+      librarySort.cancel();
+      queueSort.cancel();
       disposed = true;
       clearTimeout(volumeTimer);
       musicLayout.dispose();

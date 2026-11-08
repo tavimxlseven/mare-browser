@@ -43,3 +43,11 @@ As regras oficiais consultadas para esta release exigem Premium para o propriet�
 Não versione segredos ou tokens. Um Client ID público não fornece, por si só, acesso a uma conta nem reprodução de áudio do Spotify.
 
 Referências: [Discord Rich Presence](https://docs.discord.com/developers/platform/rich-presence), [Discord IPC](https://docs.discord.com/developers/topics/rpc), [Spotify PKCE](https://developer.spotify.com/documentation/web-api/tutorials/code-pkce-flow), [Spotify quotas](https://developer.spotify.com/documentation/web-api/concepts/quota-modes).
+
+## Biblioteca entre PC e celular
+
+O pareamento usa a conta do Maré Música; não depende de login Spotify, bot ou Application ID. No celular, abra **Ajustes → PC e celular → Conectar um PC**. No PC, abra **Ajustes de música → Conexões → PC e celular** e informe o endereço HTTPS do seu servidor e o código temporário.
+
+As playlists e músicas adicionadas no PC são sincronizadas por conta e solicitam preparação no servidor para o celular. A busca e o download de áudio no PC continuam locais. O controle e a transferência de reprodução exigem os dois aplicativos abertos e conectados. O iOS pode suspender o webapp em segundo plano.
+
+A credencial do PC fica protegida pelo DPAPI do Windows em `apps/spotify/cloud-session.bin`. Desconectar revoga a credencial no servidor e remove a cópia local. Não publique esse arquivo, `cloud-events.json`, a pasta de dados ou endereços privados do servidor.

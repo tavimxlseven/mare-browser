@@ -18,7 +18,6 @@ pub fn command(directory: &Path) -> Result<Command, String> {
     command
         .args([
             "--ignore-config",
-            "--no-cache-dir",
             "--no-warnings",
             "--encoding",
             "utf-8",
@@ -27,6 +26,8 @@ pub fn command(directory: &Path) -> Result<Command, String> {
             "--retries",
             "1",
         ])
+        .arg("--cache-dir")
+        .arg(runtime.join("extractor-cache"))
         .env("TEMP", &runtime)
         .env("TMP", &runtime)
         .env("DENO_DIR", runtime.join("deno"));
