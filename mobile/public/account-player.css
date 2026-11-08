@@ -433,3 +433,121 @@
     margin-bottom: 8px;
   }
 }
+
+body {
+  overscroll-behavior-y: none;
+}
+#player,
+#queue-view {
+  scrollbar-width: none;
+}
+#player::-webkit-scrollbar,
+#queue-view::-webkit-scrollbar {
+  display: none;
+}
+button,
+nav,
+.cover,
+.art,
+.playlist-art {
+  -webkit-touch-callout: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+html {
+  height: 100%;
+  background: var(--bg, #101015);
+}
+#app {
+  min-height: 100dvh;
+}
+#repeat[data-mode="one"]::after {
+  content: "1";
+  font-size: 10px;
+  position: absolute;
+  right: 5px;
+  top: 3px;
+}
+#repeat {
+  position: relative;
+}
+#playlist-options {
+  margin: 3px -8px -5px;
+  min-height: 32px;
+  height: 32px;
+}
+.collection-art {
+  transition:
+    transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    border-radius 0.3s;
+}
+.collection:active .collection-art {
+  transform: scale(0.96);
+  border-radius: 24px;
+}
+.track .art {
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.track:active .art {
+  transform: scale(0.94);
+}
+#mini.playing #mini-art {
+  box-shadow: 0 3px 14px #0004;
+}
+@media (min-width: 1000px) {
+  #app > header {
+    max-width: none;
+    padding-left: 30px;
+    padding-right: 38px;
+  }
+  #app > main {
+    max-width: 1100px;
+    margin-left: 240px;
+    margin-right: auto;
+    padding-right: 40px;
+  }
+  #app > nav {
+    top: 166px;
+    bottom: 100px;
+    width: 210px;
+    left: 16px;
+    padding: 0;
+    background: none;
+    border: 0;
+    backdrop-filter: none;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 10px;
+  }
+  #app > nav button {
+    width: 100%;
+    flex-direction: row;
+    justify-content: flex-start;
+    font-size: 14px;
+    gap: 14px;
+    padding: 14px 18px;
+    border-radius: 15px;
+  }
+  #app > nav button[aria-current]::before {
+    inset: 0;
+    border-radius: 15px;
+  }
+  #mini {
+    left: 262px;
+    right: 40px;
+    bottom: 22px;
+    max-width: 1040px;
+  }
+  .collections {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 24px;
+  }
+  .collection:hover .collection-art {
+    transform: translateY(-4px);
+  }
+  .track:hover {
+    background: var(--line);
+    border-radius: 12px;
+  }
+}

@@ -162,6 +162,39 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
   <footer class="spotify-player"><div class="music-track"><div class="music-track-art">${svg("music")}</div><div><strong>Nenhuma faixa selecionada</strong><small>Escolha uma música baixada</small></div></div><div class="music-transport"><div><button data-action="shuffle" aria-label="Reprodução aleatória" aria-pressed="false">${svg("shuffle")}</button><button data-action="previous" aria-label="Faixa anterior">${svg("previous")}</button><button class="music-play" data-action="play" aria-label="Reproduzir">${svg("play")}</button><button data-action="next" aria-label="Próxima faixa">${svg("next")}</button><button data-action="repeat" aria-label="Repetir fila" aria-pressed="false">${svg("repeat")}</button></div><label class="music-timeline"><span class="music-position">0:00</span><input type="range" min="0" max="1" value="0" step="1000" class="music-seek" aria-label="Posição da música"><span class="music-duration">0:00</span></label></div><div class="music-volume"><button data-action="sleep_timer" aria-label="Temporizador">${svg("clock")}</button><button data-action="queue" aria-label="Mostrar fila">${svg("queue")}</button><button data-action="mute" aria-label="Silenciar" aria-pressed="false">${svg("volume")}</button><input type="range" min="0" max="100" step="1" value="80" class="music-volume-slider" aria-label="Volume"><output class="music-volume-value">80%</output></div></footer>`;
 
   const playback = new window.MareMusicQueue();
+  element.insertAdjacentHTML(
+    "beforeend",
+    `<section class="music-stage" hidden aria-label="Tocando agora"><img class="music-stage-background" alt=""><button data-action="stage_close" class="music-stage-close" aria-label="Voltar à biblioteca">${svg("back")}</button><div class="music-stage-body"><div class="music-stage-cover">${svg("music")}</div><div class="music-stage-copy"><p>Maré Música</p><h2>Nenhuma música selecionada</h2><p class="music-stage-artist">Sua biblioteca</p><label class="music-stage-timeline"><input class="music-stage-seek" type="range" min="0" max="1" value="0" aria-label="Posição da música"><span class="music-stage-position">0:00</span><span class="music-stage-duration">0:00</span></label><div class="music-stage-controls"><button data-action="shuffle" aria-label="Aleatório">${svg("shuffle")}</button><button data-action="previous" aria-label="Anterior">${svg("previous")}</button><button data-action="play" class="music-stage-play" aria-label="Reproduzir">${svg("play")}</button><button data-action="next" aria-label="Próxima">${svg("next")}</button><button data-action="repeat" aria-label="Repetir">${svg("repeat")}</button></div><div class="music-stage-volume">${svg("volume")}<input data-stage-volume data-settings-volume type="range" min="0" max="100" value="80" aria-label="Volume"></div></div></div></section>`,
+  );
+  const trackButton = document.createElement("button");
+  trackButton.className = "music-track-open";
+  trackButton.dataset.action = "stage_open";
+  element.addEventListener("keydown", (event) => {
+    const stage = $(".music-stage");
+    if (stage.hidden) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      $(".music-stage-close").click();
+    } else if (event.key === "Tab") {
+      const controls = [
+        ...stage.querySelectorAll(
+          "button:not(:disabled), input:not(:disabled)",
+        ),
+      ];
+      const first = controls[0],
+        last = controls.at(-1);
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+  });
+  trackButton.ariaLabel = "Abrir player";
+  $(".music-track").append(trackButton);
   const musicLayout = window.attachMusicLayout(element);
   const musicTools = window.attachMusicTools({
     element,
@@ -759,6 +792,16 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
       "--range-fill",
       ((100 * ms) / max).toFixed(2) + "%",
     );
+    $(".music-stage-seek").value = String(ms);
+    $(".music-stage-seek").style.setProperty(
+      "--range-fill",
+      ((100 * ms) / max).toFixed(2) + "%",
+    );
+    $(".music-stage-seek").setAttribute(
+      "aria-valuetext",
+      time(ms) + " de " + time(data.player?.duration_ms),
+    );
+    $(".music-stage-position").textContent = time(ms);
     const label = time(ms);
     if (
       elapsedLabel.textContent !== label ||
@@ -787,6 +830,22 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
     visualFrame = requestAnimationFrame(smoothProgress);
   }
 
+  $(".music-stage-seek").onpointerdown = () => {
+    draggingSeek = true;
+  };
+  $(".music-stage-seek").oninput = (event) => {
+    paintSeek(Number(event.target.value));
+  };
+  $(".music-stage-seek").onchange = async (event) => {
+    draggingSeek = false;
+    await invoke("seek", { position_ms: Number(event.target.value) });
+  };
+  $(".music-stage-seek").onpointercancel = () => {
+    draggingSeek = false;
+  };
+  $("[data-stage-volume]").oninput = (event) => setVolume(event.target.value);
+  $("[data-stage-volume]").onchange = (event) =>
+    setVolume(event.target.value, true);
   function renderPlayer() {
     observedAt = performance.now();
     observedPosition = data.player?.position_ms || 0;
@@ -839,6 +898,52 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
       }
     }
 
+    $(".music-stage h2").textContent =
+      track?.title || "Nenhuma música selecionada";
+    $(".music-stage-artist").textContent = track?.artists || "Sua biblioteca";
+    const stageArt = $(".music-now-art").dataset.cover || "";
+    const stage = $(".music-stage-cover");
+    if (stage.dataset.cover !== stageArt) {
+      stage.dataset.cover = stageArt;
+      stage.innerHTML = stageArt
+        ? `<img src="${esc(stageArt)}" alt="">`
+        : svg("music");
+      $(".music-stage-background").src = stageArt;
+    }
+    $(".music-stage-play").innerHTML = svg(playing ? "pause" : "play");
+    $(".music-stage-play").disabled = !track?.available;
+    $(".music-stage-seek").max = String(Math.max(1, player.duration_ms || 1));
+    $(".music-stage-duration").textContent = time(player.duration_ms);
+    $(".music-stage-play").setAttribute(
+      "aria-label",
+      playing ? "Pausar" : "Reproduzir",
+    );
+    for (const action of ["shuffle", "repeat"]) {
+      for (const control of element.querySelectorAll(
+        `[data-action=${action}]`,
+      )) {
+        control.setAttribute(
+          "aria-pressed",
+          String(
+            action === "shuffle"
+              ? playback.shuffled
+              : playback.repeat !== "off",
+          ),
+        );
+        if (action === "repeat") {
+          control.dataset.mode = playback.repeat;
+          control.setAttribute(
+            "aria-label",
+            playback.repeat === "one"
+              ? "Repetir faixa"
+              : playback.repeat === "all"
+                ? "Repetir fila"
+                : "Ativar repetição",
+          );
+        }
+      }
+    }
+    element.classList.toggle("music-is-playing", playing);
     $(".music-play").innerHTML = svg(playing ? "pause" : "play");
     $(".music-play").setAttribute(
       "aria-label",
@@ -1139,6 +1244,19 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
       filter = button.dataset.collection;
       renderLibrary();
       reveal();
+      return;
+    }
+    if (button.dataset.action === "stage_open") {
+      $(".music-stage").hidden = false;
+      for (const child of element.children)
+        if (!child.classList.contains("music-stage")) child.inert = true;
+      $(".music-stage-close").focus();
+      return;
+    }
+    if (button.dataset.action === "stage_close") {
+      $(".music-stage").hidden = true;
+      for (const child of element.children) child.inert = false;
+      $(".music-track-open").focus();
       return;
     }
     const action = button.dataset.action,

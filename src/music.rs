@@ -366,6 +366,13 @@ impl Music {
                             track.source_uri = source_uri.clone();
                             changed = true;
                         }
+                        if let Some(id) = event["spotify_id"].as_str() {
+                            let uri = format!("spotify:track:{id}");
+                            if crate::spotify::normalize_link(&uri).is_ok() {
+                                track.track_uri = uri;
+                                changed = true;
+                            }
+                        }
                     }
                 }
             }
@@ -536,8 +543,7 @@ impl Music {
                 let mut command = if youtube {
                     crate::music_search::command(&self.directory)?
                 } else {
-                    let executable = crate::components::executable("sunnify")
-                        .ok_or("O componente Sunnify não acompanha este pacote.")?;
+                    let executable = std::env::current_exe().map_err(|e| e.to_string())?;
                     Command::new(executable)
                 };
                 if youtube {
@@ -551,16 +557,9 @@ impl Music {
                         .args(["--print",r#"after_move:{"event":"track_done","file":%(filepath)j,"title":%(title)j,"artists":%(uploader)j}"#,&url]);
                 } else {
                     command
-                        .args(["download", &url, "--out"])
+                        .args(["--music-source-worker", &url])
                         .arg(self.directory.join("audio"))
-                        .args([
-                            "--format",
-                            if kind == "track" { "m4a" } else { "mp3" },
-                            "--quality",
-                            "192",
-                            "--no-loose-match",
-                            "--json",
-                        ]);
+                        .arg(&self.directory);
                 }
                 command
                     .env("APPDATA", &runtime)

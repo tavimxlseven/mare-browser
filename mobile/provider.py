@@ -141,32 +141,27 @@ def collection(link):
 def download(identifier, directory):
     if not ID.fullmatch(identifier):
         raise ValueError("track id")
-    args = [
-        "download",
-        f"https://open.spotify.com/track/{identifier}",
-        "--out",
-        str(directory),
-        "--format",
-        "m4a",
-        "--quality",
-        "192",
-        "--no-loose-match",
-        "--json",
-    ]
-    cookies = os.getenv("SUNNIFY_COOKIES_FILE", "").strip()
-    if cookies:
-        path = Path(cookies)
-        if not path.is_file() or path.is_symlink():
+    from audio_source import download as audio_download
+
+    metadata = json.loads(
+        cli(["info", f"https://open.spotify.com/track/{identifier}", "--json"], 90)
+    )
+    try:
+        return audio_download(
+            identifier,
+            directory,
+            metadata,
+            os.getenv("SUNNIFY_COOKIES_FILE", "").strip(),
+        )
+    except Exception as error:
+        message = str(error).lower()
+        if any(
+            marker in message
+            for marker in ("not a bot", "sign in to confirm", "session unavailable")
+        ):
             raise PreparationError(
-                "A sessão da fonte de áudio está indisponível. Verifique a configuração privada."
-            )
-        args.extend(["--cookies", str(path)])
-    cli(args, 420)
-    files = [
-        p
-        for p in Path(directory).rglob("*.m4a")
-        if p.is_file() and not p.is_symlink() and p.stat().st_size
-    ]
-    if len(files) != 1:
-        raise ValueError("audio")
-    return files[0]
+                "A fonte de áudio pediu uma nova autenticação. A fila foi preservada."
+            ) from None
+        raise ValueError(
+            "Não foi encontrada uma versão de áudio ou lyrics compatível."
+        ) from None

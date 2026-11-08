@@ -113,3 +113,34 @@ for (const button of document.querySelectorAll("[data-library-filter]")) {
     showPlaylist(filter === "liked" ? "liked" : "all");
   };
 }
+
+$("playlist-options").onclick = () => {
+  const playlist = library.playlists.find((p) => p.id === selected);
+  if (!playlist) return;
+  showEntry("Renomear playlist", "Novo nome", async (name) => {
+    await api("playlists", { id: playlist.id, name, tracks: playlist.tracks });
+    await refresh();
+  });
+  const form = $("entry-form");
+  let remove = $("delete-playlist");
+  if (!remove) {
+    remove = document.createElement("button");
+    remove.id = "delete-playlist";
+    remove.type = "button";
+    remove.className = "danger";
+    remove.textContent = "Excluir playlist";
+    form.append(remove);
+  }
+  remove.hidden = false;
+  remove.onclick = task(async () => {
+    if (
+      !confirm("Excluir esta playlist? As músicas continuam na sua biblioteca.")
+    )
+      return;
+    await api("playlists/" + playlist.id + "/delete", {});
+    selected = null;
+    closeSheet($("entry"));
+    await refresh();
+  });
+  $("entry-value").value = playlist.name;
+};

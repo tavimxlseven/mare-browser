@@ -6,7 +6,7 @@ window.attachMusicLayout = function (element) {
     radius: 18,
     compact: false,
     queueHidden: false,
-    theme: "light",
+    theme: "dark",
     accent: "rose",
     textSize: 13,
     artworkSize: 160,

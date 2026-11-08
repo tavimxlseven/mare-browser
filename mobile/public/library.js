@@ -34,6 +34,8 @@ function collectionArt(playlist, target) {
 }
 function animateView() {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  for (const animation of document.querySelector("main").getAnimations())
+    animation.cancel();
   document.querySelector("main").animate(
     [
       { opacity: 0.4, transform: "translateY(7px)" },

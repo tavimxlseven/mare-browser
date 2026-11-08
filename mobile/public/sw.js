@@ -1,4 +1,4 @@
-const CACHE = "mare-music-shell-v5";
+const CACHE = "mare-music-shell-v6";
 const SHELL = [
   "/",
   "/style.css",

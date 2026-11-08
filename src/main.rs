@@ -14,6 +14,7 @@ mod music;
 mod music_remote;
 mod music_search;
 mod music_session;
+mod music_source;
 mod native_app;
 mod permissions;
 mod playlist;
@@ -2078,6 +2079,13 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     });
 }
 fn main() {
+    if let Some(result) = music_source::run_if_requested() {
+        if let Err(error) = result {
+            eprintln!("{error}");
+            std::process::exit(1);
+        }
+        return;
+    }
     if std::env::args().any(|arg| arg == "--dump-interface") {
         print!("{}", embedded_ui());
         return;

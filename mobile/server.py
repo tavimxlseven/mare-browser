@@ -399,6 +399,17 @@ def prepare_playlist(identifier):
     return jsonify(ok=True, job_id=job_id), 202
 
 
+@app.post("/api/playlists/<identifier>/delete")
+def delete_playlist(identifier):
+    with db() as con:
+        removed = con.execute(
+            "DELETE FROM playlists WHERE id=? AND owner=?", (identifier, g.user["id"])
+        )
+        if not removed.rowcount:
+            abort(404)
+    return jsonify(ok=True)
+
+
 @app.post("/api/playlists")
 def playlist():
     data = request.get_json()

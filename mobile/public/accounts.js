@@ -12,6 +12,13 @@ async function useAccount(user) {
     playHistory = [];
     objectUrl = "";
     queue = [];
+    playbackContext = [];
+    shuffle = false;
+    repeat = "off";
+    restoredPosition = 0;
+    $("shuffle").setAttribute("aria-pressed", "false");
+    $("repeat").setAttribute("aria-pressed", "false");
+    $("repeat").dataset.mode = "off";
     library = { tracks: [], playlists: [], jobs: [] };
     downloads = new Set();
     offlineIds = new Set();

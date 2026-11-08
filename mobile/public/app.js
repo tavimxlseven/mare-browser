@@ -9,7 +9,8 @@ let current = null,
   queue = [],
   objectUrl = "",
   shuffle = false,
-  repeat = false,
+  repeat = "off",
+  playbackContext = [],
   restoredPosition = 0;
 let downloads = new Set(),
   saving = false,
@@ -230,6 +231,7 @@ function render(force = false) {
   }
 }
 function showEntry(title, label, callback) {
+  if ($("delete-playlist")) $("delete-playlist").hidden = true;
   $("entry-title").textContent = title;
   $("entry-label").textContent = label;
   $("entry-value").value = "";
@@ -459,11 +461,18 @@ function savePlayer() {
     position: audio.currentTime || 0,
     shuffle,
     repeat,
+    context: playbackContext,
   }).catch(() => {});
 }
 async function play(track, list) {
   track = library.tracks.find((t) => t.id === track.id) || track;
-  if (list) queue = list.map((t) => t.id).filter((id) => id !== track.id);
+  if (list) {
+    playbackContext = list.map((t) => t.id);
+    const position = playbackContext.indexOf(track.id);
+    queue = shuffle
+      ? shuffleItems(playbackContext.filter((id) => id !== track.id))
+      : playbackContext.slice(position + 1);
+  }
   if (!offlineIds.has(track.id) && track.status !== "ready") {
     await api("prepare", {
       tracks: [{ ...track, artists: track.artist, thumbnail: track.art }],
@@ -479,7 +488,7 @@ async function play(track, list) {
   if (objectUrl) URL.revokeObjectURL(objectUrl);
   objectUrl = blob ? URL.createObjectURL(blob) : "";
   audio.src = objectUrl || "/media/" + track.id;
-  if (restoredPosition) {
+  if (restoredPosition && current?.id === track.id) {
     const position = restoredPosition;
     restoredPosition = 0;
     audio.addEventListener(
@@ -491,6 +500,7 @@ async function play(track, list) {
       { once: true },
     );
   }
+  restoredPosition = 0;
   if (current && current.id !== track.id) {
     playHistory.unshift(current.id);
     playHistory = playHistory.slice(0, 50);
@@ -535,20 +545,45 @@ function drawPlayer() {
     });
   }
 }
-async function next() {
-  if (repeat && current) {
+function shuffleItems(items) {
+  const result = [...items];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+async function next(automatic = false) {
+  if (repeat === "one" && automatic && current) {
     audio.currentTime = 0;
     await audio.play();
     return;
   }
+  queue = queue.filter((id) =>
+    library.tracks.some(
+      (t) => t.id === id && (t.status === "ready" || offlineIds.has(id)),
+    ),
+  );
+  if (!queue.length && repeat === "all") {
+    queue = playbackContext.filter((id) =>
+      library.tracks.some(
+        (t) => t.id === id && (t.status === "ready" || offlineIds.has(id)),
+      ),
+    );
+    if (shuffle) {
+      queue = shuffleItems(queue);
+      if (queue.length > 1 && queue[0] === current?.id)
+        [queue[0], queue[1]] = [queue[1], queue[0]];
+    }
+  }
   if (!queue.length) {
     audio.pause();
+    savePlayer();
     return;
   }
-  const index = shuffle ? Math.floor(Math.random() * queue.length) : 0;
-  const [id] = queue.splice(index, 1);
-  const t = library.tracks.find((t) => t.id === id);
-  if (t) await play(t);
+  const id = queue.shift();
+  const track = library.tracks.find((t) => t.id === id);
+  if (track) await play(track);
   savePlayer();
 }
 function toggle() {
@@ -581,7 +616,7 @@ audio.ontimeupdate = () => {
   $("mini-progress").value = Number($("seek").value);
   if (Math.floor(audio.currentTime) % 5 === 0) savePlayer();
 };
-audio.onended = task(next);
+audio.onended = task(() => next(true));
 audio.onerror = () =>
   notice(
     "Não foi possível tocar. Verifique se a música está pronta ou salva no aparelho.",
@@ -592,18 +627,33 @@ $("seek").onchange = () => {
   savePlayer();
 };
 $("mini-play").onclick = $("big-play").onclick = toggle;
-$("next").onclick = $("forward").onclick = task(next);
+$("next").onclick = $("forward").onclick = task(() => next(false));
 $("previous").onclick = () => {
   audio.currentTime = 0;
 };
 $("shuffle").onclick = () => {
   shuffle = !shuffle;
+  queue = shuffle
+    ? shuffleItems(queue)
+    : [...queue].sort(
+        (a, b) => playbackContext.indexOf(a) - playbackContext.indexOf(b),
+      );
+  drawQueue();
   $("shuffle").setAttribute("aria-pressed", shuffle);
   savePlayer();
 };
 $("repeat").onclick = () => {
-  repeat = !repeat;
-  $("repeat").setAttribute("aria-pressed", repeat);
+  repeat = { off: "all", all: "one", one: "off" }[repeat] || "off";
+  $("repeat").setAttribute("aria-pressed", repeat !== "off");
+  $("repeat").setAttribute(
+    "aria-label",
+    repeat === "one"
+      ? "Repetir música"
+      : repeat === "all"
+        ? "Repetir playlist"
+        : "Ativar repetição",
+  );
+  $("repeat").dataset.mode = repeat;
   savePlayer();
 };
 $("open-player").onclick = () => {
@@ -759,11 +809,18 @@ async function restorePlayer() {
   if (saved) {
     queue = saved.queue || [];
     shuffle = !!saved.shuffle;
-    repeat = !!saved.repeat;
+    repeat =
+      saved.repeat === true
+        ? "one"
+        : ["off", "all", "one"].includes(saved.repeat)
+          ? saved.repeat
+          : "off";
+    playbackContext = Array.isArray(saved.context) ? saved.context : [];
     restoredPosition = saved.position || 0;
     current = library.tracks.find((t) => t.id === saved.id);
     $("shuffle").setAttribute("aria-pressed", shuffle);
-    $("repeat").setAttribute("aria-pressed", repeat);
+    $("repeat").setAttribute("aria-pressed", repeat !== "off");
+    $("repeat").dataset.mode = repeat;
     drawPlayer();
   }
   if (navigator.audioSession) navigator.audioSession.type = "playback";
@@ -771,7 +828,7 @@ async function restorePlayer() {
     for (const [action, handler] of Object.entries({
       play: () => (audio.src ? audio.play() : current && play(current)),
       pause: () => audio.pause(),
-      nexttrack: next,
+      nexttrack: () => next(false),
       previoustrack: () => (audio.currentTime = 0),
       seekto: (e) => {
         if (Number.isFinite(e.seekTime)) audio.currentTime = e.seekTime;
@@ -800,4 +857,26 @@ $("resume-preparation").onclick = task(async () => {
   await api("resume", {});
   await refresh();
   notice("Nova tentativa iniciada.");
+});
+
+document.querySelector(".wordmark").onclick = (event) => {
+  event.preventDefault();
+  view = "library";
+  selected = null;
+  render();
+  animateView();
+};
+document.addEventListener("keydown", (event) => {
+  if (
+    event.code !== "Space" ||
+    event.repeat ||
+    $("app").hidden ||
+    event.target.closest(
+      "button,a,input,textarea,select,[contenteditable=true],[role=button]",
+    )
+  )
+    return;
+  if (document.querySelector("dialog[open]") && !$("player").open) return;
+  event.preventDefault();
+  toggle();
 });

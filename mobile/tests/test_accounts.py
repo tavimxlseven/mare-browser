@@ -40,6 +40,32 @@ class AccountTests(unittest.TestCase):
         self.assertEqual(response.status_code, 201)
         return response.json
 
+    def test_playlist_delete_only_removes_the_owners_playlist(self):
+        friend = self.friend()
+        for client in (self.admin, friend):
+            self.assertEqual(
+                client.post(
+                    "/api/playlists",
+                    json={"id": "same", "name": "Fixture", "tracks": []},
+                    headers=self.origin,
+                ).status_code,
+                200,
+            )
+        self.assertEqual(
+            friend.post(
+                "/api/playlists/same/delete", json={}, headers=self.origin
+            ).status_code,
+            200,
+        )
+        self.assertEqual(
+            friend.post(
+                "/api/playlists/same/delete", json={}, headers=self.origin
+            ).status_code,
+            404,
+        )
+        self.assertEqual(len(self.admin.get("/api/library").json["playlists"]), 1)
+        self.assertEqual(friend.get("/api/library").json["playlists"], [])
+
     def friend(self, username="friend"):
         client = server.app.test_client()
         response = client.post(
