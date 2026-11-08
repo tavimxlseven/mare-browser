@@ -27,7 +27,10 @@ Never publish environment files, SSH keys, passwords, the SQLite database, sessi
 
 ## Features and current limits
 
-- Spotify metadata search through XWolf, public track/playlist/album link import, private playlists, favorites, library deletion.
+- Spotify metadata search through XWolf, public track/playlist/album link import, private playlists, favorites, library deletion. Imports return a persisted job immediately. Metadata is collected in the worker and imported tracks automatically enter the VPS preparation queue.
+- Dynamic Island activity follows the server job across navigation and reopening. Track counts reflect completed files. The expanded view includes the active track, failures and an action to save ready audio to the phone.
+- Canonical link normalization and transactional enqueueing deduplicate repeated import taps. Large playlists are prepared by ID without sending all metadata back in one request.
+- SQLite stores imports, track state and progress. Interrupted imports restart, incomplete preparation retries, and atomically promoted audio is reconciled after a crash. Work directories are cleaned on startup. Data lives outside the source checkout.
 - Audio preparation depends on upstream availability. Datacenter IP addresses may be refused by the source. Preparation failures are shown explicitly, and failed tracks cannot be streamed. A source refusal pauses the persisted queue until the user explicitly retries from Settings. See the [upstream session setup](https://github.com/sunnypatell/sunnify-spotify-downloader/blob/main/docs/CLI.md#youtube-cookies) for authenticated access. A session may expire and authentication does not guarantee that the source accepts the network.
 - Prepared tracks stream from the server with range support. Queue, shuffle and repeat run locally.
 - Offline audio is committed to IndexedDB only after transfer completes. Pending device saves persist and resume when the PWA returns to the foreground.

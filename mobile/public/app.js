@@ -1,9 +1,6 @@
 "use strict";
 const $ = (id) => document.getElementById(id);
-const musicIcon =
-  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l11-2v13M9 8l11-2"/><ellipse cx="6" cy="18" rx="3" ry="2"/><ellipse cx="17" cy="16" rx="3" ry="2"/></svg>';
-const folderIcon =
-  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7V4h7l2 3h9v13H3Z"/></svg>';
+const musicIcon = icon("music");
 let library = { tracks: [], playlists: [] },
   view = "library",
   selected = null,
@@ -121,13 +118,44 @@ function row(track, list) {
   title.onclick = task(() => play(track, list));
   const more = document.createElement("button");
   more.className = "more";
-  more.textContent = "•••";
+  more.innerHTML = icon("more");
   more.ariaLabel = "Opções de " + track.title;
   more.onclick = () => options(track);
-  el.append(art, title, more);
+  const status = document.createElement("button");
+  status.className = "track-state";
+  status.innerHTML = icon(
+    offlineIds.has(track.id)
+      ? "check"
+      : track.status === "ready"
+        ? "download"
+        : "cloud",
+  );
+  status.ariaLabel = statusLabel(track);
+  status.classList.toggle(
+    "ready",
+    offlineIds.has(track.id) || track.status === "ready",
+  );
+  status.onclick = task(() =>
+    offlineIds.has(track.id)
+      ? play(track, list)
+      : track.status === "ready"
+        ? saveTracks([track])
+        : play(track, list),
+  );
+  el.append(art, title, status, more);
   return el;
 }
-function render() {
+function render(force = false) {
+  const signature = JSON.stringify({
+    view,
+    selected,
+    results,
+    tracks: library.tracks,
+    playlists: library.playlists,
+    offline: [...offlineIds],
+  });
+  if (!force && signature === renderSignature) return;
+  renderSignature = signature;
   $("heading").textContent =
     view === "search"
       ? "Buscar"
@@ -146,13 +174,22 @@ function render() {
     ]) {
       const b = document.createElement("button");
       b.className = "collection";
-      b.innerHTML = folderIcon;
+      const art = document.createElement("div");
+      art.className = "collection-art";
+      collectionArt(p, art);
+      b.append(art);
       const label = document.createElement("b");
       label.textContent = p.name;
-      b.append(label);
+      const count = document.createElement("small");
+      count.textContent =
+        p.id === null
+          ? library.tracks.length + " músicas"
+          : p.id === "liked"
+            ? "Suas favoritas"
+            : (p.tracks || []).length + " músicas";
+      b.append(label, count);
       b.onclick = () => {
-        selected = p.id;
-        render();
+        showPlaylist(p.id);
       };
       $("collections").append(b);
     }
@@ -163,6 +200,7 @@ function render() {
       ? "Músicas curtidas"
       : playlist?.name || (view === "search" ? "Resultados" : "Suas músicas");
   $("download-all").hidden = !playlist || view !== "library";
+  updatePlaylistHeader();
   const list = sourceTracks();
   $("tracks").replaceChildren(...list.map((t) => row(t, list)));
   if (!list.length) {
@@ -186,13 +224,22 @@ function showEntry(title, label, callback) {
   $("entry-title").textContent = title;
   $("entry-label").textContent = label;
   $("entry-value").value = "";
+  $("entry-error").hidden = true;
+  $("entry-help").textContent =
+    title === "Importar do Spotify"
+      ? "Cole o link público. A playlist será importada e preparada na nuvem, mesmo depois de fechar esta janela."
+      : "";
+  $("entry-value").inputMode = title === "Importar do Spotify" ? "url" : "text";
   $("entry-form").onsubmit = task(async (e) => {
     e.preventDefault();
     const button = e.submitter;
     button.disabled = true;
     try {
       await callback($("entry-value").value);
-      $("entry").close();
+      closeSheet($("entry"));
+    } catch (error) {
+      $("entry-error").hidden = false;
+      $("entry-error").textContent = error.message;
     } finally {
       button.disabled = false;
     }
@@ -278,94 +325,103 @@ async function refresh() {
   library = await api("library");
   onlineSession = true;
   await local("meta", "library", library);
-  $("connection").textContent = "SUA MÚSICA";
+  $("connection").hidden = true;
   render();
   drawIsland();
 }
 async function saveTracks(tracks) {
-  if (!tracks.length) return;
-  if ((await local("meta", "network")) !== "any") {
-    if (
-      !confirm(
-        "Você está no Wi-Fi? Toque em OK para salvar agora. O iPhone pode usar dados móveis se mudar de rede.",
-      )
-    )
-      return;
+  tracks = tracks.filter((t) => !offlineIds.has(t.id));
+  if (!tracks.length) {
+    notice("Essas músicas já estão neste iPhone.");
+    return;
   }
-  await api("prepare", {
-    tracks: tracks.map((t) => ({ ...t, artists: t.artist, thumbnail: t.art })),
-  });
-  for (const t of tracks) if (!offlineIds.has(t.id)) downloads.add(t.id);
+  if (
+    (await local("meta", "network")) !== "any" &&
+    !confirm(
+      "Salvar no iPhone agora? Confirme que está no Wi-Fi. Se a rede mudar, o iPhone pode usar dados móveis.",
+    )
+  )
+    return;
+  const unprepared = tracks.filter((t) => t.status !== "ready");
+  for (let i = 0; i < unprepared.length; i += 40) {
+    const r = await api("prepare", {
+      tracks: unprepared
+        .slice(i, i + 40)
+        .map((t) => ({ ...t, artists: t.artist, thumbnail: t.art })),
+    });
+    islandJobId = r.job_id;
+  }
+  for (const t of tracks) downloads.add(t.id);
+  deviceBatch = [...downloads];
   await local("meta", "downloads", [...downloads]);
+  await local("meta", "device-batch", deviceBatch);
   await refresh();
-  drain();
+  expandIsland();
+  await drain();
 }
 async function drain() {
-  if (saving || !navigator.onLine || document.hidden) return;
+  if (saving || !navigator.onLine || document.hidden || !downloads.size) return;
+  const ready = [...downloads].filter((id) =>
+    library.tracks.some((t) => t.id === id && t.status === "ready"),
+  );
+  if (!ready.length) return;
   saving = true;
   try {
-    for (const id of [...downloads]) {
+    for (const id of ready) {
+      if (document.hidden) break;
       const t = library.tracks.find((t) => t.id === id);
-      if (!t || t.status !== "ready") continue;
       activeSave = t.title;
+      activeSaveId = id;
+      deviceBytes = 0;
+      deviceSize = 0;
       drawIsland();
-      const r = await fetch("/media/" + id);
-      if (!r.ok)
+      const response = await fetch("/media/" + id);
+      if (!response.ok)
         throw new Error("Falha ao salvar no iPhone. Abra o app para retomar.");
-      const blob = await r.blob();
-      if (!blob.size) throw new Error("O arquivo de áudio está vazio.");
+      deviceSize = Number(response.headers.get("Content-Length")) || 0;
+      let blob;
+      if (response.body?.getReader) {
+        const reader = response.body.getReader();
+        const chunks = [];
+        let lastPaint = 0;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+          deviceBytes += value.byteLength;
+          if (performance.now() - lastPaint > 120) {
+            drawIsland();
+            lastPaint = performance.now();
+          }
+        }
+        blob = new Blob(chunks, { type: "audio/mp4" });
+      } else blob = await response.blob();
+      if (!blob.size || (deviceSize && blob.size !== deviceSize))
+        throw new Error(
+          "Transferência incompleta. O download será retomado ao voltar.",
+        );
       await local("audio", id, blob);
       offlineIds.add(id);
       downloads.delete(id);
       await local("meta", "downloads", [...downloads]);
+      render();
+      drawIsland();
     }
-  } catch (e) {
-    notice(e.message);
+    if (!downloads.size) notice("Músicas salvas neste iPhone.");
+  } catch (error) {
+    notice(
+      error.name === "QuotaExceededError"
+        ? "O iPhone está sem espaço para salvar a música. Libere espaço e tente novamente."
+        : error.message,
+    );
   } finally {
     saving = false;
     activeSave = "";
+    activeSaveId = null;
+    deviceBytes = 0;
+    deviceSize = 0;
     render();
     drawIsland();
-  }
-}
-function drawIsland() {
-  if (library.preparation?.paused) {
-    $("island").hidden = false;
-    $("job-title").textContent = "Downloads pausados";
-    $("job-detail").textContent =
-      "A fonte de áudio recusou o acesso. Veja os Ajustes.";
-    $("job-list").textContent =
-      "As faixas na fila foram preservadas. Tente novamente após resolver o acesso à fonte.";
-    return;
-  }
-  const jobs = library.tracks.filter((t) =>
-    ["queued", "preparing"].includes(t.status),
-  );
-  $("island").hidden = !jobs.length && !downloads.size;
-  $("job-title").textContent =
-    activeSave ||
-    jobs.find((t) => t.status === "preparing")?.title ||
-    "Salvando músicas";
-  $("job-detail").textContent = activeSave
-    ? "Salvando no iPhone"
-    : jobs.length
-      ? jobs.length + " na fila da VM"
-      : downloads.size + " para salvar no iPhone";
-  $("job-list").replaceChildren();
-  for (const t of library.tracks.filter(
-    (t) => jobs.includes(t) || downloads.has(t.id),
-  )) {
-    const line = document.createElement("div");
-    line.textContent =
-      t.title +
-      " · " +
-      ({
-        ready: "Pronta para salvar",
-        error: "Falhou. Tente novamente.",
-        queued: "Na fila",
-        preparing: "Preparando",
-      }[t.status] || "Aguardando");
-    $("job-list").append(line);
   }
 }
 function savePlayer() {
@@ -475,9 +531,10 @@ function stamp(s) {
   return Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0");
 }
 audio.onplay = audio.onpause = () => {
-  $("mini-play").textContent = $("big-play").textContent = audio.paused
-    ? "▶"
-    : "Ⅱ";
+  $("mini-play").innerHTML = $("big-play").innerHTML = icon(
+    audio.paused ? "play" : "pause",
+  );
+  $("mini").classList.toggle("playing", !audio.paused);
   if ("mediaSession" in navigator)
     navigator.mediaSession.playbackState = audio.paused ? "paused" : "playing";
   savePlayer();
@@ -488,6 +545,7 @@ audio.ontimeupdate = () => {
   $("seek").value = audio.duration
     ? (audio.currentTime / audio.duration) * 100
     : 0;
+  $("mini-progress").value = Number($("seek").value);
   if (Math.floor(audio.currentTime) % 5 === 0) savePlayer();
 };
 audio.onended = task(next);
@@ -520,9 +578,6 @@ $("open-player").onclick = () => {
   drawQueue();
 };
 $("save-current").onclick = task(() => current && saveTracks([current]));
-$("island-toggle").onclick = () => {
-  $("job-list").hidden = !$("job-list").hidden;
-};
 $("search-form").onsubmit = task(async (e) => {
   e.preventDefault();
   const b = e.submitter;
@@ -542,8 +597,11 @@ $("import").onclick = () =>
     "Link público de música, playlist ou álbum",
     async (url) => {
       notice("Importando playlist…");
-      await api("import", { url });
+      const result = await api("import", { url });
+      islandJobId = result.job_id;
+      dismissedJobs.delete(islandJobId);
       await refresh();
+      expandIsland();
     },
   );
 $("create").onclick = () =>
@@ -551,12 +609,15 @@ $("create").onclick = () =>
     await api("playlists", { name });
     await refresh();
   });
-$("download-all").onclick = task(() => saveTracks(sourceTracks()));
+$("download-all").onclick = task(() =>
+  saveTracks(sourceTracks().filter((t) => t.status === "ready")),
+);
 for (const b of document.querySelectorAll("[data-view]"))
   b.onclick = () => {
     view = b.dataset.view;
     selected = null;
     render();
+    animateView();
   };
 for (const b of document.querySelectorAll("[data-close]"))
   b.onclick = () => b.closest("dialog").close();
@@ -602,26 +663,46 @@ $("logout").onclick = task(async () => {
   tx.objectStore("audio").clear();
   tx.oncomplete = () => location.reload();
 });
+let syncing = false;
 async function sync() {
-  if (document.hidden || !navigator.onLine || !onlineSession) return;
+  if (document.hidden || !navigator.onLine || !onlineSession || syncing) return;
+  syncing = true;
   try {
     await refresh();
     await drain();
   } catch {
-    $("connection").textContent =
-      "CONEXÃO INDISPONÍVEL · MÚSICAS SALVAS DISPONÍVEIS";
+    $("connection").hidden = false;
+    $("connection").textContent = "Sem conexão · músicas salvas disponíveis";
+  } finally {
+    syncing = false;
   }
 }
 async function boot() {
-  if ("serviceWorker" in navigator)
-    await navigator.serviceWorker.register("/sw.js");
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker
+      .register("/sw.js")
+      .catch(() =>
+        notice("O modo offline será habilitado quando a conexão voltar."),
+      );
+  }
   const installed =
     navigator.standalone || matchMedia("(display-mode: standalone)").matches;
   if (!installed) return;
-  setInterval(sync, 5000);
+  const poll = async () => {
+    await sync();
+    const active =
+      (library.jobs || []).some((job) =>
+        ["queued", "importing", "preparing"].includes(job.status),
+      ) || downloads.size;
+    setTimeout(poll, active && !document.hidden ? 2500 : 15000);
+  };
+  setTimeout(poll, 2500);
   $("install").hidden = true;
   library = (await local("meta", "library")) || library;
   downloads = new Set((await local("meta", "downloads")) || []);
+  deviceBatch = (await local("meta", "device-batch")) || [...downloads];
+  dismissedJobs = new Set((await local("meta", "dismissed-jobs")) || []);
+  selected = (await local("meta", "selected")) || null;
   const db = await database;
   offlineIds = new Set(
     await new Promise((resolve, reject) => {
@@ -648,7 +729,8 @@ async function boot() {
       return;
     }
     $("app").hidden = false;
-    $("connection").textContent = "OFFLINE · MÚSICAS NESTE IPHONE";
+    $("connection").hidden = false;
+    $("connection").textContent = "Offline · músicas neste iPhone";
     render();
   }
   const saved = await local("meta", "player");
@@ -687,8 +769,10 @@ document.addEventListener("visibilitychange", () => {
   if (document.hidden) savePlayer();
   else sync();
 });
-boot().catch((e) =>
-  notice("Não foi possível abrir o armazenamento. " + e.message),
+document.addEventListener("DOMContentLoaded", () =>
+  boot().catch((e) =>
+    notice("Não foi possível abrir o armazenamento. " + e.message),
+  ),
 );
 
 $("resume-preparation").onclick = task(async () => {
