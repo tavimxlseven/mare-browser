@@ -18,6 +18,7 @@ class ServerTests(unittest.TestCase):
             db.execute("DELETE FROM tracks")
             db.execute("DELETE FROM playlists")
             db.execute("DELETE FROM sessions")
+            db.execute("DELETE FROM settings")
         server.attempts.clear()
 
     def login(self):
@@ -58,6 +59,23 @@ class ServerTests(unittest.TestCase):
         library=self.client.get("/api/library").json
         self.assertEqual(library["tracks"],[])
         self.assertEqual(library["playlists"][0]["tracks"],[])
+
+    def test_source_refusal_preserves_queue_until_explicit_resume(self):
+        self.login()
+        tracks = [{"id": letter*22, "title": letter, "artist": "Artist"} for letter in ("a","b")]
+        self.client.post("/api/prepare",json={"tracks":tracks},headers=self.origin)
+        with patch("provider.download",side_effect=server.provider.PreparationError("Fonte recusou o acesso")):
+            server.prepare_track("a"*22)
+        library = self.client.get("/api/library").json
+        self.assertTrue(library["preparation"]["paused"])
+        states = {t["id"]:t["status"] for t in library["tracks"]}
+        self.assertEqual(states["a"*22],"error")
+        self.assertEqual(states["b"*22],"queued")
+        self.assertEqual(self.client.post("/api/prepare",json={"tracks":tracks},headers=self.origin).status_code,503)
+        self.assertEqual(self.client.post("/api/resume",json={},headers=self.origin).status_code,200)
+        library = self.client.get("/api/library").json
+        self.assertFalse(library["preparation"]["paused"])
+        self.assertTrue(all(t["status"]=="queued" for t in library["tracks"]))
 
     def test_input_validation_and_static_traversal(self):
         self.login()

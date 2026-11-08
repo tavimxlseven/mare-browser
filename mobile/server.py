@@ -56,6 +56,7 @@ with db() as con:
           status TEXT DEFAULT 'new',error TEXT DEFAULT '',liked INTEGER DEFAULT 0);
         CREATE TABLE IF NOT EXISTS playlists(id TEXT PRIMARY KEY,name TEXT,tracks TEXT);
         CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY,expires INTEGER);
+        CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT);
     """)
     con.execute("UPDATE tracks SET status='queued' WHERE status='preparing'")
 
@@ -94,7 +95,7 @@ def error(ex):
     if code >= 500:
         app.logger.warning("Operation failed (%s)", type(ex).__name__)
     message = {401: "Entre novamente para acessar a VM.",403: "Solicitação recusada.",
-               404:"Não encontrado.",429:"Aguarde antes de tentar novamente."}.get(code,
+               404:"Não encontrado.",503:"Downloads pausados pela fonte de áudio. Tente novamente em Ajustes.",429:"Aguarde antes de tentar novamente."}.get(code,
                "Não foi possível concluir. Verifique a conexão e tente novamente.")
     return jsonify(error=message), code
 
@@ -140,7 +141,9 @@ def library():
         lists = [dict(p) for p in con.execute("SELECT * FROM playlists ORDER BY rowid DESC")]
     for p in lists:
         p["tracks"] = json.loads(p["tracks"])
-    return jsonify(tracks=tracks, playlists=lists)
+    with db() as con:
+        blocked = con.execute("SELECT value FROM settings WHERE key='blocked_track'").fetchone()
+    return jsonify(tracks=tracks, playlists=lists, preparation={"paused": bool(blocked)})
 
 
 @app.get("/api/search")
@@ -188,6 +191,9 @@ def playlist():
 
 @app.post("/api/prepare")
 def prepare():
+    with db() as con:
+        if con.execute("SELECT value FROM settings WHERE key='blocked_track'").fetchone():
+            abort(503)
     data = request.get_json()
     tracks = data.get("tracks", [])
     if not isinstance(tracks,list) or not 1 <= len(tracks) <= 2000:
@@ -244,30 +250,49 @@ def static(filename):
     return send_from_directory(ROOT / "public", filename)
 
 
+@app.post("/api/resume")
+def resume_preparation():
+    with db() as con:
+        blocked = con.execute("SELECT value FROM settings WHERE key='blocked_track'").fetchone()
+        if blocked:
+            con.execute("UPDATE tracks SET status='queued',error='' WHERE id=? AND status='error'", (blocked["value"],))
+        con.execute("DELETE FROM settings WHERE key='blocked_track'")
+    wake.set()
+    return jsonify(ok=True)
+
+
+def prepare_track(identifier):
+    try:
+        if shutil.disk_usage(DATA).free < 1_073_741_824:
+            raise OSError("disk")
+        with tempfile.TemporaryDirectory(dir=DATA) as temp:
+            audio = provider.download(identifier, temp)
+            os.replace(audio, MEDIA / (identifier + ".m4a"))
+        with db() as con:
+            con.execute("UPDATE tracks SET status='ready',error='' WHERE id=?", (identifier,))
+    except Exception as ex:
+        app.logger.warning("Preparation failed (%s)", type(ex).__name__)
+        with db() as con:
+            message = str(ex) if isinstance(ex, provider.PreparationError) else "Falha ao preparar. Tente novamente."
+            con.execute("UPDATE tracks SET status='error',error=? WHERE id=?", (message, identifier))
+            if isinstance(ex, provider.PreparationError):
+                con.execute("INSERT OR REPLACE INTO settings VALUES ('blocked_track',?)", (identifier,))
+
+
 def worker():
     while True:
         with db() as con:
-            job = con.execute("SELECT id FROM tracks WHERE status='queued' ORDER BY rowid LIMIT 1").fetchone()
+            blocked = con.execute("SELECT value FROM settings WHERE key='blocked_track'").fetchone()
+            job = None
+            if not blocked:
+                job = con.execute("SELECT id FROM tracks WHERE status='queued' ORDER BY rowid LIMIT 1").fetchone()
             if job:
                 con.execute("UPDATE tracks SET status='preparing' WHERE id=?", (job["id"],))
         if not job:
-            wake.wait(5)
+            wake.wait(30)
             wake.clear()
             continue
-        identifier = job["id"]
-        try:
-            if shutil.disk_usage(DATA).free < 1_073_741_824:
-                raise OSError("disk")
-            with tempfile.TemporaryDirectory(dir=DATA) as temp:
-                audio = provider.download(identifier, temp)
-                os.replace(audio, MEDIA / (identifier + ".m4a"))
-            with db() as con:
-                con.execute("UPDATE tracks SET status='ready',error='' WHERE id=?", (identifier,))
-        except Exception as ex:
-            app.logger.warning("Preparation failed (%s)", type(ex).__name__)
-            with db() as con:
-                message = str(ex) if isinstance(ex, provider.PreparationError) else "Falha ao preparar. Tente novamente."
-                con.execute("UPDATE tracks SET status='error',error=? WHERE id=?", (message, identifier))
+        prepare_track(job["id"])
 
 
 if __name__ == "__main__":

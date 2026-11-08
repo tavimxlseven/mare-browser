@@ -5,7 +5,7 @@ from pathlib import Path
 import re
 import signal
 import subprocess
-from urllib.parse import urlencode, urlsplit
+from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 
@@ -81,8 +81,15 @@ def collection(link):
 def download(identifier, directory):
     if not ID.fullmatch(identifier):
         raise ValueError("track id")
-    cli(["download", f"https://open.spotify.com/track/{identifier}", "--out", str(directory),
-         "--format", "m4a", "--quality", "192", "--no-loose-match", "--json"], 420)
+    args = ["download", f"https://open.spotify.com/track/{identifier}", "--out", str(directory),
+            "--format", "m4a", "--quality", "192", "--no-loose-match", "--json"]
+    cookies = os.getenv("SUNNIFY_COOKIES_FILE", "").strip()
+    if cookies:
+        path = Path(cookies)
+        if not path.is_file() or path.is_symlink():
+            raise PreparationError("A sessão da fonte de áudio está indisponível. Verifique a configuração privada.")
+        args.extend(["--cookies", str(path)])
+    cli(args, 420)
     files = [p for p in Path(directory).rglob("*.m4a") if p.is_file() and not p.is_symlink() and p.stat().st_size]
     if len(files) != 1:
         raise ValueError("audio")

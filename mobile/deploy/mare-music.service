@@ -9,6 +9,10 @@ User=mare-music
 Group=mare-music
 WorkingDirectory=/srv/mare-music/app
 EnvironmentFile=/etc/mare-music.env
+Environment=PATH=/srv/mare-music/venv/bin:/opt/node/bin:/usr/local/bin:/usr/bin:/bin
+Environment=XDG_CONFIG_HOME=/srv/mare-music/state/config
+Environment=XDG_STATE_HOME=/srv/mare-music/state/runtime
+Environment=XDG_CACHE_HOME=/srv/mare-music/state/cache
 ExecStart=/srv/mare-music/venv/bin/python server.py
 Restart=on-failure
 RestartSec=5

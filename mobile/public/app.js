@@ -329,6 +329,15 @@ async function drain() {
   }
 }
 function drawIsland() {
+  if (library.preparation?.paused) {
+    $("island").hidden = false;
+    $("job-title").textContent = "Downloads pausados";
+    $("job-detail").textContent =
+      "A fonte de áudio recusou o acesso. Veja os Ajustes.";
+    $("job-list").textContent =
+      "As faixas na fila foram preservadas. Tente novamente após resolver o acesso à fonte.";
+    return;
+  }
   const jobs = library.tracks.filter((t) =>
     ["queued", "preparing"].includes(t.status),
   );
@@ -553,6 +562,9 @@ for (const b of document.querySelectorAll("[data-close]"))
   b.onclick = () => b.closest("dialog").close();
 $("settings").onclick = task(async () => {
   $("preferences").showModal();
+  $("preparation-state").textContent = library.preparation?.paused
+    ? "A fonte de áudio recusou o acesso. Os downloads estão pausados e a fila foi preservada."
+    : "Downloads disponíveis.";
   const s = await navigator.storage?.estimate();
   $("storage").textContent = s
     ? "Neste aparelho · " + Math.round(s.usage / 1048576) + " MB usados"
@@ -678,3 +690,9 @@ document.addEventListener("visibilitychange", () => {
 boot().catch((e) =>
   notice("Não foi possível abrir o armazenamento. " + e.message),
 );
+
+$("resume-preparation").onclick = task(async () => {
+  await api("resume", {});
+  await refresh();
+  notice("Nova tentativa iniciada.");
+});
