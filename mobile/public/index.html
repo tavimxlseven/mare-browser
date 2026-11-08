@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#121214" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+    <title>Maré Música</title>
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icon-180.png" />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <section id="install" class="welcome">
+      <img src="/icon-192.png" width="96" height="96" alt="" />
+      <p class="eyebrow">MARÉ MÚSICA</p>
+      <h1>Sua música.<br />Sempre com você.</h1>
+      <p>
+        Adicione à Tela de Início para abrir sua biblioteca, ouvir e salvar suas
+        músicas no iPhone.
+      </p>
+      <ol>
+        <li>No Safari, toque em <strong>Compartilhar</strong>.</li>
+        <li>
+          Escolha <strong>Adicionar à Tela de Início</strong> e abra pelo ícone
+          do Maré.
+        </li>
+      </ol>
+      <p class="hint">
+        Primeiro acesso precisa de internet. As faixas salvas ficam disponíveis
+        offline.
+      </p>
+    </section>
+    <section id="login" class="welcome" hidden>
+      <img src="/icon-192.png" width="80" height="80" alt="" />
+      <h1>Bem-vindo ao Maré.</h1>
+      <p>Sua biblioteca particular, em todos os seus dispositivos.</p>
+      <form id="login-form">
+        <label for="password">Senha da biblioteca</label
+        ><input
+          id="password"
+          type="password"
+          autocomplete="current-password"
+          required
+          minlength="8"
+        /><button class="primary">Entrar</button>
+      </form>
+    </section>
+    <div id="app" hidden>
+      <header>
+        <span class="wordmark">Maré <span>Música</span></span
+        ><button id="settings" aria-label="Ajustes">⚙</button>
+      </header>
+      <main>
+        <p id="connection" class="eyebrow">SUA MÚSICA</p>
+        <h1 id="heading">Biblioteca</h1>
+        <form id="search-form" hidden>
+          <label class="search"
+            ><svg viewBox="0 0 24 24">
+              <circle cx="10" cy="10" r="6" />
+              <path d="m15 15 5 5" /></svg
+            ><input
+              id="query"
+              type="search"
+              placeholder="Música ou artista"
+              aria-label="Pesquisar música"
+              minlength="2"
+              maxlength="150"
+            /><button>Buscar</button></label
+          >
+        </form>
+        <div id="library-actions" class="actions">
+          <button id="import" class="primary">Importar link</button
+          ><button id="create">Nova playlist</button>
+        </div>
+        <div id="collections" class="collections"></div>
+        <div class="section-heading">
+          <h2 id="list-title">Suas músicas</h2>
+          <button id="download-all" hidden>Salvar playlist</button>
+        </div>
+        <div id="tracks"></div>
+      </main>
+      <aside id="island" hidden aria-live="polite">
+        <span class="pulse"></span>
+        <div>
+          <strong id="job-title">Preparando músicas</strong
+          ><small id="job-detail"></small>
+        </div>
+        <button id="island-toggle" aria-label="Detalhar downloads">⌄</button>
+        <div id="job-list" hidden></div>
+      </aside>
+      <section id="mini" hidden>
+        <button id="open-player" class="now">
+          <img id="mini-art" alt="" /><span
+            ><strong id="mini-title"></strong><small id="mini-artist"></small
+          ></span></button
+        ><button id="mini-play" aria-label="Reproduzir ou pausar">▶</button
+        ><button id="next" aria-label="Próxima música">⏭</button>
+      </section>
+      <nav aria-label="Navegação principal">
+        <button data-view="library" aria-current="page">
+          <span>▤</span>Biblioteca</button
+        ><button data-view="search"><span>⌕</span>Buscar</button
+        ><button data-view="offline"><span>↓</span>Baixadas</button>
+      </nav>
+    </div>
+    <dialog id="player">
+      <button class="dismiss" data-close aria-label="Fechar player">⌄</button>
+      <p class="eyebrow">TOCANDO AGORA</p>
+      <div id="cover" class="cover"></div>
+      <h1 id="player-title"></h1>
+      <p id="player-artist"></p>
+      <input
+        id="seek"
+        type="range"
+        min="0"
+        max="100"
+        value="0"
+        aria-label="Posição na música"
+      />
+      <div class="times">
+        <span id="elapsed">0:00</span><span id="duration">0:00</span>
+      </div>
+      <div class="transport">
+        <button id="shuffle" aria-label="Aleatório" aria-pressed="false">
+          ⤨</button
+        ><button id="previous" aria-label="Anterior">⏮</button
+        ><button id="big-play" class="play" aria-label="Reproduzir ou pausar">
+          ▶</button
+        ><button id="forward" aria-label="Próxima">⏭</button
+        ><button id="repeat" aria-label="Repetir" aria-pressed="false">
+          ↻
+        </button>
+      </div>
+      <button id="save-current">Salvar no iPhone</button>
+      <h2>A seguir</h2>
+      <div id="queue"></div>
+    </dialog>
+    <dialog id="preferences">
+      <button class="dismiss" data-close aria-label="Fechar ajustes">×</button>
+      <h1>Ajustes</h1>
+      <label class="setting"
+        >Aparência<select id="theme">
+          <option value="dark">Escuro</option>
+          <option value="light">Claro</option>
+        </select></label
+      ><label class="setting"
+        >Downloads<select id="network">
+          <option value="wifi">Confirmar rede Wi-Fi</option>
+          <option value="any">Permitir dados móveis</option>
+        </select></label
+      >
+      <p>
+        O iPhone pode suspender downloads ao fechar o app. A preparação continua
+        na VM. Os arquivos pendentes são retomados ao voltar.
+      </p>
+      <p id="storage"></p>
+      <button id="persist">Solicitar armazenamento persistente</button
+      ><button id="logout" class="danger">
+        Sair e apagar dados deste aparelho
+      </button>
+    </dialog>
+    <dialog id="entry">
+      <button class="dismiss" data-close aria-label="Cancelar">×</button>
+      <h2 id="entry-title"></h2>
+      <form id="entry-form">
+        <label id="entry-label" for="entry-value"></label
+        ><input
+          id="entry-value"
+          required
+          maxlength="500"
+          autocomplete="off"
+        /><button class="primary">Continuar</button>
+      </form>
+    </dialog>
+    <div id="notice" role="status" hidden></div>
+    <audio id="audio" preload="metadata"></audio>
+    <script src="/app.js" defer></script>
+  </body>
+</html>
