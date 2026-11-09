@@ -599,7 +599,7 @@ html {
 .seek-control {
   position: relative;
   isolation: isolate;
-  height: 36px;
+  height: 40px;
 }
 .seek-control::before,
 .seek-control::after {
@@ -612,6 +612,7 @@ html {
   height: 40px;
   margin: 0;
   z-index: 2;
+  opacity: 0;
 }
 #player .seek-control #seek::-webkit-slider-runnable-track {
   height: 40px;
@@ -637,7 +638,7 @@ html {
   top: 50%;
   left: 10px;
   right: 10px;
-  height: 5px;
+  height: 4px;
   background: #ffffff32;
   border-radius: 99px;
   transform: translateY(-50%);
@@ -655,9 +656,9 @@ html {
   position: absolute;
   top: 50%;
   left: var(--seek-fill, 0%);
-  width: 12px;
-  height: 16px;
-  border-radius: 7px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
   transform: translate(-50%, -50%);
   background: #fff;
   box-shadow: 0 1px 5px #0004;
@@ -666,11 +667,15 @@ html {
     height 180ms ease;
 }
 .seek-control:has(input:is(:focus-visible, :active, .scrubbing)) .seek-track {
-  height: 7px;
+  height: 5px;
 }
 .seek-control:has(input:is(:focus-visible, :active, .scrubbing)) .seek-handle {
-  width: 18px;
-  height: 23px;
+  width: 14px;
+  height: 14px;
+}
+.seek-control:has(input:focus-visible) .seek-handle {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
 }
 @media (prefers-reduced-motion: reduce) {
   .seek-track,

@@ -1569,13 +1569,15 @@
   font-size: 12px;
 }
 .spotify-app .music-transport {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 34px;
   align-items: center;
-  gap: 6px;
+  gap: 4px 8px;
   min-width: 0;
 }
 .spotify-app .music-controls {
+  grid-column: 2;
+  justify-self: center;
   display: grid;
   grid-template-columns: repeat(5, 36px);
   align-items: center;
@@ -1640,7 +1642,9 @@
   line-height: 1;
 }
 .spotify-app .music-timeline {
-  display: flex;
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 34px;
   align-items: center;
   gap: 8px;
   width: 100%;
@@ -3334,7 +3338,7 @@
 }
 .spotify-app .music-scrubber {
   height: 40px;
-  --control-rail: 5px;
+  --control-rail: 4px;
 }
 .spotify-app .music-scrubber > input[type="range"] {
   appearance: none;
@@ -3348,6 +3352,9 @@
   margin: 0;
   border: 0;
   background: transparent;
+  /* Keep the native input for pointer/keyboard interaction only. Hiding just
+     its thumb lets legacy hover styles reveal the oversized native handle. */
+  opacity: 0;
   z-index: 2;
   cursor: ew-resize;
   touch-action: none;
@@ -3399,31 +3406,46 @@
   position: absolute;
   left: var(--range-fill, 0%);
   top: 50%;
-  width: 12px;
-  height: 16px;
-  border-radius: 7px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
   background: var(--music-ink);
   box-shadow:
     0 1px 4px #0003,
     0 0 0 1px #0001;
   transform: translate(-50%, -50%);
   transition:
-    width 180ms ease,
-    height 180ms ease,
+    width 140ms ease,
+    height 140ms ease,
     box-shadow 180ms ease;
 }
 .spotify-app
   .music-scrubber:has(
     input:is(:hover, :focus-visible, :active, .is-scrubbing)
   ) {
-  --control-rail: 7px;
+  --control-rail: 5px;
 }
 .spotify-app
   .music-scrubber:has(input:is(:focus-visible, :active, .is-scrubbing))
   .music-range-thumb {
-  width: 18px;
-  height: 23px;
+  width: 14px;
+  height: 14px;
   box-shadow: 0 3px 10px #0003;
+}
+.spotify-app .music-scrubber:has(input:focus-visible) .music-range-thumb {
+  outline: 2px solid var(--music-focus);
+  outline-offset: 3px;
+}
+.spotify-app .music-timeline .music-scrubber {
+  height: 32px;
+}
+.spotify-app .music-timeline .music-scrubber > input[type="range"] {
+  top: -4px;
+  bottom: auto;
+}
+/* Elapsed time and setting values already have visible labels. */
+.spotify-app :is(.music-timeline, .music-setting-range) .music-scrub-value {
+  display: none;
 }
 .spotify-app .music-stage .music-range-thumb {
   background: #fff;
@@ -3530,6 +3552,92 @@
 .spotify-app .music-scrubber.is-volume:has(input:hover) .music-scrub-value {
   opacity: 1;
   transform: translate(-50%, 0) scale(1);
+}
+
+/* A stable, wider grab area; the thumb stays visible on wallpaper and themes. */
+.spotify-app
+  :is(
+    .music-scroll,
+    .music-library-nav,
+    .music-next,
+    .music-settings-content,
+    .music-now-section,
+    .music-dialog
+  ) {
+  scrollbar-width: auto;
+  scrollbar-color: auto;
+}
+.spotify-app
+  :is(
+    .music-scroll,
+    .music-library-nav,
+    .music-next,
+    .music-settings-content,
+    .music-now-section,
+    .music-dialog
+  )::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+.spotify-app
+  :is(
+    .music-scroll,
+    .music-library-nav,
+    .music-next,
+    .music-settings-content,
+    .music-now-section,
+    .music-dialog
+  )::-webkit-scrollbar-track {
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--music-ink) 5%, transparent);
+}
+.spotify-app
+  :is(
+    .music-scroll,
+    .music-library-nav,
+    .music-next,
+    .music-settings-content,
+    .music-now-section,
+    .music-dialog
+  )::-webkit-scrollbar-thumb {
+  min-height: 44px;
+  border: 3px solid transparent;
+  border-radius: 14px;
+  background-color: color-mix(in srgb, var(--music-ink) 50%, transparent);
+  background-clip: padding-box;
+}
+.spotify-app
+  :is(
+    .music-scroll,
+    .music-library-nav,
+    .music-next,
+    .music-settings-content,
+    .music-now-section,
+    .music-dialog
+  )::-webkit-scrollbar-thumb:hover {
+  background-color: var(--music-muted);
+}
+.spotify-app
+  :is(
+    .music-scroll,
+    .music-library-nav,
+    .music-next,
+    .music-settings-content,
+    .music-now-section,
+    .music-dialog
+  )::-webkit-scrollbar-thumb:active {
+  background-color: var(--music-accent);
+}
+@media (forced-colors: active) {
+  .spotify-app .music-range-track {
+    background: GrayText;
+  }
+  .spotify-app .music-range-fill {
+    background: Highlight;
+  }
+  .spotify-app .music-range-thumb {
+    background: CanvasText;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .spotify-app .music-scrubber::before,
