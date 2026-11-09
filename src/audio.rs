@@ -6,11 +6,19 @@ pub struct Player {
     _stream: OutputStream,
     duration: u64,
 }
+fn decode(path: &Path) -> Result<Decoder<BufReader<File>>, String> {
+    let file = File::open(path).map_err(|e| format!("Áudio: {e}"))?;
+    let length = file.metadata().map_err(|e| format!("Áudio: {e}"))?.len();
+    Decoder::builder()
+        .with_data(BufReader::with_capacity(262144, file))
+        .with_byte_len(length)
+        .with_seekable(true)
+        .build()
+        .map_err(|e| format!("Não foi possível decodificar o áudio: {e}"))
+}
 impl Player {
     pub fn open(path: &Path, volume: u32) -> Result<Self, String> {
-        let file = File::open(path).map_err(|e| format!("Áudio: {e}"))?;
-        let source = Decoder::try_from(BufReader::with_capacity(262144, file))
-            .map_err(|e| format!("Não foi possível decodificar o áudio: {e}"))?;
+        let source = decode(path)?;
         let duration = source
             .total_duration()
             .map(|d| d.as_millis() as u64)
@@ -65,6 +73,41 @@ fn volume_gain(value: u32) -> f32 {
 }
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_local_file_can_seek_forward_and_back_without_an_audio_device() {
+        use rodio::Source;
+        let path = std::env::temp_dir().join(format!(
+            "mare-seek-{}-{}.wav",
+            std::process::id(),
+            crate::model::now_ms()
+        ));
+        let mut wav = Vec::new();
+        wav.extend(b"RIFF");
+        wav.extend(16036u32.to_le_bytes());
+        wav.extend(b"WAVEfmt ");
+        wav.extend(16u32.to_le_bytes());
+        wav.extend(1u16.to_le_bytes());
+        wav.extend(1u16.to_le_bytes());
+        wav.extend(8000u32.to_le_bytes());
+        wav.extend(16000u32.to_le_bytes());
+        wav.extend(2u16.to_le_bytes());
+        wav.extend(16u16.to_le_bytes());
+        wav.extend(b"data");
+        wav.extend(16000u32.to_le_bytes());
+        wav.resize(16044, 0);
+        std::fs::write(&path, wav).unwrap();
+        let mut source = super::decode(&path).unwrap();
+        source
+            .try_seek(std::time::Duration::from_millis(700))
+            .unwrap();
+        assert!(source.next().is_some());
+        source
+            .try_seek(std::time::Duration::from_millis(100))
+            .unwrap();
+        assert!(source.next().is_some());
+        drop(source);
+        std::fs::remove_file(path).unwrap();
+    }
     #[test]
     fn volume_curve_has_fine_low_level_control_and_bounded_gain() {
         assert_eq!(super::volume_gain(0), 0.0);

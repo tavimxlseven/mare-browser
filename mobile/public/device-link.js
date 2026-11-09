@@ -2,6 +2,7 @@
 let deviceLinkState = { id: null, devices: [], error: "" },
   deviceLinkTimer = 0,
   deviceLinkBusy = false,
+  deviceLinkAgain = false,
   deviceAck = 0,
   pendingDeviceTransfer = null;
 function localDevicePlayer() {
@@ -118,6 +119,7 @@ window.musicOutput = createMusicOutput({
   localPlayer: localDevicePlayer,
   send: (target, command) => api("devices/commands", { target, command }),
   receive: receiveDevicePlayer,
+  changed: () => window.syncMusicDevices?.(),
 });
 window.getMusicDisplayTrack = () => {
   const remote = musicOutput.remote(),
@@ -193,6 +195,7 @@ window.stopDeviceLink = () => {
   pendingDeviceTransfer = null;
   deviceLinkState = { id: null, devices: [], session: null, error: "" };
   musicOutput.reset();
+  window.syncMusicDevices = null;
 };
 async function startDeviceLink() {
   window.stopDeviceLink();
@@ -205,7 +208,7 @@ async function startDeviceLink() {
   async function poll() {
     if (currentUser?.id !== owner) return;
     if (deviceLinkBusy) {
-      deviceLinkTimer = setTimeout(poll, 3000);
+      deviceLinkAgain = true;
       return;
     }
     deviceLinkBusy = true;
@@ -244,6 +247,7 @@ async function startDeviceLink() {
           notice(error.message);
         }
         deviceAck = operation.id;
+        deviceLinkAgain = true;
       }
       if (musicOutput.remote() && !audio.paused) audio.pause();
       if (
@@ -270,10 +274,20 @@ async function startDeviceLink() {
       if (currentUser?.id === owner)
         deviceLinkTimer = setTimeout(
           poll,
-          document.hidden && audio.paused ? 10000 : 1600,
+          deviceLinkAgain ? 50 : document.hidden && audio.paused ? 10000 : 700,
         );
+      deviceLinkAgain = false;
     }
   }
+  window.syncMusicDevices = () => {
+    clearTimeout(deviceLinkTimer);
+    void poll();
+  };
   poll();
 }
+for (const event of ["play", "pause", "seeked", "ended", "volumechange"])
+  audio.addEventListener(event, () => window.syncMusicDevices?.());
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) window.syncMusicDevices?.();
+});
 $("preferences").addEventListener("close", () => deviceLinkPanel.clear());

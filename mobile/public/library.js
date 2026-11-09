@@ -11,6 +11,18 @@ let activeSaveId = null;
 function collectionArt(playlist, target) {
   target.replaceChildren();
   target.classList.remove("mosaic");
+  if (playlist?.art) {
+    const image = new Image();
+    image.src = playlist.art;
+    image.alt = "";
+    image.loading = "lazy";
+    image.onerror = () => {
+      image.onerror = null;
+      target.innerHTML = icon("playlist");
+    };
+    target.append(image);
+    return;
+  }
   const ids = playlist?.tracks || [];
   const covers = [
     ...new Set(

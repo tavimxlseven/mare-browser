@@ -27,6 +27,7 @@ from flask import (
 import provider
 import accounts
 import devices
+import playlist_metadata
 
 ROOT = Path(__file__).resolve().parent
 DATA = Path(os.getenv("MARE_DATA", ROOT / "state")).resolve()
@@ -147,7 +148,7 @@ def headers(response):
         {
             "X-Content-Type-Options": "nosniff",
             "Referrer-Policy": "no-referrer",
-            "Content-Security-Policy": "default-src 'self'; img-src 'self' https://i.scdn.co https://image-cdn-ak.spotifycdn.com data: blob:; media-src 'self' blob:; style-src 'self'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'",
+            "Content-Security-Policy": "default-src 'self'; img-src 'self' https://i.scdn.co https://mosaic.scdn.co https://i.ytimg.com https://image-cdn-ak.spotifycdn.com https://image-cdn-fa.spotifycdn.com data: blob:; media-src 'self' blob:; style-src 'self'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'",
         }
     )
     if request.path.startswith(("/api/", "/media/", "/artwork/")):
@@ -201,10 +202,12 @@ def library():
         lists = [
             dict(p)
             for p in con.execute(
-                "SELECT id,name,tracks FROM playlists WHERE owner=? ORDER BY rowid DESC",
+                "SELECT id,name,tracks,art,custom_name,custom_art FROM playlists WHERE owner=? ORDER BY rowid DESC",
                 (g.user["id"],),
             )
         ]
+        for p in lists:
+            playlist_metadata.decorate(con,g.user["id"],p)
         blocked = con.execute(
             "SELECT value FROM settings WHERE key='blocked_track'"
         ).fetchone()
@@ -423,7 +426,8 @@ def cleanup_jobs():
 
 def import_job(job):
     try:
-        kind, identifier, name, tracks = provider.collection(job["source"])
+        collection = provider.collection(job["source"])
+        kind, identifier, name, tracks = collection
         ids = list(dict.fromkeys(t["id"] for t in tracks))
         with db() as con:
             save_tracks(con, tracks, job["owner"], authoritative=True)
@@ -446,6 +450,8 @@ def import_job(job):
                     ),
                 )
                 con.execute("UPDATE playlists SET source=? WHERE owner=? AND id=?", (job["source"],job["owner"],identifier))
+                if getattr(collection,"art",""):
+                    con.execute("UPDATE playlists SET art=? WHERE owner=? AND id=?",(collection.art,job["owner"],identifier))
             for track_id in ids:
                 con.execute(
                     "UPDATE tracks SET status='queued',error='' WHERE id=? AND status NOT IN ('queued','preparing','ready')",
@@ -495,6 +501,16 @@ def delete_playlist(identifier):
         )
         if not removed.rowcount:
             abort(404)
+    return jsonify(ok=True)
+
+
+@app.post("/api/playlists/<identifier>/metadata")
+def update_playlist_metadata(identifier):
+    payload=request.get_json()
+    if not isinstance(payload,dict): abort(400)
+    with db() as con:
+        con.execute("BEGIN IMMEDIATE")
+        playlist_metadata.update(con,g.user["id"],identifier,payload)
     return jsonify(ok=True)
 
 

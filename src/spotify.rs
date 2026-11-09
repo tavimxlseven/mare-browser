@@ -39,6 +39,8 @@ struct Collection {
     id: u64,
     name: String,
     #[serde(default)]
+    thumbnail: String,
+    #[serde(default)]
     uris: Vec<String>,
 }
 pub struct Spotify {
@@ -270,7 +272,21 @@ impl Spotify {
             if matches!(source.kind.as_str(), "playlist" | "album")
                 && !old.entries.iter().any(|entry| entry.uri == source.uri)
             {
-                push("source", json!({"url":source.url,"name":source.title}));
+                push(
+                    "source",
+                    json!({"url":source.url,"name":source.title,"art":source.thumbnail}),
+                );
+            } else if source.kind == "playlist"
+                && old
+                    .entries
+                    .iter()
+                    .find(|e| e.uri == source.uri)
+                    .is_some_and(|e| e.title != source.title || e.thumbnail != source.thumbnail)
+            {
+                push(
+                    "playlist_meta",
+                    json!({"id":source.uri.rsplit(':').next(),"name":source.title,"art":source.thumbnail}),
+                );
             }
         }
         for collection in &self.library.collections {
@@ -284,7 +300,7 @@ impl Spotify {
             {
                 push(
                     "playlist",
-                    json!({"id":if collection.cloud_id.is_empty(){format!("local:{}",collection.id)}else{collection.cloud_id.clone()},"name":collection.name,"tracks":collection.uris.iter().map(|uri|id(uri)).filter(|id|id.len()==22).collect::<Vec<_>>()}),
+                    json!({"id":if collection.cloud_id.is_empty(){format!("local:{}",collection.id)}else{collection.cloud_id.clone()},"name":collection.name,"art":collection.thumbnail,"tracks":collection.uris.iter().map(|uri|id(uri)).filter(|id|id.len()==22).collect::<Vec<_>>()}),
                 );
             }
         }
@@ -449,6 +465,11 @@ impl Spotify {
         }
         let mut collection_ids = std::collections::BTreeSet::new();
         for playlist in value["playlists"].as_array().into_iter().flatten() {
+            let artwork = playlist["art"]
+                .as_str()
+                .filter(|s| safe_playlist_artwork(s))
+                .unwrap_or("")
+                .to_owned();
             let id = playlist["id"].as_str().unwrap_or("");
             let name = playlist["name"]
                 .as_str()
@@ -474,6 +495,7 @@ impl Spotify {
                 if let Some(entry) = next.entries.iter_mut().find(|entry| entry.uri == uri) {
                     entry.title = name;
                     entry.cloud_owned = true;
+                    entry.thumbnail = artwork.clone();
                 } else {
                     next.entries.push(Entry {
                         cloud_owned: true,
@@ -483,7 +505,7 @@ impl Spotify {
                         kind,
                         title: name,
                         artists: String::new(),
-                        thumbnail: String::new(),
+                        thumbnail: artwork.clone(),
                         favorite: false,
                         collection: None,
                     });
@@ -502,6 +524,7 @@ impl Spotify {
                     .find(|c| c.cloud_id == id || (c.cloud_id.is_empty() && Some(c.id) == own_id))
                 {
                     c.name = name;
+                    c.thumbnail = artwork.clone();
                     c.uris = tracks;
                     c.cloud_id = id.into();
                 } else {
@@ -511,6 +534,7 @@ impl Spotify {
                         cloud_id: id.into(),
                         id: local,
                         name,
+                        thumbnail: artwork,
                         uris: tracks,
                     });
                 }
@@ -597,6 +621,7 @@ impl Spotify {
                 | "set_collection"
                 | "create_collection"
                 | "rename_collection"
+                | "edit_playlist"
                 | "remove_from_collection"
                 | "delete_collection"
                 | "add_to_playlist"
@@ -978,6 +1003,7 @@ impl Spotify {
                     cloud_id: String::new(),
                     id,
                     name: name.into(),
+                    thumbnail: String::new(),
                     uris: Vec::new(),
                 });
             }
@@ -992,6 +1018,37 @@ impl Spotify {
                     .find(|c| c.id == id)
                     .ok_or("Playlist não encontrada.")?
                     .name = name.into();
+            }
+            "edit_playlist" => {
+                let name = params["name"].as_str().unwrap_or("").trim();
+                if name.is_empty() || name.chars().count() > 100 {
+                    return Err("Use um nome entre 1 e 100 caracteres.".into());
+                }
+                let artwork = params["art"].as_str();
+                if artwork.is_some_and(|art| !safe_playlist_artwork(art)) {
+                    return Err("Capa inválida. Escolha uma imagem menor.".into());
+                }
+                if let Some(uri) = params["uri"].as_str() {
+                    let entry = next
+                        .entries
+                        .iter_mut()
+                        .find(|e| e.uri == uri && e.kind == "playlist")
+                        .ok_or("Playlist não encontrada.")?;
+                    entry.title = name.into();
+                    if let Some(art) = artwork {
+                        entry.thumbnail = art.into();
+                    }
+                } else {
+                    let collection = next
+                        .collections
+                        .iter_mut()
+                        .find(|c| Some(c.id) == params["id"].as_u64())
+                        .ok_or("Playlist não encontrada.")?;
+                    collection.name = name.into();
+                    if let Some(art) = artwork {
+                        collection.thumbnail = art.into();
+                    }
+                }
             }
             "remove_from_collection" => {
                 let id = params["id"].as_u64().ok_or("Playlist inválida.")?;
@@ -1056,6 +1113,31 @@ pub(crate) fn safe_artwork(input: &str) -> bool {
             && u.username().is_empty()
             && u.password().is_none()
             && u.port().is_none()
+    })
+}
+fn safe_playlist_artwork(input: &str) -> bool {
+    if input.is_empty() || (input.len() <= 600 && safe_artwork(input)) {
+        return true;
+    }
+    if input.len() > 32768 {
+        return false;
+    }
+    use base64::Engine;
+    [
+        ("data:image/jpeg;base64,", 0),
+        ("data:image/png;base64,", 1),
+        ("data:image/webp;base64,", 2),
+    ]
+    .iter()
+    .any(|(prefix, kind)| {
+        input
+            .strip_prefix(prefix)
+            .and_then(|data| base64::engine::general_purpose::STANDARD.decode(data).ok())
+            .is_some_and(|bytes| match kind {
+                0 => bytes.starts_with(b"\xff\xd8\xff"),
+                1 => bytes.starts_with(b"\x89PNG\r\n\x1a\n"),
+                _ => bytes.starts_with(b"RIFF") && bytes.get(8..12) == Some(b"WEBP"),
+            })
     })
 }
 
@@ -1166,6 +1248,50 @@ fn fetch_metadata(_: &str) -> Result<Value, String> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn playlist_edits_survive_restart_and_cloud_covers_are_merged() {
+        let dir = std::env::temp_dir().join(format!(
+            "mare-playlist-covers-{}-{}",
+            std::process::id(),
+            crate::model::now_ms()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        let mut app = Spotify::new(&dir).unwrap();
+        let uri = "spotify:playlist:4uLU6hMCjMI75M1A2tKUQC";
+        app.handle("save_link", &json!({"url":uri,"title":"Original"}))
+            .unwrap();
+        let before = app.library.clone();
+        app.handle(
+            "edit_playlist",
+            &json!({"uri":uri,"name":"Edited","art":"https://i.scdn.co/image/fixture"}),
+        )
+        .unwrap();
+        assert!(app
+            .library_events(&before)
+            .iter()
+            .any(|e| e["type"] == "playlist_meta"));
+        assert!(app
+            .handle(
+                "edit_playlist",
+                &json!({"uri":uri,"name":"Bad","art":"data:image/svg+xml;base64,PHN2Zz4="})
+            )
+            .is_err());
+        drop(app);
+        let mut app = Spotify::new(&dir).unwrap();
+        assert_eq!(app.library.entries[0].title, "Edited");
+        assert_eq!(
+            app.library.entries[0].thumbnail,
+            "https://i.scdn.co/image/fixture"
+        );
+        app.merge_cloud(&json!({"tracks":[],"playlists":[{"id":"4uLU6hMCjMI75M1A2tKUQC","source":"https://open.spotify.com/playlist/4uLU6hMCjMI75M1A2tKUQC","name":"Phone edit","art":"https://i.scdn.co/image/phone","tracks":[]}]})).unwrap();
+        assert_eq!(
+            app.library.entries[0].thumbnail,
+            "https://i.scdn.co/image/phone"
+        );
+        assert_eq!(app.library.entries[0].title, "Phone edit");
+        drop(app);
+        fs::remove_dir_all(dir).unwrap();
+    }
     use super::*;
     #[test]
     fn imported_and_local_playlist_additions_survive_restart_and_removal() {

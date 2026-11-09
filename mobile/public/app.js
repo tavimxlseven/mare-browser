@@ -302,6 +302,9 @@ function render(force = false) {
   }
 }
 function showEntry(title, label, callback) {
+  $("playlist-cover-editor")?.remove();
+  $("entry-value").maxLength = 500;
+  $("entry-form").querySelector(".primary").textContent = "Continuar";
   if ($("delete-playlist")) $("delete-playlist").hidden = true;
   $("entry-title").textContent = title;
   $("entry-label").textContent = label;

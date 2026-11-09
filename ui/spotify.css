@@ -206,6 +206,7 @@
   display: flex;
   flex-direction: column;
   background: var(--music-main);
+  container-type: inline-size;
 }
 .spotify-app .music-queue {
   grid-area: 1 / 5;
@@ -694,7 +695,7 @@
 .spotify-app .music-list-heading,
 .spotify-app .music-row {
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr) 124px 112px;
+  grid-template-columns: 40px minmax(0, 1fr) 124px 136px;
   align-items: center;
   gap: 12px;
   padding: 0 8px;
@@ -710,6 +711,7 @@
   color: var(--music-muted);
   font-size: 12px;
   font-weight: 500;
+  border-radius: var(--music-r-md) var(--music-r-md) 0 0;
 }
 .spotify-app .music-list-heading > span:first-child {
   text-align: center;
@@ -1863,6 +1865,27 @@
   justify-content: flex-end;
   gap: 8px;
 }
+.spotify-app .music-playlist-editor-preview {
+  width: 132px;
+  height: 132px;
+  align-self: center;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: var(--music-cover-radius, 12px);
+  background: var(--music-raised);
+}
+.spotify-app .music-playlist-editor-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.spotify-app .music-dialog .music-cover-upload {
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
 .spotify-app .music-dialog-actions button:not(.music-green):not(.music-danger),
 .spotify-app .music-destinations button {
   min-height: 36px;
@@ -2120,6 +2143,32 @@
 .spotify-app.music-tight .music-volume input {
   flex-basis: 64px;
   min-width: 48px;
+}
+/* A wide window can still have a narrow centre after resizing the side panes. */
+@container (max-width: 600px) {
+  .spotify-app .music-list-heading,
+  .spotify-app .music-row {
+    grid-template-columns: 28px minmax(0, 1fr) 24px 100px;
+    gap: 6px;
+    padding-inline: 4px;
+  }
+  .spotify-app .music-availability span,
+  .spotify-app .music-list-heading > span:nth-child(3) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .spotify-app .music-row-title {
+    gap: 8px;
+  }
+  .spotify-app
+    .music-row-actions:has([data-sort-handle])
+    [data-action="favorite"] {
+    display: none;
+  }
 }
 
 /* ───────────── Reduced motion ───────────── */
@@ -2662,6 +2711,8 @@
   overflow-y: auto;
   min-height: 0;
   scrollbar-width: thin;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
 }
 .spotify-app .music-settings-content h4 {
   font-size: 21px;
@@ -2677,6 +2728,11 @@
   border: 0;
   padding: 0;
   margin: 0;
+}
+.spotify-app .music-settings-content > [data-settings-pane] {
+  min-width: 0;
+  background: transparent;
+  overflow-wrap: anywhere;
 }
 .spotify-app .music-settings-content small {
   font-size: 12px;
@@ -2758,6 +2814,7 @@
 }
 .spotify-app .music-settings-dialog {
   border-radius: 22px;
+  container-type: inline-size;
 }
 .spotify-app .music-settings-nav button {
   border-radius: 10px;
@@ -2792,7 +2849,7 @@
 }
 .spotify-app .music-wallpaper-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr));
   gap: 14px 12px;
 }
 .spotify-app .music-wallpaper-grid button {
@@ -2800,7 +2857,10 @@
   flex-direction: column;
   align-items: stretch;
   gap: 8px;
-  font-size: 12px;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: normal;
   padding: 0 0 4px;
   border-radius: 12px;
   overflow: visible;
@@ -2867,11 +2927,23 @@
   );
 }
 .spotify-app.music-has-wallpaper .spotify-player {
+  padding: 0 12px;
+  border-radius: var(--music-radius, 18px);
   background: color-mix(
     in srgb,
     var(--music-player) var(--music-panel-opacity, 94%),
     transparent
   );
+  box-shadow:
+    inset 0 0 0 1px var(--music-line),
+    0 2px 8px rgba(0, 0, 0, 0.08);
+}
+.spotify-app.music-has-wallpaper {
+  row-gap: 8px;
+  padding-bottom: 8px;
+}
+.spotify-app.music-has-wallpaper.music-narrow.queue-expanded .music-queue {
+  bottom: calc(var(--music-player-h) + 16px);
 }
 .spotify-app[data-music-theme="dark"] .music-green {
   color: #18181b;
@@ -2913,6 +2985,31 @@
   position: relative;
   width: fit-content;
   max-width: 100%;
+  white-space: normal;
+  font-size: 13px;
+  line-height: 1.45;
+}
+@container (max-width: 620px) {
+  .spotify-app .music-settings-shell {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .spotify-app .music-settings-nav {
+    flex-direction: row;
+    padding: 10px 12px;
+    gap: 6px;
+    min-width: 0;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--music-divider);
+  }
+  .spotify-app .music-settings-nav button {
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+  .spotify-app .music-settings-content {
+    padding: 20px;
+  }
 }
 .spotify-app[data-music-theme="dark"] {
   --music-surface: #101015;
@@ -3337,6 +3434,8 @@
 .spotify-app .music-choice-row button {
   min-width: 0;
   min-height: 40px;
+  white-space: normal;
+  overflow-wrap: anywhere;
   padding: 8px 10px;
   border: 0;
   border-radius: 12px;

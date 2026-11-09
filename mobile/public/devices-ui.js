@@ -1,4 +1,43 @@
 (function (root) {
+  // Canvas normalizes pixels and removes the original file's metadata before sync.
+  root.prepareMusicCover = async function (file) {
+    if (
+      !file ||
+      file.size > 12 * 1024 * 1024 ||
+      !["image/jpeg", "image/png", "image/webp"].includes(file.type)
+    )
+      throw Error("Escolha PNG, JPEG ou WebP de até 12 MB.");
+    const url = URL.createObjectURL(file),
+      image = new Image();
+    try {
+      image.src = url;
+      await image.decode();
+      const canvas = document.createElement("canvas"),
+        ctx = canvas.getContext("2d");
+      const side = Math.min(image.naturalWidth, image.naturalHeight);
+      for (const size of [384, 256, 192]) {
+        canvas.width = canvas.height = size;
+        ctx.drawImage(
+          image,
+          (image.naturalWidth - side) / 2,
+          (image.naturalHeight - side) / 2,
+          side,
+          side,
+          0,
+          0,
+          size,
+          size,
+        );
+        for (const quality of [0.8, 0.65, 0.5]) {
+          const art = canvas.toDataURL("image/jpeg", quality);
+          if (art.length <= 32768) return art;
+        }
+      }
+      throw Error("Não foi possível reduzir essa imagem. Escolha outra capa.");
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  };
   // Mirrored display state is deliberately separate from the local audio state.
   root.createMusicOutput = function ({
     getState,

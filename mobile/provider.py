@@ -145,6 +145,13 @@ def normalize_link(link):
     return kind, identifier, f"https://open.spotify.com/{kind}/{identifier}"
 
 
+class Collection(tuple):
+    def __new__(cls, kind, identifier, name, tracks, art):
+        value=super().__new__(cls,(kind,identifier,name,tracks))
+        value.art=art
+        return value
+
+
 def collection(link):
     kind, identifier, _ = normalize_link(link)
     data = json.loads(
@@ -156,7 +163,10 @@ def collection(link):
     tracks = [t for entry in raw if isinstance(entry, dict) and (t := track(entry))]
     if not tracks:
         raise ValueError("empty")
-    return kind, identifier, str(data.get("name", ""))[:200], tracks
+    art=str(data.get("thumbnail") or data.get("thumbnail_url") or "")
+    if not art.startswith(("https://i.scdn.co/","https://mosaic.scdn.co/","https://image-cdn-ak.spotifycdn.com/")) or len(art)>600:
+        art=""
+    return Collection(kind, identifier, str(data.get("name", ""))[:200], tracks, art)
 
 
 def download(identifier, directory, metadata=None):

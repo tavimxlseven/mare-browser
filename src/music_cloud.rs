@@ -32,6 +32,7 @@ struct State {
     commands: Value,
     revision: String,
     ack: u64,
+    wake: bool,
 }
 pub struct Cloud {
     shared: Arc<Mutex<State>>,
@@ -177,6 +178,7 @@ impl Cloud {
         }
         if let Ok(value) = event(kind, data) {
             s.events.push(value);
+            s.wake = true;
             write_events(&self.directory, &s.events);
         }
     }
@@ -184,12 +186,22 @@ impl Cloud {
         event(kind, data).ok()
     }
     pub fn publish(&self, player: Value) {
-        self.shared.lock().unwrap_or_else(|e| e.into_inner()).player = player;
+        let mut s = self.shared.lock().unwrap_or_else(|e| e.into_inner());
+        s.wake |= ["track_id", "state", "activation", "queue", "volume"]
+            .iter()
+            .any(|key| s.player[*key] != player[*key])
+            || s.player["position_ms"]
+                .as_u64()
+                .unwrap_or(0)
+                .abs_diff(player["position_ms"].as_u64().unwrap_or(0))
+                > 2000;
+        s.player = player;
     }
     pub fn ack(&self, id: u64) {
         let mut s = self.shared.lock().unwrap_or_else(|e| e.into_inner());
         s.ack = s.ack.max(id);
         s.commands = json!([]);
+        s.wake = true;
     }
     pub fn take_library(&self) -> Option<Value> {
         let mut s = self.shared.lock().unwrap_or_else(|e| e.into_inner());
@@ -314,7 +326,8 @@ impl Cloud {
             }
             while !cancel.load(Ordering::Acquire) {
                 let (config, payload) = {
-                    let s = shared.lock().unwrap_or_else(|e| e.into_inner());
+                    let mut s = shared.lock().unwrap_or_else(|e| e.into_inner());
+                    s.wake = false;
                     let mut size = 0;
                     let events: Vec<_> = s
                         .events
@@ -344,7 +357,9 @@ impl Cloud {
                         Ok(r) => {
                             let accepted = r["accepted"].as_array().cloned().unwrap_or_default();
                             s.events.retain(|event| !accepted.contains(&event["id"]));
-                            write_events(&directory, &s.events);
+                            if !accepted.is_empty() {
+                                write_events(&directory, &s.events);
+                            }
                             s.revision = r["revision"].as_str().unwrap_or("").into();
                             s.devices = r["devices"].clone();
                             s.session = r["session"].clone();
@@ -357,11 +372,14 @@ impl Cloud {
                         Err(e) => s.error = e,
                     }
                 }
-                for _ in 0..15 {
+                for _ in 0..6 {
                     if cancel.load(Ordering::Acquire) {
                         break;
                     }
                     thread::sleep(Duration::from_millis(100));
+                    if shared.lock().unwrap_or_else(|e| e.into_inner()).wake {
+                        break;
+                    }
                 }
             }
         });

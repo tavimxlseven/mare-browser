@@ -222,11 +222,52 @@ for (const button of document.querySelectorAll("[data-library-filter]")) {
 $("playlist-options").onclick = () => {
   const playlist = library.playlists.find((p) => p.id === selected);
   if (!playlist) return;
-  showEntry("Renomear playlist", "Novo nome", async (name) => {
-    await api("playlists", { id: playlist.id, name, tracks: playlist.tracks });
+  let editedCover;
+  showEntry("Editar playlist", "Nome da playlist", async (name) => {
+    await api("playlists/" + encodeURIComponent(playlist.id) + "/metadata", {
+      name,
+      ...(editedCover !== undefined ? { art: editedCover } : {}),
+    });
     await refresh();
   });
   const form = $("entry-form");
+  form.querySelector(".primary").textContent = "Salvar alterações";
+  const editor = document.createElement("div");
+  editor.id = "playlist-cover-editor";
+  editor.innerHTML =
+    '<div class="playlist-cover-preview"></div><label class="cover-upload">Escolher capa<input type="file" accept="image/png,image/jpeg,image/webp" hidden></label><button type="button" class="cover-reset">Usar capa automática</button><small role="status"></small>';
+  form.prepend(editor);
+  const paint = (art) => {
+    const container = editor.querySelector(".playlist-cover-preview");
+    container.replaceChildren();
+    if (art) {
+      const image = new Image();
+      image.src = art;
+      image.alt = "Capa da playlist";
+      container.append(image);
+    } else container.innerHTML = icon("playlist");
+  };
+  paint(playlist.art);
+  editor.querySelector("[type=file]").onchange = async (event) => {
+    const save = form.querySelector(".primary"),
+      status = editor.querySelector("[role=status]");
+    save.disabled = true;
+    status.textContent = "Preparando capa…";
+    try {
+      editedCover = await window.prepareMusicCover(event.target.files?.[0]);
+      paint(editedCover);
+      status.textContent = "Capa pronta para salvar.";
+    } catch (error) {
+      status.textContent = error.message;
+    } finally {
+      save.disabled = false;
+      event.target.value = "";
+    }
+  };
+  editor.querySelector(".cover-reset").onclick = () => {
+    editedCover = "";
+    paint("");
+  };
   let remove = $("delete-playlist");
   if (!remove) {
     remove = document.createElement("button");
@@ -253,6 +294,7 @@ $("playlist-options").onclick = () => {
     await refresh();
   });
   $("entry-value").value = playlist.name;
+  $("entry-value").maxLength = 100;
 };
 
 attachMusicHold(document.body, {
