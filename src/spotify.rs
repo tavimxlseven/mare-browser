@@ -538,6 +538,16 @@ impl Spotify {
         Ok(())
     }
     pub fn handle(&mut self, method: &str, params: &Value) -> Result<Value, String> {
+        if method == "cloud_login" {
+            let seed = self.library_events(&Library::default());
+            self.cloud.login(
+                params["origin"].as_str().unwrap_or(""),
+                params["username"].as_str().unwrap_or(""),
+                params["password"].as_str().unwrap_or(""),
+                seed,
+            )?;
+            return Ok(self.snapshot());
+        }
         if method == "cloud_pair" {
             let seed = self.library_events(&Library::default());
             self.cloud.connect(

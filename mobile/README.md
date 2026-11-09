@@ -78,3 +78,6 @@ The Windows session is protected with Windows DPAPI. Device credentials can sync
 Both apps must be open and online to receive playback controls or a handoff. The device list shows current playback; choose **Continue here** or **Listen on this device** to transfer the current track, position and upcoming queue. The target prepares missing audio through its own pipeline. An installed PWA cannot be remotely awakened when the operating system suspends it. Volume buttons are shown for native PC targets; phone volume remains under system control. The existing Wi-Fi-only remote panel remains available separately.
 
 Playlist drag handles support pointer/touch and Arrow Up/Down/Home/End. The server validates complete account-owned permutations and preserves manual order through reimports. A stale list is refreshed rather than silently dropping tracks.
+
+
+Na versão 0.4.1, o PC também pode entrar diretamente com o usuário e senha da mesma conta do celular, em **Ajustes de música → Conexões**. Use o endereço HTTPS da sua instalação. O código temporário continua disponível por compatibilidade, mas não é necessário para o login direto. A senha não é persistida; somente a credencial revogável do dispositivo é protegida pelo DPAPI. Segurar uma faixa e arrastar muda sua posição; segurar e soltar abre as opções.

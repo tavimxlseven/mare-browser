@@ -127,7 +127,35 @@ impl Cloud {
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .connecting = true;
-        self.run(Some((origin, code)), seed);
+        self.run(
+            Some((origin, json!({"code":code,"name":"Maré no PC"}))),
+            seed,
+        );
+        Ok(())
+    }
+    pub fn login(
+        &mut self,
+        input: &str,
+        username: &str,
+        password: &str,
+        seed: Vec<Value>,
+    ) -> Result<(), String> {
+        let server = origin(input)?;
+        if username.trim().is_empty() || password.is_empty() || password.len() > 512 {
+            return Err("Informe seu usuário e senha do Maré Música.".into());
+        }
+        self.disconnect();
+        self.shared
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .connecting = true;
+        self.run(
+            Some((
+                server,
+                json!({"username":username.trim(),"password":password}),
+            )),
+            seed,
+        );
         Ok(())
     }
     pub fn enqueue(&self, kind: &str, data: Value) {
@@ -209,18 +237,22 @@ impl Cloud {
             });
         }
     }
-    fn run(&mut self, pair: Option<(String, String)>, seed: Vec<Value>) {
+    fn run(&mut self, pair: Option<(String, Value)>, seed: Vec<Value>) {
         let shared = self.shared.clone();
         let cancel = self.cancel.clone();
         let directory = self.directory.clone();
         thread::spawn(move || {
-            if let Some((origin, code)) = pair {
+            if let Some((origin, credentials)) = pair {
                 let result = (|| -> Result<Config, String> {
                     let r = http(
                         &origin,
-                        "/api/devices/claim",
+                        if credentials.get("code").is_some() {
+                            "/api/devices/claim"
+                        } else {
+                            "/api/devices/login"
+                        },
                         None,
-                        &json!({"code":code,"name":"Maré no PC"}),
+                        &credentials,
                     )?;
                     let c = Config {
                         origin,

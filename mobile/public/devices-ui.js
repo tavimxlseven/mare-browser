@@ -47,14 +47,14 @@
         container.innerHTML =
           "<h4>" +
           icon("devices") +
-          ' PC e celular</h4><p>Conecte sua conta do Maré. A biblioteca acompanha você e as playlists adicionadas no PC também são preparadas para o celular.</p><form><label>Servidor do Maré<input name="origin" type="url" required placeholder="https://seu-servidor.example" autocomplete="url"></label><label>Código mostrado no celular<input name="code" required maxlength="12" minlength="8" placeholder="ABCD 2345" autocomplete="off"></label><button class="device-primary" ' +
+          ' PC e celular</h4><p>Conecte sua conta do Maré. A biblioteca acompanha você e as playlists adicionadas no PC também são preparadas para o celular.</p><form><label>Servidor do Maré<input name="origin" type="url" required placeholder="https://seu-servidor.example" autocomplete="url"></label><label>Usuário do Maré<input name="username" required maxlength="32" autocomplete="username"></label><label>Senha<input name="password" type="password" required maxlength="128" autocomplete="current-password"></label><button class="device-primary" ' +
           (state.connecting ? "disabled" : "") +
           ">" +
-          (state.connecting ? "Conectando…" : "Conectar este PC") +
+          (state.connecting ? "Conectando…" : "Entrar na minha conta") +
           '</button></form><p role="status">' +
           esc(
             state.error ||
-              "No celular, abra Ajustes → PC e celular → Conectar um PC.",
+              "Use a mesma conta do celular. Sua biblioteca será sincronizada. A senha não fica salva no PC.",
           ) +
           "</p>";
         const form = container.querySelector("form");
@@ -64,8 +64,12 @@
           busy = true;
           form.querySelector("button").disabled = true;
           try {
-            await connect(form.elements.origin.value, form.elements.code.value);
-            form.elements.code.value = "";
+            await connect(
+              form.elements.origin.value,
+              form.elements.username.value,
+              form.elements.password.value,
+            );
+            form.elements.password.value = "";
             document.activeElement?.blur();
           } catch (e) {
             notify(e.message);

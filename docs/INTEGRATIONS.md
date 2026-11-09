@@ -51,3 +51,6 @@ O pareamento usa a conta do Maré Música; não depende de login Spotify, bot ou
 As playlists e músicas adicionadas no PC são sincronizadas por conta e solicitam preparação no servidor para o celular. A busca e o download de áudio no PC continuam locais. O controle e a transferência de reprodução exigem os dois aplicativos abertos e conectados. O iOS pode suspender o webapp em segundo plano.
 
 A credencial do PC fica protegida pelo DPAPI do Windows em `apps/spotify/cloud-session.bin`. Desconectar revoga a credencial no servidor e remove a cópia local. Não publique esse arquivo, `cloud-events.json`, a pasta de dados ou endereços privados do servidor.
+
+
+Na versão 0.4.1, o PC também pode entrar diretamente com o usuário e senha da mesma conta do celular, em **Ajustes de música → Conexões**. Use o endereço HTTPS da sua instalação. O código temporário continua disponível por compatibilidade, mas não é necessário para o login direto. A senha não é persistida; somente a credencial revogável do dispositivo é protegida pelo DPAPI. Segurar uma faixa e arrastar muda sua posição; segurar e soltar abre as opções.

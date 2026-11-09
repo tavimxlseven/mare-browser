@@ -461,6 +461,7 @@ window.attachMusicTools = function ({
   element.addEventListener("pointerdown", dismiss);
 
   return {
+    showMenu: songMenu,
     get searching() {
       return searching;
     },

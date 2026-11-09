@@ -333,3 +333,36 @@ body #mini button:active {
     transition: none;
   }
 }
+
+/* Music surfaces behave like app controls; editors retain normal text selection. */
+.spotify-app,
+body:has(#mini),
+body:has(#mini) dialog {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.spotify-app input,
+.spotify-app textarea,
+body:has(#mini) input,
+body:has(#mini) textarea,
+[contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+.spotify-item,
+.track,
+.music-next article {
+  -webkit-user-drag: none;
+}
+.music-held {
+  background: color-mix(
+    in srgb,
+    var(--accent, #fa496c) 13%,
+    transparent
+  ) !important;
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--accent, #fa496c) 35%, transparent);
+  border-radius: 14px;
+}

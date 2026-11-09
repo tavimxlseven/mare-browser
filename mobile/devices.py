@@ -172,6 +172,19 @@ def register(app, db, save_tracks, create_job, wake, enqueue_tracks):
             user=accounts.identity(con.execute("SELECT * FROM users WHERE id=?",(match["owner"],)).fetchone())
         return jsonify(token=token,id=identifier,user=user)
 
+    @app.post("/api/devices/login")
+    def desktop_login():
+        from werkzeug.security import check_password_hash
+        accounts.throttle()
+        raw=request.get_json()
+        if not isinstance(raw,dict): abort(400)
+        with db() as con:
+            user=con.execute("SELECT * FROM users WHERE username=? COLLATE NOCASE",(str(raw.get("username",""))[:32],)).fetchone()
+            if not user or not check_password_hash(user["password_hash"],str(raw.get("password",""))[:128]): abort(401)
+            token=secrets.token_urlsafe(32);identifier=secrets.token_hex(12)
+            con.execute("INSERT INTO music_devices(id,owner,token_hash,name,kind,last_seen) VALUES (?,?,?,?,?,?)",(identifier,user["id"],hashlib.sha256(token.encode()).hexdigest(),"Maré no PC","desktop",time.time()))
+        return jsonify(token=token,id=identifier,user=accounts.identity(user))
+
     @app.post("/api/devices/register")
     def web_register():
         identifier=secrets.token_hex(12)

@@ -193,6 +193,14 @@ fn data_directory() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("mare-data"))
 }
 
+fn shell_display_path(path: &Path) -> PathBuf {
+    let text = path.to_string_lossy();
+    if let Some(unc) = text.strip_prefix(r"\\?\UNC\") {
+        return format!(r"\\{unc}").into();
+    }
+    text.strip_prefix(r"\\?\").unwrap_or(&text).into()
+}
+
 fn allowed_navigation(url: &str) -> bool {
     url == "about:blank"
         || url::Url::parse(url).is_ok_and(|u| {
@@ -1485,6 +1493,7 @@ impl Browser {
             self.notify("O arquivo não está mais neste local.");
             return;
         };
+        let path = shell_display_path(&path);
         let extension = path
             .extension()
             .and_then(|s| s.to_str())
@@ -2177,6 +2186,21 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn shell_paths_preserve_unicode_and_use_explorer_compatible_prefixes() {
+        assert_eq!(
+            shell_display_path(Path::new(r"\\?\D:\Downloads\arquivo de teste á.txt")),
+            PathBuf::from(r"D:\Downloads\arquivo de teste á.txt")
+        );
+        assert_eq!(
+            shell_display_path(Path::new(r"\\?\UNC\server\share\song.m4a")),
+            PathBuf::from(r"\\server\share\song.m4a")
+        );
+        assert_eq!(
+            shell_display_path(Path::new(r"D:\Downloads\song.m4a")),
+            PathBuf::from(r"D:\Downloads\song.m4a")
+        );
+    }
     #[test]
     fn packaged_interface_contains_all_styles_and_scripts_without_external_files() {
         let html = embedded_ui();

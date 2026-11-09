@@ -1,4 +1,4 @@
-THIRD-PARTY LICENSES — MARÉ BROWSER 0.4.0
+THIRD-PARTY LICENSES — MARÉ BROWSER 0.4.1
 
 Generated from the resolved Cargo dependency graph for x86_64-pc-windows-gnu.
 Includes runtime and build/procedural-macro crates in that graph. Some items may
@@ -24139,8 +24139,8 @@ DEALINGS IN THE SOFTWARE.
         </p>
     
 
-    <h3>📦 rand_xorshift-0.4.0</h3>
-    <p><b>URL:</b> <a href="https://crates.io/crates/rand_xorshift/0.4.0">https://crates.io/crates/rand_xorshift/0.4.0</a></p>
+    <h3>📦 rand_xorshift-0.4.1</h3>
+    <p><b>URL:</b> <a href="https://crates.io/crates/rand_xorshift/0.4.1">https://crates.io/crates/rand_xorshift/0.4.1</a></p>
     <p><b>Authors:</b> The Rand Project Developers, The Rust Project Developers</p>
     <p><b>License:</b> MIT OR Apache-2.0</p>
     
@@ -31528,8 +31528,8 @@ DEALINGS IN THE SOFTWARE.
         </p>
     
 
-    <h3>📦 wasip3-0.4.0+wasi-0.3.0-rc-2026-01-06</h3>
-    <p><b>URL:</b> <a href="https://crates.io/crates/wasip3/0.4.0+wasi-0.3.0-rc-2026-01-06">https://crates.io/crates/wasip3/0.4.0+wasi-0.3.0-rc-2026-01-06</a></p>
+    <h3>📦 wasip3-0.4.1+wasi-0.3.0-rc-2026-01-06</h3>
+    <p><b>URL:</b> <a href="https://crates.io/crates/wasip3/0.4.1+wasi-0.3.0-rc-2026-01-06">https://crates.io/crates/wasip3/0.4.1+wasi-0.3.0-rc-2026-01-06</a></p>
     <p><b>Authors:</b> </p>
     <p><b>License:</b> Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT</p>
     

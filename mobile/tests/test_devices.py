@@ -21,6 +21,18 @@ class DeviceTests(unittest.TestCase):
         headers={**self.origin,'Authorization':'Bearer '+response.json['token']}
         return client,headers,response.json['id'],code
 
+    def test_desktop_uses_the_same_account_without_saving_the_password(self):
+        client=server.app.test_client()
+        self.assertEqual(client.post('/api/devices/login',json={'username':'admin','password':'wrong'},headers=self.origin).status_code,401)
+        result=client.post('/api/devices/login',json={'username':'admin','password':'test-password'},headers=self.origin)
+        self.assertEqual(result.status_code,200)
+        self.assertNotIn('password',result.json)
+        headers={**self.origin,'Authorization':'Bearer '+result.json['token']}
+        self.assertEqual(client.post('/api/devices/sync',json={},headers=headers).status_code,200)
+        self.assertEqual(client.get('/api/admin/invites',headers=headers).status_code,403)
+        self.assertEqual(client.post('/api/devices/disconnect',json={},headers=headers).status_code,200)
+        self.assertEqual(client.post('/api/devices/sync',json={},headers=headers).status_code,401)
+
     def test_pair_is_single_use_and_device_cannot_manage_accounts(self):
         client,headers,identifier,code=self.pair()
         self.assertEqual(client.post('/api/devices/claim',json={'code':code},headers=self.origin).status_code,401)

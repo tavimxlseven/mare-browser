@@ -180,3 +180,9 @@ $("playlist-options").onclick = () => {
   });
   $("entry-value").value = playlist.name;
 };
+
+attachMusicHold(document.body,{
+ selector:'.track',
+ sorter:row=>row.dataset.sortKey!==undefined?(row.closest('#queue')?queueSort:playlistSort):null,
+ menu:row=>{const track=library.tracks.find(t=>t.id===row.dataset.trackId);if(track)options(track);}
+});

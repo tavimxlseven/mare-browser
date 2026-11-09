@@ -135,7 +135,7 @@ def protect():
         return
     if request.method != "GET" and request.headers.get("Origin") != ORIGIN:
         abort(403)
-    if request.path in ("/api/login", "/api/register", "/api/devices/claim"):
+    if request.path in ("/api/login", "/api/register", "/api/devices/claim", "/api/devices/login"):
         return
     with db() as con:
         if not devices.bearer(con): accounts.authenticate(con)

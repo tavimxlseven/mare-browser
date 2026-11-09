@@ -515,7 +515,8 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
         localPlayer: cloudPlayer,
         icon: svg,
         notify,
-        connect: (origin, code) => invoke("cloud_pair", { origin, code }),
+        connect: (origin, username, password) =>
+          invoke("cloud_login", { origin, username, password }),
         send: (target, command) =>
           request("cloud_command", { target, command }),
         receive: receiveCloudPlayer,
@@ -1476,6 +1477,41 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
     if (announce.textContent !== message) announce.textContent = message;
   }
 
+  window.attachMusicHold(element, {
+    selector: ".spotify-item,.music-next article",
+    sorter: (row) =>
+      row.dataset.sortKey !== undefined
+        ? row.closest(".music-next")
+          ? queueSort
+          : librarySort
+        : null,
+    menu: (row, event) => {
+      const button = row.querySelector('[data-action="track_menu"]');
+      if (button)
+        musicTools.showMenu(
+          currentRows[Number(button.dataset.row)],
+          event.clientX,
+          event.clientY,
+        );
+      else {
+        const track = data.local_tracks.find(
+          (t) => t.id === playback.order[Number(row.dataset.sortKey)],
+        );
+        if (track)
+          musicTools.showMenu(
+            {
+              local: track,
+              uri: track.track_uri,
+              title: track.title,
+              artists: track.artists,
+              thumbnail: track.artwork,
+            },
+            event.clientX,
+            event.clientY,
+          );
+      }
+    },
+  });
   async function playQueued(id) {
     if (id == null) return;
     const meta = queueMeta.get(id);

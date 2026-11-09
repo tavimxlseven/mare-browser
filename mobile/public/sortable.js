@@ -108,9 +108,7 @@
       )
         Promise.resolve(onCommit(order())).catch(() => {});
     }
-    container.addEventListener("pointerdown", (event) => {
-      const handle = event.target.closest("[data-sort-handle]");
-      const row = handle?.closest(item);
+    function begin(event, row, handle = row) {
       if (
         !row ||
         !container.contains(row) ||
@@ -166,6 +164,10 @@
       row.classList.add("is-drag-source");
       container.classList.add("is-sorting");
       frame = requestAnimationFrame(scrollFrame);
+    }
+    container.addEventListener("pointerdown", (event) => {
+      const handle = event.target.closest("[data-sort-handle]");
+      if (handle) begin(event, handle.closest(item), handle);
     });
     container.addEventListener("pointermove", (event) => {
       if (drag && event.pointerId === drag.pointer) {
@@ -235,7 +237,102 @@
       get dragging() {
         return !!drag;
       },
+      start: (event, row) => begin(event, row),
       cancel: () => finish(true),
     };
+  };
+  root.attachMusicHold = function (
+    container,
+    { selector, sorter = () => null, menu },
+  ) {
+    let pending = null,
+      blockUntil = 0;
+    const clear = () => {
+      if (pending) {
+        clearTimeout(pending.timer);
+        pending.row.classList.remove("music-held");
+        pending = null;
+      }
+    };
+    container.addEventListener("pointerdown", (event) => {
+      if (
+        event.button !== 0 ||
+        event.target.closest(
+          "[data-sort-handle],input,textarea,select,.more,.track-state,.music-actions,.music-row-actions,.music-queue-actions",
+        )
+      )
+        return;
+      const row = event.target.closest(selector);
+      if (!row) return;
+      clear();
+      const state = (pending = {
+        row,
+        event,
+        x: event.clientX,
+        y: event.clientY,
+        held: false,
+        dragged: false,
+      });
+      state.timer = setTimeout(() => {
+        if (pending !== state) return;
+        state.held = true;
+        row.classList.add("music-held");
+        navigator.vibrate?.(12);
+      }, 450);
+    });
+    container.addEventListener("pointermove", (event) => {
+      if (!pending || event.pointerId !== pending.event.pointerId) return;
+      const moved =
+        Math.hypot(event.clientX - pending.x, event.clientY - pending.y) > 9;
+      if (!pending.held) {
+        if (moved) clear();
+        return;
+      }
+      if (moved && !pending.dragged) {
+        const sorting = sorter(pending.row);
+        if (sorting) {
+          pending.dragged = true;
+          sorting.start(pending.event, pending.row);
+        }
+      }
+      if (pending.dragged) event.preventDefault();
+    });
+    container.addEventListener(
+      "touchmove",
+      (event) => {
+        if (pending?.held) event.preventDefault();
+      },
+      { passive: false },
+    );
+    container.addEventListener("pointerup", (event) => {
+      if (!pending || pending.event.pointerId !== event.pointerId) return;
+      const state = pending;
+      clear();
+      if (state.held) {
+        blockUntil = Date.now() + 500;
+        event.preventDefault();
+        if (!state.dragged) menu(state.row, state.event);
+      }
+    });
+    container.addEventListener("pointercancel", clear);
+    container.addEventListener(
+      "click",
+      (event) => {
+        if (Date.now() < blockUntil) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }
+      },
+      true,
+    );
+    container.addEventListener("contextmenu", (event) => {
+      if (event.defaultPrevented) return;
+      if (event.target.closest(selector)) {
+        event.preventDefault();
+        if (pending?.held) return;
+        menu(event.target.closest(selector), event);
+      }
+    });
+    return { cancel: clear };
   };
 })(typeof window !== "undefined" ? window : globalThis);

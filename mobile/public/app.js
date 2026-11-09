@@ -155,6 +155,7 @@ let offlineIds = new Set();
 function row(track, list) {
   const el = document.createElement("article");
   el.className = "track";
+  el.dataset.trackId=track.id;
   const art = document.createElement("div");
   art.className = "art";
   artwork(track, art);
