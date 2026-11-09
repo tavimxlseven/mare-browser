@@ -3,6 +3,7 @@
     container,
     {
       desktop = false,
+      accountEntry = false,
       getState,
       localPlayer,
       connect,
@@ -19,6 +20,11 @@
       busy = false,
       loginOrigin = "",
       loginUsername = "";
+    if (desktop) {
+      try {
+        loginOrigin = localStorage.getItem("mare-music-server") || "";
+      } catch {}
+    }
     const esc = (value) =>
       String(value ?? "").replace(
         /[&<>"']/g,
@@ -41,6 +47,12 @@
       )
         return;
       const state = getState();
+      if (desktop && state.origin) {
+        loginOrigin = state.origin;
+        try {
+          localStorage.setItem("mare-music-server", loginOrigin);
+        } catch {}
+      }
       const next = JSON.stringify([state, pairing, busy]);
       if (!force && signature === next) return;
       signature = next;
@@ -59,7 +71,21 @@
               "Use a mesma conta do celular. Sua biblioteca será sincronizada. A senha não fica salva no PC.",
           ) +
           "</p>";
+        if (accountEntry) {
+          container.querySelector("h4").textContent = "Entrar no Maré Música";
+          container.querySelector("p").textContent =
+            "Sua biblioteca, playlists e aparelhos na mesma conta do celular.";
+        }
         const form = container.querySelector("form");
+        const serverLabel = form.elements.origin.closest("label");
+        const details = document.createElement("details");
+        details.className = "music-server-config";
+        details.open = !loginOrigin;
+        const summary = document.createElement("summary");
+        summary.textContent = "Configuração do servidor";
+        details.append(summary, serverLabel);
+        form.append(details);
+
         form.elements.origin.value = loginOrigin;
         form.elements.username.value = loginUsername;
         form.onsubmit = async (event) => {
@@ -69,6 +95,9 @@
           loginUsername = form.elements.username.value.trim();
           if (!loginOrigin.includes("://"))
             loginOrigin = "https://" + loginOrigin;
+          try {
+            localStorage.setItem("mare-music-server", loginOrigin);
+          } catch {}
           busy = true;
           form.querySelector("button").disabled = true;
           try {

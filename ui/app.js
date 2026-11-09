@@ -133,6 +133,7 @@
       theme: "system",
       search_engine: "duckduckgo",
       restore_session: true,
+      automatic_updates: true,
       home_background: "aurora",
       shield_enabled: true,
     },
@@ -313,9 +314,9 @@
                 return [b.x, b.y, b.width, b.height];
               })()
             : null,
-        panels: ["#popup", "#suggestions", "#toast"]
+        panels: ["#popup", "#suggestions", "#toast", "#update-notice"]
           .map((selector) => $(selector))
-          .filter((el) => !el.hidden)
+          .filter((el) => el && !el.hidden)
           .map((el) => {
             const rect = el.getBoundingClientRect();
             return [rect.x, rect.y, rect.width, rect.height];
@@ -369,6 +370,7 @@
       ? `app:${foregroundApp}`
       : `web:${state.active_id}`;
     applyTheme();
+    renderUpdate();
     document.title = `${tab.title || hostname(tab.url)} — Maré`;
     document.body.classList.toggle("private-mode", !!tab.private);
     $("#back").disabled = !!foregroundApp || !tab.can_go_back;
@@ -488,10 +490,19 @@
       ...openAppTabs().map((app) => ({ ...app, kind: "app" })),
     ];
   }
-  let lastAnimatedTab;
   function renderTabs() {
     const target = $("#tabs");
     const scroll = target.scrollLeft;
+    const tabKey = (element) =>
+      element.dataset.appTab
+        ? "app:" + element.dataset.appTab
+        : "web:" + element.dataset.tab;
+    const previous = new Map(
+      Array.from(target.children, (element) => [
+        tabKey(element),
+        { rect: element.getBoundingClientRect(), element },
+      ]),
+    );
     target.innerHTML =
       state.tabs
         .map(
@@ -506,19 +517,61 @@
         )
         .join("");
     target.scrollLeft = scroll;
-    const animatedTab = state.apps?.active_id || String(state.active_id);
-    if (animatedTab !== lastAnimatedTab) {
-      const selected = target.querySelector('[aria-selected="true"]');
-      if (selected)
+    if (!reducedMotion.matches) {
+      for (const element of target.children) {
+        const key = tabKey(element),
+          old = previous.get(key);
+        const rect = element.getBoundingClientRect();
+        if (!old) {
+          animate(
+            element,
+            [
+              { opacity: 0, transform: "translateY(7px) scale(.94)" },
+              { opacity: 1, transform: "translateY(0) scale(1)" },
+            ],
+            230,
+          );
+        } else {
+          previous.delete(key);
+          const dx = old.rect.left - rect.left;
+          if (Math.abs(dx) > 1 && rect.width > 0)
+            animate(
+              element,
+              [
+                {
+                  transform: `translateX(${dx}px) scaleX(${old.rect.width / rect.width})`,
+                },
+                { transform: "translateX(0) scaleX(1)" },
+              ],
+              200,
+            );
+        }
+      }
+      for (const { element, rect } of previous.values()) {
+        if (!rect.width) continue;
+        // A noninteractive visual copy lets the tab close immediately in Rust.
+        const ghost = element.cloneNode(true);
+        ghost.classList.add("tab-departure");
+        ghost.inert = true;
+        ghost.setAttribute("aria-hidden", "true");
+        ghost.removeAttribute("role");
+        Object.assign(ghost.style, {
+          position: "fixed",
+          left: rect.left + "px",
+          top: rect.top + "px",
+          width: rect.width + "px",
+          height: rect.height + "px",
+        });
+        document.body.append(ghost);
         animate(
-          selected,
+          ghost,
           [
-            { opacity: 0.65, transform: "translateY(3px)" },
-            { opacity: 1, transform: "translateY(0)" },
+            { opacity: 0.8, transform: "translateY(0) scale(1)" },
+            { opacity: 0, transform: "translateY(8px) scale(.9)" },
           ],
-          200,
-        );
-      lastAnimatedTab = animatedTab;
+          150,
+        ).then(() => ghost.remove());
+      }
     }
     $$("[data-tab]", target).forEach((el) => {
       el.addEventListener("click", (e) => {
@@ -909,7 +962,12 @@
       updateLayout();
     }
   }
+  let engineMenuToken = null;
   function closeTransient(immediate = false) {
+    if (engineMenuToken !== null) {
+      send({ cmd: "context_menu_answer", token: engineMenuToken });
+      engineMenuToken = null;
+    }
     if (ui.overlay === "permission" && activePermission) {
       send({
         cmd: "permission_answer",
@@ -1016,6 +1074,9 @@
   function showPopup(html, anchor, kind = "menu", position) {
     closeTransient(true);
     const popup = $("#popup");
+    popup.classList.remove("engine-menu");
+    popup.removeAttribute("role");
+    popup.onkeydown = null;
     popup.innerHTML = html;
     popup.hidden = false;
     ui.popup = kind;
@@ -1039,6 +1100,163 @@
       ],
       motion.popup,
     );
+    updateLayout();
+  }
+  function engineMenu(value) {
+    function items(list) {
+      return list
+        .map((item) => {
+          if (item.separator) return separator;
+          const label = esc(item.label.replace(/&/g, ""));
+          const children = item.children || [];
+          const content = `<span class="engine-check">${item.checked ? icon("check") : ""}</span><span>${label}</span>`;
+          return children.length
+            ? `<details class="engine-submenu"><summary class="menu-item" ${item.enabled ? "" : 'aria-disabled="true"'}>${content}${icon("down")}</summary><div role="group">${items(children)}</div></details>`
+            : `<button class="menu-item" role="menuitem" data-engine-command="${item.id}" ${item.enabled ? "" : "disabled"}>${content}<span class="shortcut">${esc(item.shortcut)}</span></button>`;
+        })
+        .join("");
+    }
+    showPopup(items(value.items), null, "engine", { x: value.x, y: value.y });
+    engineMenuToken = value.token;
+    const popup = $("#popup");
+    popup.classList.add("engine-menu");
+    popup.setAttribute("role", "menu");
+    popup.style.left = `${Math.max(8, Math.min(value.x, innerWidth - popup.offsetWidth - 8))}px`;
+    popup.querySelectorAll("[data-engine-command]").forEach((button) => {
+      button.onclick = () => {
+        send({
+          cmd: "context_menu_answer",
+          token: value.token,
+          command: Number(button.dataset.engineCommand),
+        });
+        engineMenuToken = null;
+        closeTransient();
+      };
+    });
+    popup.querySelectorAll("summary").forEach((summary) => {
+      summary.onclick = (event) => {
+        if (summary.ariaDisabled === "true") event.preventDefault();
+        requestAnimationFrame(fitMenu);
+      };
+    });
+    function fitMenu() {
+      popup.style.top = `${Math.max(8, Math.min(parseFloat(popup.style.top), innerHeight - popup.offsetHeight - 10))}px`;
+      updateLayout();
+    }
+    popup.onkeydown = (event) => {
+      const buttons = [
+        ...popup.querySelectorAll(
+          "button:not(:disabled), summary:not([aria-disabled=true])",
+        ),
+      ].filter((button) => button.getClientRects().length);
+      const index = buttons.indexOf(document.activeElement);
+      if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+        event.preventDefault();
+        buttons[
+          event.key === "Home"
+            ? 0
+            : event.key === "End"
+              ? buttons.length - 1
+              : (index +
+                  (event.key === "ArrowDown" ? 1 : -1) +
+                  buttons.length) %
+                buttons.length
+        ]?.focus();
+      } else if (
+        event.key === "ArrowRight" &&
+        document.activeElement?.tagName === "SUMMARY"
+      ) {
+        document.activeElement.parentElement.open = true;
+        fitMenu();
+      } else if (event.key === "ArrowLeft") {
+        const details = document.activeElement?.closest("details");
+        if (details) {
+          details.open = false;
+          details.querySelector("summary").focus();
+          fitMenu();
+        }
+      }
+    };
+    popup
+      .querySelector("button:not(:disabled), summary")
+      ?.focus({ preventScroll: true });
+    updateLayout();
+  }
+  let updateDismissed = "";
+  function renderUpdate(force = false) {
+    const value = state.update || {};
+    let card = $("#update-notice");
+    if (!card) {
+      card = document.createElement("aside");
+      card.id = "update-notice";
+      card.setAttribute("aria-label", "Atualização do Maré");
+      card.hidden = true;
+      document.body.append(card);
+    }
+    const key = value.version || value.status || "";
+    const visible =
+      force ||
+      ((value.status === "downloading" ||
+        value.status === "ready" ||
+        value.manual) &&
+        key !== updateDismissed);
+    if (!visible || !value.status) {
+      card.hidden = true;
+      return;
+    }
+    const signature = JSON.stringify(value);
+    if (card.dataset.value === signature && !card.hidden) return;
+    card.dataset.value = signature;
+    const entering = card.hidden;
+    card.hidden = false;
+    const ready = value.status === "ready";
+    const title = ready
+      ? "Seu Maré está pronto para atualizar"
+      : value.status === "downloading"
+        ? "Uma nova versão está chegando"
+        : value.status === "current"
+          ? "Você está na versão mais recente"
+          : value.status === "error"
+            ? "Não foi possível atualizar"
+            : "Buscando atualizações";
+    const text = ready
+      ? `A versão ${value.version} será instalada ao fechar o Maré. Suas abas e dados serão preservados.`
+      : value.status === "downloading"
+        ? `Baixando a versão ${value.version} · ${((value.received || 0) / 1048576).toFixed(1)} MB`
+        : value.status === "error"
+          ? value.message
+          : "Maré " + state.version;
+    card.innerHTML = `<button class="icon-button update-dismiss" aria-label="Fechar aviso">${icon("close")}</button><span class="update-emblem">${icon(ready ? "check" : "download")}</span><strong>${esc(title)}</strong><p>${esc(text)}</p>${value.status === "downloading" ? '<div class="update-transfer" role="status">Você pode continuar navegando.</div>' : ""}${ready ? '<button class="button primary update-install">Reiniciar e atualizar</button>' : value.status === "error" ? '<button class="button update-retry">Tentar novamente</button>' : ""}`;
+    $(".update-dismiss", card).onclick = () => {
+      updateDismissed = key;
+      animate(
+        card,
+        [
+          { opacity: 1, transform: "translateY(0)" },
+          { opacity: 0, transform: "translateY(8px)" },
+        ],
+        130,
+      ).then(() => {
+        card.hidden = true;
+        updateLayout();
+      });
+    };
+    if (ready) $(".update-install", card).onclick = () => requestClose();
+    const retry = $(".update-retry", card);
+    if (retry)
+      retry.onclick = () => {
+        updateDismissed = "";
+        send({ cmd: "check_updates" });
+      };
+    if (entering)
+      animate(
+        card,
+        [
+          { opacity: 0, transform: "translateY(12px) scale(.98)" },
+          { opacity: 1, transform: "none" },
+        ],
+        230,
+      );
     updateLayout();
   }
   const menuItem = (
@@ -1087,6 +1305,13 @@
         menuItem("printer", "Imprimir…", "print", "Ctrl+P") +
         separator +
         menuItem("settings", "Ajustes…", "settings") +
+        menuItem(
+          "download",
+          state.update?.status === "ready"
+            ? "Atualização pronta…"
+            : "Buscar atualizações…",
+          "updates",
+        ) +
         menuItem("sliders", "Consumo do Maré", "task-manager", "Shift+Esc") +
         menuItem("code", "Ferramentas de desenvolvedor", "devtools", "F12"),
       $("#more-button"),
@@ -1384,6 +1609,11 @@
         break;
       case "settings":
         showSettings();
+        break;
+      case "updates":
+        updateDismissed = "";
+        if (state.update?.status === "ready") renderUpdate(true);
+        else send({ cmd: "check_updates" });
         break;
       case "find":
         showFind();
@@ -2279,7 +2509,7 @@
         )
         .join(
           "",
-        )}</div></section><section class="settings-section"><h3>Navegação</h3><div class="setting-row"><span class="setting-label" id="search-engine-label">Mecanismo de pesquisa</span>${selectMarkup("search-engine", "search-engine-label", s.search_engine, searchEngines)}</div><div class="setting-row"><label for="restore-session">Continuar de onde parei<small>Reabrir as abas comuns ao iniciar o Maré.</small></label><label class="switch"><input id="restore-session" type="checkbox" ${s.restore_session ? "checked" : ""}><span></span></label></div></section><section class="settings-section"><h3>Página inicial</h3><div class="wallpaper-picker">${wallpapers.map(([value, label]) => `<button class="wallpaper-choice wallpaper ${value}" data-wallpaper="${value}" aria-pressed="${s.home_background === value}"><span class="landscape" aria-hidden="true"><i></i><i></i><i></i><i></i></span>${label}</button>`).join("")}</div></section><section class="settings-section"><h3>Proteção</h3><div class="setting-row"><label for="settings-shield">Bloquear anúncios e rastreadores<small>Use o botão de proteção para configurar cada site.</small></label><label class="switch"><input id="settings-shield" type="checkbox" ${(state.protection?.enabled ?? s.shield_enabled) !== false ? "checked" : ""}><span></span></label></div></section><section class="settings-section"><h3>Dados de navegação</h3><div class="setting-row"><div class="setting-label">Histórico<small>${state.history.length} ${state.history.length === 1 ? "página registrada" : "páginas registradas"}</small></div><button class="button" id="clear-history">Limpar histórico…</button></div><div class="setting-row"><div class="setting-label">Cookies e dados dos sites<small>Limpar pode encerrar sessões nos sites.</small></div><button class="button danger" id="clear-data">Limpar dados…</button></div></section><p class="about-footer">Maré ${esc(state.version)} · Código aberto</p>`,
+        )}</div></section><section class="settings-section"><h3>Navegação</h3><div class="setting-row"><span class="setting-label" id="search-engine-label">Mecanismo de pesquisa</span>${selectMarkup("search-engine", "search-engine-label", s.search_engine, searchEngines)}</div><div class="setting-row"><label for="restore-session">Continuar de onde parei<small>Reabrir as abas comuns ao iniciar o Maré.</small></label><label class="switch"><input id="restore-session" type="checkbox" ${s.restore_session ? "checked" : ""}><span></span></label></div></section><section class="settings-section"><h3>Página inicial</h3><div class="wallpaper-picker">${wallpapers.map(([value, label]) => `<button class="wallpaper-choice wallpaper ${value}" data-wallpaper="${value}" aria-pressed="${s.home_background === value}"><span class="landscape" aria-hidden="true"><i></i><i></i><i></i><i></i></span>${label}</button>`).join("")}</div></section><section class="settings-section"><h3>Proteção</h3><div class="setting-row"><label for="settings-shield">Bloquear anúncios e rastreadores<small>Use o botão de proteção para configurar cada site.</small></label><label class="switch"><input id="settings-shield" type="checkbox" ${(state.protection?.enabled ?? s.shield_enabled) !== false ? "checked" : ""}><span></span></label></div></section><section class="settings-section"><h3>Atualizações</h3><div class="setting-row"><label for="automatic-updates">Atualizar automaticamente<small>Buscar e baixar novas versões ao iniciar. Instalar ao fechar o Maré.</small></label><label class="switch"><input id="automatic-updates" type="checkbox" ${s.automatic_updates !== false ? "checked" : ""}><span></span></label></div></section><section class="settings-section"><h3>Dados de navegação</h3><div class="setting-row"><div class="setting-label">Histórico<small>${state.history.length} ${state.history.length === 1 ? "página registrada" : "páginas registradas"}</small></div><button class="button" id="clear-history">Limpar histórico…</button></div><div class="setting-row"><div class="setting-label">Cookies e dados dos sites<small>Limpar pode encerrar sessões nos sites.</small></div><button class="button danger" id="clear-data">Limpar dados…</button></div></section><p class="about-footer">Maré ${esc(state.version)} · Código aberto</p>`,
     );
     bindSelect("search-engine", (value) =>
       changeSettings({ search_engine: value }),
@@ -2305,6 +2535,8 @@
     $("#restore-session").addEventListener("change", (e) =>
       changeSettings({ restore_session: e.target.checked }),
     );
+    $("#automatic-updates").onchange = (event) =>
+      changeSettings({ automatic_updates: event.target.checked });
     $("#clear-history").addEventListener("click", confirmHistory);
     $("#clear-data").addEventListener("click", confirmData);
   }
@@ -2914,6 +3146,7 @@
   media.addEventListener("change", applyTheme);
   window.mare = {
     receive,
+    engineMenu,
     resources,
     extensionsEvent,
     showTaskManager,

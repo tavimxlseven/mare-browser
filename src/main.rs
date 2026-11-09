@@ -4,6 +4,7 @@ mod audio;
 mod catalog_search;
 mod components;
 mod composition;
+mod context_menu;
 mod covers;
 mod downloads;
 mod extensions;
@@ -26,6 +27,7 @@ mod spotify;
 mod spotify_account;
 mod storage;
 mod task_manager;
+mod updater;
 
 use model::{normalize_input, BrowserState, Download, Settings, Tab, START_URL};
 use serde_json::{json, Value};
@@ -68,6 +70,8 @@ enum BrowserEvent {
     Audio(u64, u64, bool),
     StorageError(String),
     Permission(Value),
+    ContextMenu(Value),
+    Update,
     ExtensionPrepared(Result<extensions::Prepared, String>),
     Extensions(Value),
     ExtensionChanged(Result<(), String>),
@@ -113,6 +117,8 @@ struct Browser {
     pending_extension: Option<extensions::Prepared>,
     extension_busy: bool,
     permissions: permissions::Manager,
+    context_menu: context_menu::Manager,
+    updater: updater::Manager,
     music_remote: music_remote::Manager,
     protection: protection::Protection,
     views: HashMap<u64, WebView>,
@@ -282,6 +288,7 @@ impl Browser {
     }
     fn remove_view(&mut self, id: u64) {
         self.permissions.close_tab(id);
+        self.context_menu.close_tab(id);
         self.media_tabs.remove(&id);
         self.audio_tabs.remove(&id);
         self.view_bounds.remove(&id);
@@ -330,6 +337,7 @@ impl Browser {
         if let Ok(mut snapshot) = serde_json::to_value(&self.state) {
             snapshot["apps"] = app_state;
             snapshot["music_remote"] = self.music_remote.status();
+            snapshot["update"] = self.updater.snapshot();
             let active_url = self
                 .state
                 .active_tab()
@@ -403,6 +411,7 @@ impl Browser {
             .with_devtools(true)
             .with_background_color((255, 255, 255, 255))
             .with_initialization_script_for_main_only(shortcuts, true)
+            .with_initialization_script(include_str!("page_controls.js"))
             .with_initialization_script_for_main_only(include_str!("youtube.js").replace("__MARE_YOUTUBE_POLICY__",&json!({"enabled":self.state.settings.shield_enabled,"exceptions":self.state.settings.shield_exceptions}).to_string()),true)
             .with_ipc_handler(move |request| {
                 // Remote pages cannot reach the privileged chrome command dispatcher.
@@ -516,6 +525,12 @@ impl Browser {
             )?;
         }
         let _ = view.zoom(self.zoom);
+        {
+            let proxy = self.proxy.clone();
+            self.context_menu.attach(&view, id, move |value| {
+                let _ = proxy.send_event(BrowserEvent::ContextMenu(value));
+            })?;
+        }
         {
             use webview2_com::{
                 take_pwstr, FaviconChangedEventHandler,
@@ -710,6 +725,7 @@ impl Browser {
             Ok(url) => {
                 let id = self.state.active_id;
                 self.permissions.close_tab(id);
+                self.context_menu.close_tab(id);
                 if let Some(tab) = self.state.tabs.iter_mut().find(|t| t.id == id) {
                     tab.app_id = None;
                 }
@@ -1221,11 +1237,29 @@ impl Browser {
             }
             "ready" => {
                 self.arrange();
+                if self.state.settings.automatic_updates {
+                    let proxy = self.proxy.clone();
+                    self.updater.check(self.data_dir.clone(), false, move || {
+                        let _ = proxy.send_event(BrowserEvent::Update);
+                    });
+                }
                 if let Some(error) = self.startup_error.take() {
                     self.notify(&format!("Perfil anterior preservado: {error}"));
                 }
             }
             "navigate" => self.navigate(url),
+            "check_updates" => {
+                let proxy = self.proxy.clone();
+                self.updater.check(self.data_dir.clone(), true, move || {
+                    let _ = proxy.send_event(BrowserEvent::Update);
+                });
+            }
+            "context_menu_answer" => self.context_menu.answer(
+                value["token"].as_u64().unwrap_or(0),
+                value["command"]
+                    .as_i64()
+                    .and_then(|id| i32::try_from(id).ok()),
+            ),
             "new_tab" => self.new_tab(url, value["private"].as_bool().unwrap_or(false)),
             "activate" => {
                 self.state.activate(id);
@@ -1448,6 +1482,11 @@ impl Browser {
                     self.apps.shutdown();
                     self.save();
                     self.writer.flush();
+                    if let Err(error) = self.updater.install_on_close() {
+                        self.notify(&error);
+                        self.publish();
+                        return;
+                    }
                     *control_flow = ControlFlow::Exit;
                 }
                 "drag" => {
@@ -1726,6 +1765,21 @@ impl Browser {
                     .evaluate_script(&format!("window.mare?.resources?.({});", result));
                 return;
             }
+            BrowserEvent::Update => {}
+            BrowserEvent::ContextMenu(mut value) => {
+                let tab = value["tab_id"].as_u64().unwrap_or(0);
+                if tab != self.state.active_id || self.apps.snapshot()["active_id"].is_string() {
+                    self.context_menu.close_tab(tab);
+                    return;
+                }
+                let scale = self.window.scale_factor();
+                value["x"] = json!(self.viewport.x + value["x"].as_f64().unwrap_or(0.0) / scale);
+                value["y"] = json!(self.viewport.y + value["y"].as_f64().unwrap_or(0.0) / scale);
+                let _ = self
+                    .chrome
+                    .evaluate_script(&format!("window.mare?.engineMenu?.({value});"));
+                return;
+            }
             BrowserEvent::ProtectionChanged(id) => {
                 if id != self.state.active_id {
                     return;
@@ -1824,6 +1878,7 @@ impl Browser {
                 return;
             }
             BrowserEvent::Navigation(id, generation, url) => {
+                self.context_menu.close_tab(id);
                 if !self.current_view(id, generation) {
                     return;
                 }
@@ -2106,6 +2161,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         pending_extension: None,
         extension_busy: false,
         permissions: permissions::Manager::default(),
+        context_menu: context_menu::Manager::default(),
+        updater: updater::Manager::default(),
         music_remote: music_remote::Manager::default(),
         external_viewport: None,
         last_external_layout: String::new(),
@@ -2143,6 +2200,11 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                     browser.apps.shutdown();
                     browser.save();
                     browser.writer.flush();
+                    if let Err(error) = browser.updater.install_on_close() {
+                        browser.notify(&error);
+                        browser.publish();
+                        return;
+                    }
                     *control_flow = ControlFlow::Exit;
                 }
             }

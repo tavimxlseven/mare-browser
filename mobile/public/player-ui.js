@@ -87,6 +87,41 @@ function drawQueue() {
     container.append(line);
   }
 }
+let queueEntrance = [];
+function revealQueueSurface(surface) {
+  queueEntrance.forEach((animation) => animation.cancel());
+  queueEntrance = [];
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  if (typeof surface.animate !== "function") return;
+  queueEntrance.push(
+    surface.animate(
+      [
+        { opacity: 0, transform: "translateY(14px) scale(.985)" },
+        { opacity: 1, transform: "translateY(0) scale(1)" },
+      ],
+      { duration: 280, easing: "cubic-bezier(.22,.8,.25,1)" },
+    ),
+  );
+  if (surface.id === "queue-view") {
+    surface.querySelectorAll("#queue > .track").forEach((row, index) => {
+      if (index >= 8) return;
+      queueEntrance.push(
+        row.animate(
+          [
+            { opacity: 0, transform: "translateX(12px)" },
+            { opacity: 1, transform: "translateX(0)" },
+          ],
+          {
+            duration: 230,
+            delay: index * 18,
+            fill: "backwards",
+            easing: "cubic-bezier(.22,.8,.25,1)",
+          },
+        ),
+      );
+    });
+  }
+}
 $("player-queue").onclick = () => {
   const visible = $("queue-view").hidden;
   $("queue-view").hidden = !visible;
@@ -94,14 +129,17 @@ $("player-queue").onclick = () => {
   $("player").classList.toggle("queue-mode", visible);
   $("player-queue").setAttribute("aria-pressed", String(visible));
   drawQueue();
+  revealQueueSurface($(visible ? "queue-view" : "album-view"));
 };
 $("upcoming-tab").onclick = () => {
   queueMode = "upcoming";
   drawQueue();
+  revealQueueSurface($("queue-view"));
 };
 $("history-tab").onclick = () => {
   queueMode = "history";
   drawQueue();
+  revealQueueSurface($("queue-view"));
 };
 $("clear-history").onclick = task(async () => {
   playHistory = [];
@@ -181,8 +219,16 @@ $("playlist-options").onclick = () => {
   $("entry-value").value = playlist.name;
 };
 
-attachMusicHold(document.body,{
- selector:'.track',
- sorter:row=>row.dataset.sortKey!==undefined?(row.closest('#queue')?queueSort:playlistSort):null,
- menu:row=>{const track=library.tracks.find(t=>t.id===row.dataset.trackId);if(track)options(track);}
+attachMusicHold(document.body, {
+  selector: ".track",
+  sorter: (row) =>
+    row.dataset.sortKey !== undefined
+      ? row.closest("#queue")
+        ? queueSort
+        : playlistSort
+      : null,
+  menu: (row) => {
+    const track = library.tracks.find((t) => t.id === row.dataset.trackId);
+    if (track) options(track);
+  },
 });

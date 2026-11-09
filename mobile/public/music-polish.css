@@ -366,3 +366,64 @@ body:has(#mini) textarea,
     color-mix(in srgb, var(--accent, #fa496c) 35%, transparent);
   border-radius: 14px;
 }
+
+.spotify-app {
+  position: relative;
+}
+.music-account-gate {
+  position: absolute;
+  inset: 0;
+  z-index: 900;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  padding: 32px;
+  background: var(--music-bg, #111116);
+}
+.music-account-card {
+  width: min(440px, 100%);
+  padding: 30px;
+  border-radius: 28px;
+  background: var(--music-panel, #202026);
+  border: 1px solid var(--music-line, #ffffff15);
+  box-shadow: 0 24px 80px #0004;
+  animation: device-card-in 0.25s ease-out;
+}
+.music-account-mark {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 20px;
+  border-radius: 18px;
+  background: var(--music-accent, #ff5477);
+  color: white;
+}
+.music-account-mark svg {
+  width: 32px;
+  height: 32px;
+}
+.music-account-card h4 {
+  font-size: 25px;
+  letter-spacing: -0.6px;
+}
+.music-account-card .mare-device-panel > p {
+  line-height: 1.65;
+}
+.music-server-config {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--music-muted, #aaa);
+}
+.music-server-config summary {
+  cursor: pointer;
+  padding: 10px 0;
+}
+.music-server-config label {
+  margin: 8px 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .music-account-card {
+    animation: none;
+  }
+}

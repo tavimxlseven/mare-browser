@@ -60,6 +60,8 @@ jobs:
           node --check src/youtube.js
           node scripts/youtube-smoke.mjs
           node --check src/reader.js
+          node --check src/page_controls.js
+          node --check mobile/public/player-ui.js
           node --check scripts/smoke.mjs
           node --check scripts/platform-smoke.mjs
           node --check scripts/worker-smoke.mjs

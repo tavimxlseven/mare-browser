@@ -20,6 +20,7 @@ Maré is a Windows browser built with Rust, Tao and Wry. Web content runs in Mic
 - Reader mode, a categorized download center with progress and transfer controls, find in page, zoom, printing and developer tools.
 - Private tabs with separate WebView2 storage and no persisted browsing history.
 - Light, dark and system themes, keyboard navigation and reduced-motion support.
+- Animated tab transitions, browser-owned context menus and keyboard-accessible single-choice page selectors.
 - A curated app catalog. Notes, Calculator and the music app run in separate Rust workers, each with its own tab. Switching tabs keeps apps running; closing an app tab stops only its worker.
 - A music workspace with independent music/artist search, public Spotify playlist imports, editable local playlists, a full playback queue and adjustable panels. Spotify metadata search uses XWolf without account login; download helpers run on demand. Optional account pairing synchronizes the music library and controls playback between PC and phone. A separate paired Wi-Fi panel keeps audio on the PC. Discord Rich Presence uses the registered Maré application ID.
 - Chrome Web Store installation for compatible Manifest V3 extensions, with signature verification, permission review and profile management.
@@ -29,6 +30,8 @@ Maré is a Windows browser built with Rust, Tao and Wry. Web content runs in Mic
 ## Download
 
 Download `Mare-Setup-<version>-x64.exe` from [Releases](https://github.com/tavimxlseven/mare-browser/releases/latest), run it and open Maré from the new shortcut. The installer checks for WebView2 and runs the bundled Microsoft bootstrapper when the runtime is missing. That step requires an internet connection. No manual extraction, Rust toolchain or Python installation is needed. Windows 10/11 x64 is the supported target.
+
+Starting with 0.5.0, Maré checks stable GitHub releases at startup and downloads a newer setup in the background. It verifies the release SHA-256 manifest, then installs on normal close or through **Restart and update**. Settings can disable automatic checks; **More → Check for updates** remains available. Browser profiles and the music library live outside the installation directory.
 
 ## Build
 

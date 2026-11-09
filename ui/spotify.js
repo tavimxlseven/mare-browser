@@ -505,12 +505,11 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
         command: { action: "pause" },
       });
   }
-  function renderCloudSettings() {
-    const section = $(".music-cloud-settings");
-    if (!section) return;
+  function mountCloudPanel(section, accountEntry = false) {
     if (!section.devicePanel)
       section.devicePanel = window.createMusicDevices(section, {
         desktop: true,
+        accountEntry,
         getState: () => data.cloud || {},
         localPlayer: cloudPlayer,
         icon: svg,
@@ -523,6 +522,33 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
         disconnect: () => invoke("cloud_disconnect"),
       });
     section.devicePanel.render();
+  }
+  function renderCloudSettings() {
+    if (data.cloud) {
+      let gate = $(".music-account-gate");
+      if (!data.cloud.connected && !gate) {
+        for (const dialog of element.querySelectorAll("dialog")) {
+          dialog.close();
+          dialog.remove();
+        }
+        element.querySelector(".music-context")?.remove();
+        gate = document.createElement("section");
+        gate.className = "music-account-gate";
+        gate.setAttribute("aria-label", "Entrar na conta do Maré Música");
+        gate.innerHTML =
+          '<div class="music-account-card"><div class="music-account-mark">' +
+          svg("music") +
+          '</div><section class="music-cloud-settings"></section></div>';
+        element.append(gate);
+        for (const child of element.children)
+          if (child !== gate) child.inert = true;
+      } else if (data.cloud.connected && gate) {
+        gate.remove();
+        for (const child of element.children) child.inert = false;
+      }
+    }
+    for (const section of element.querySelectorAll(".music-cloud-settings"))
+      mountCloudPanel(section, !!section.closest(".music-account-gate"));
   }
   async function processCloud() {
     renderCloudSettings();

@@ -14,6 +14,8 @@ O [app de música](docs/SPOTIFY.md) importa metadados públicos, organiza a bibl
 
 Baixe o instalador `Mare-Setup-<versão>-x64.exe` em [Releases](https://github.com/tavimxlseven/mare-browser/releases/latest), instale e abra pelo atalho. O setup inclui os componentes de música e prepara o WebView2 oficial quando necessário. Requer Windows 10/11 x64; a instalação do runtime requer internet.
 
+A partir da 0.5.0, o Maré busca versões estáveis ao iniciar e baixa o novo setup em segundo plano, com verificação SHA-256. A instalação acontece ao fechar normalmente ou pelo botão **Reiniciar e atualizar**. Os Ajustes permitem desligar a busca automática; **Mais opções → Buscar atualizações** continua disponível. O perfil e a biblioteca ficam fora da pasta de instalação.
+
 Para desenvolver:
 
 ```powershell

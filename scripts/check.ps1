@@ -26,6 +26,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Regressão YouTube falhou.' }
     node --check src/reader.js
     if ($LASTEXITCODE -ne 0) { throw 'Código do leitor inválido.' }
+    node --check src/page_controls.js
+    if ($LASTEXITCODE -ne 0) { throw 'Controles de página inválidos.' }
+    node --check mobile/public/player-ui.js
+    if ($LASTEXITCODE -ne 0) { throw 'Player web inválido.' }
     node --check scripts/smoke.mjs
     if ($LASTEXITCODE -ne 0) { throw 'Script de integração inválido.' }
     node --check scripts/platform-smoke.mjs

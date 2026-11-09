@@ -1,5 +1,5 @@
 #ifndef MareVersion
-#define MareVersion "0.4.2"
+#define MareVersion "0.5.0"
 #endif
 #ifndef Payload
 #define Payload "..\dist\InstallerPayload"
@@ -41,7 +41,12 @@ Name: "{group}\Maré Browser"; Filename: "{app}\Mare.exe"; WorkingDir: "{app}"; 
 Name: "{autodesktop}\Maré Browser"; Filename: "{app}\Mare.exe"; WorkingDir: "{app}"; AppUserModelID: "Mare.Browser"; Tasks: desktopicon
 [Run]
 Filename: "{app}\Mare.exe"; Description: "Abrir Maré Browser"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\Mare.exe"; Flags: nowait; Check: IsMareUpdate
 [Code]
+function IsMareUpdate: Boolean;
+begin
+  Result := ExpandConstant('{param:MAREUPDATE|0}') = '1';
+end;
 function HasWebView2: Boolean;
 var Version: String;
 begin

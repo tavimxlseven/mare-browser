@@ -251,6 +251,7 @@ impl Spotify {
         let id = |uri: &str| uri.strip_prefix("spotify:track:").unwrap_or("").to_string();
         for track in &self.library.entries {
             if track.kind == "track"
+                && id(&track.uri).len() == 22
                 && old
                     .entries
                     .iter()
@@ -294,7 +295,7 @@ impl Spotify {
                 .iter()
                 .any(|entry| entry.uri == source.uri)
             {
-                if source.kind == "track" {
+                if source.kind == "track" && id(&source.uri).len() == 22 {
                     push("delete_track", json!({"id":id(&source.uri)}));
                 } else if matches!(source.kind.as_str(), "album" | "playlist") {
                     push(
@@ -319,6 +320,9 @@ impl Spotify {
         }
         for (source, tracks) in &self.library.playlist_additions {
             for uri in tracks {
+                if id(uri).len() != 22 {
+                    continue;
+                }
                 if !old
                     .playlist_additions
                     .get(source)
@@ -335,7 +339,7 @@ impl Spotify {
             if old.playlist_orders.get(source) != Some(tracks) {
                 push(
                     "order",
-                    json!({"id":source.rsplit(':').next(),"tracks":tracks.iter().map(|uri|id(uri)).collect::<Vec<_>>()}),
+                    json!({"id":source.rsplit(':').next(),"tracks":tracks.iter().map(|uri|id(uri)).filter(|id|id.len()==22).collect::<Vec<_>>()}),
                 );
             }
         }
@@ -1235,6 +1239,27 @@ mod tests {
         app.library.playlist_orders.insert(p.into(), vec![b.into()]);
         let metadata = app.playlist_download_metadata(p, "playlist").unwrap();
         assert_eq!(metadata["tracks"].as_array().unwrap().len(), 1);
+        drop(app);
+        fs::remove_dir_all(dir).unwrap();
+    }
+    #[test]
+    fn legacy_youtube_entries_never_generate_invalid_spotify_sync_events() {
+        let dir =
+            std::env::temp_dir().join(format!("mare-cloud-legacy-test-{}", crate::model::now_ms()));
+        fs::create_dir_all(&dir).unwrap();
+        let mut app = Spotify::new(&dir).unwrap();
+        app.library.entries=serde_json::from_value(json!([
+          {"uri":"youtube:video:abcdefghijk","url":"https://www.youtube.com/watch?v=abcdefghijk","kind":"track","title":"Local fixture","thumbnail":"","favorite":false},
+          {"uri":"spotify:track:aaaaaaaaaaaaaaaaaaaaaa","url":"https://open.spotify.com/track/aaaaaaaaaaaaaaaaaaaaaa","kind":"track","title":"Catalog fixture","thumbnail":"","favorite":false}
+        ])).unwrap();
+        let events = app.library_events(&Library::default());
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0]["data"]["id"], "aaaaaaaaaaaaaaaaaaaaaa");
+        let previous = app.library.clone();
+        app.library.entries.clear();
+        let events = app.library_events(&previous);
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0]["type"], "delete_track");
         drop(app);
         fs::remove_dir_all(dir).unwrap();
     }

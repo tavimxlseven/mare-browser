@@ -81,6 +81,10 @@ def apply_event(con, owner, device, event, save_tracks, create_job, enqueue_trac
     kind = event.get("type")
     payload = event.get("data", {})
     if not isinstance(payload,dict): abort(400)
+    # Older desktop builds emitted an empty Spotify ID for local YouTube entries.
+    # Acknowledge that legacy marker without modifying any library or audio file.
+    if kind in ("track", "delete_track") and payload.get("id") == "":
+        return
     if kind == "track":
         track = provider.track(payload)
         if not track: abort(400)

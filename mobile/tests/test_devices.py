@@ -48,13 +48,14 @@ class DeviceTests(unittest.TestCase):
         events=[{'id':'1'*32,'type':'track','data':{'id':track,'title':'Fixture','artists':'Artist'}},
                 {'id':'2'*32,'type':'playlist','data':{'id':'local:1','name':'Created','tracks':[track]}},
                 {'id':'3'*32,'type':'source','data':{'url':'spotify:playlist:'+'b'*22,'name':'Imported'}}]
+        events.extend([{'id':'4'*32,'type':'track','data':{'id':'','title':'Legacy local audio'}},{'id':'5'*32,'type':'delete_track','data':{'id':''}}])
         for _ in range(2):
             response=client.post('/api/devices/sync',json={'events':events},headers=headers)
             self.assertEqual(response.status_code,200)
-            self.assertEqual(len(response.json['accepted']),3)
+            self.assertEqual(len(response.json['accepted']),5)
         with server.db() as con:
             self.assertEqual(con.execute("SELECT count(*) FROM jobs WHERE kind='import'").fetchone()[0],1)
-            self.assertEqual(con.execute('SELECT count(*) FROM device_events').fetchone()[0],3)
+            self.assertEqual(con.execute('SELECT count(*) FROM device_events').fetchone()[0],5)
             self.assertEqual(json.loads(con.execute("SELECT tracks FROM playlists WHERE id=?",('pc:'+identifier+':1',)).fetchone()[0]),[track])
 
     def test_commands_are_account_scoped_bounded_and_acknowledged(self):
