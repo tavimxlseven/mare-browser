@@ -45,8 +45,14 @@ fn event(kind: &str, data: Value) -> Result<Value, String> {
     )
 }
 pub fn origin(input: &str) -> Result<String, String> {
-    let url = url::Url::parse(input.trim())
-        .map_err(|_| "Informe o endereço HTTPS do seu Maré Música.")?;
+    let input = input.trim();
+    let address = if input.contains("://") {
+        input.to_owned()
+    } else {
+        format!("https://{input}")
+    };
+    let url =
+        url::Url::parse(&address).map_err(|_| "Informe o endereço HTTPS do seu Maré Música.")?;
     if url.scheme() != "https"
         || url.host_str().is_none()
         || !url.username().is_empty()
@@ -493,7 +499,11 @@ fn http(origin: &str, path: &str, token: Option<&str>, body: &Value) -> Result<V
         .map_err(|_| "Resposta inválida.")?;
         if status != 200 {
             return Err(if status == 401 {
-                "Código expirado ou conexão revogada. Gere outro código no celular.".into()
+                match path {
+                    "/api/devices/login" => "Usuário ou senha não conferem. Use a mesma conta do Maré Música do celular.",
+                    "/api/devices/claim" => "Código expirado ou já utilizado. Gere outro código no celular.",
+                    _ => "Sessão encerrada ou revogada. Entre novamente na sua conta do Maré Música.",
+                }.into()
             } else {
                 format!("O servidor recusou a sincronização (HTTP {status}).")
             });
@@ -523,6 +533,7 @@ mod tests {
     use super::*;
     #[test]
     fn origins_are_tls_roots_without_embedded_credentials() {
+        assert_eq!(origin("music.example").unwrap(), "https://music.example");
         assert_eq!(
             origin("https://music.example/").unwrap(),
             "https://music.example"

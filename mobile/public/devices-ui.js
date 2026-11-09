@@ -16,7 +16,9 @@
   ) {
     let signature = "",
       pairing = null,
-      busy = false;
+      busy = false,
+      loginOrigin = "",
+      loginUsername = "";
     const esc = (value) =>
       String(value ?? "").replace(
         /[&<>"']/g,
@@ -47,7 +49,7 @@
         container.innerHTML =
           "<h4>" +
           icon("devices") +
-          ' PC e celular</h4><p>Conecte sua conta do Maré. A biblioteca acompanha você e as playlists adicionadas no PC também são preparadas para o celular.</p><form><label>Servidor do Maré<input name="origin" type="url" required placeholder="https://seu-servidor.example" autocomplete="url"></label><label>Usuário do Maré<input name="username" required maxlength="32" autocomplete="username"></label><label>Senha<input name="password" type="password" required maxlength="128" autocomplete="current-password"></label><button class="device-primary" ' +
+          ' PC e celular</h4><p>Conecte sua conta do Maré. A biblioteca acompanha você e as playlists adicionadas no PC também são preparadas para o celular.</p><form><label>Servidor do Maré<input name="origin" type="text" inputmode="url" autocapitalize="none" spellcheck="false" required placeholder="https://seu-servidor.example" autocomplete="url"></label><label>Usuário do Maré<input name="username" required maxlength="32" autocomplete="username"></label><label>Senha<input name="password" type="password" required maxlength="128" autocomplete="current-password"></label><button class="device-primary" ' +
           (state.connecting ? "disabled" : "") +
           ">" +
           (state.connecting ? "Conectando…" : "Entrar na minha conta") +
@@ -58,15 +60,21 @@
           ) +
           "</p>";
         const form = container.querySelector("form");
+        form.elements.origin.value = loginOrigin;
+        form.elements.username.value = loginUsername;
         form.onsubmit = async (event) => {
           event.preventDefault();
           if (busy) return;
+          loginOrigin = form.elements.origin.value.trim();
+          loginUsername = form.elements.username.value.trim();
+          if (!loginOrigin.includes("://"))
+            loginOrigin = "https://" + loginOrigin;
           busy = true;
           form.querySelector("button").disabled = true;
           try {
             await connect(
-              form.elements.origin.value,
-              form.elements.username.value,
+              loginOrigin,
+              loginUsername,
               form.elements.password.value,
             );
             form.elements.password.value = "";
@@ -74,6 +82,8 @@
           } catch (e) {
             notify(e.message);
           } finally {
+            form.elements.password.value = "";
+            document.activeElement?.blur();
             busy = false;
             signature = "";
             render(true);
