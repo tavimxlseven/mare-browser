@@ -106,6 +106,141 @@
   padding-top: 20px;
   border-top: 1px solid var(--music-divider, var(--line));
 }
+.device-output-list {
+  display: grid;
+  gap: 6px;
+}
+.device-output-row {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  min-height: 76px;
+  width: 100%;
+  padding: 15px;
+  border: 1px solid transparent;
+  border-radius: 17px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 150ms,
+    transform 150ms,
+    border-color 150ms;
+}
+.device-output-row:hover:not(:disabled) {
+  background: var(--music-divider, var(--line));
+}
+.device-output-row:active:not(:disabled) {
+  transform: scale(0.98);
+}
+.device-output-row[aria-selected="true"] {
+  color: var(--music-accent, var(--accent));
+  background: var(--music-divider, var(--accent-soft));
+  border-color: color-mix(
+    in srgb,
+    var(--music-accent, var(--accent)) 18%,
+    transparent
+  );
+}
+.device-output-row > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+.device-output-row strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+}
+.device-output-row small {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--music-muted, var(--muted));
+}
+.device-output-icon svg {
+  width: 25px;
+  height: 25px;
+}
+.device-output-check svg {
+  width: 18px;
+  height: 18px;
+}
+.device-output-intro {
+  margin: 4px 0 15px;
+}
+.device-output-status {
+  margin: 20px 10px 4px;
+  line-height: 1.6;
+}
+.music-device-picker {
+  width: min(440px, calc(100vw - 24px));
+  border-radius: 28px;
+}
+.music-device-picker .mare-device-panel,
+.music-output-picker.mare-device-panel {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+.music-device-toggle {
+  gap: 6px;
+  display: flex !important;
+  align-items: center;
+  max-width: 170px;
+}
+.music-output-label {
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 95px;
+}
+.remote-output {
+  color: var(--music-accent, var(--accent)) !important;
+}
+.player-output {
+  font-size: 12px;
+  text-align: center;
+  margin: 8px 0 0;
+  color: #ffffffb3;
+}
+#mini .mini-output {
+  position: absolute;
+  left: 76px;
+  bottom: 7px;
+  font-size: 10px;
+  line-height: 1.2;
+  max-width: calc(100% - 180px);
+  padding: 2px 0;
+  color: var(--accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: none;
+}
+#mini:has(.mini-output) .now {
+  padding-bottom: 12px;
+}
+.music-stage-output {
+  margin: 12px auto;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: inherit;
+  background: #ffffff12;
+  padding: 10px 14px;
+  border-radius: 30px;
+  font-size: 12px;
+}
+.music-stage-output svg {
+  width: 17px;
+  height: 17px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .device-output-row {
+    transition: none;
+  }
+}
 .mare-device-panel h4 {
   display: flex;
   gap: 8px;

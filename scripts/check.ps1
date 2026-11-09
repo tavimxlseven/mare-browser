@@ -22,6 +22,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'JavaScript do controle remoto inválido.' }
     node scripts/music-queue-smoke.cjs
     if ($LASTEXITCODE -ne 0) { throw 'Regressão na fila de música.' }
+    node scripts/music-output-check.cjs
+    if ($LASTEXITCODE -ne 0) { throw 'Regressão na saída de áudio compartilhada.' }
     node scripts/youtube-smoke.mjs
     if ($LASTEXITCODE -ne 0) { throw 'Regressão YouTube falhou.' }
     node --check src/reader.js

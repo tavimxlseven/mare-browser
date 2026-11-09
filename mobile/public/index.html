@@ -14,12 +14,35 @@
     />
     <title>Maré Música</title>
     <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="apple-touch-icon" href="/icon-180.png" />
+    <link rel="apple-touch-icon" href="/music-icon-180.png" />
+    <link rel="stylesheet" href="/launch.css" />
     <link rel="stylesheet" href="/style.css" />
     <link rel="stylesheet" href="/account-player.css" />
     <link rel="stylesheet" href="/music-polish.css" />
   </head>
   <body>
+    <section
+      id="music-launch"
+      class="music-launch"
+      aria-label="Abrindo Maré Música"
+    >
+      <div class="launch-aura" aria-hidden="true"></div>
+      <div class="launch-identity">
+        <img
+          src="/music-mark.svg"
+          width="96"
+          height="96"
+          alt=""
+          class="launch-mark"
+        />
+        <h1>Maré Música</h1>
+        <p id="launch-message">Sua música, com você.</p>
+        <button id="launch-retry" type="button" hidden>Tentar novamente</button>
+      </div>
+      <div class="launch-signature" aria-hidden="true">
+        <i></i><i></i><i></i><i></i><i></i>
+      </div>
+    </section>
     <section id="install" class="welcome">
       <img class="app-icon" src="/icon-192.png" width="88" height="88" alt="" />
       <p class="brand-label">Maré Música</p>
@@ -272,6 +295,13 @@
           ></span>
         </button>
         <button
+          id="mini-output"
+          class="mini-output"
+          aria-label="Dispositivos e saída de áudio"
+        >
+          Dispositivos
+        </button>
+        <button
           id="mini-play"
           class="icon-button"
           aria-label="Reproduzir ou pausar"
@@ -394,6 +424,11 @@
         </div>
         <div class="player-bottom">
           <button
+            id="music-devices"
+            aria-label="Dispositivos e saída de áudio"
+            data-icon="devices"
+          ></button>
+          <button
             id="save-current"
             aria-label="Salvar no aparelho"
             data-icon="download"
@@ -405,7 +440,22 @@
             data-icon="playlist"
           ></button>
         </div>
+        <p id="player-output" class="player-output">Neste aparelho</p>
       </div>
+    </dialog>
+    <dialog
+      id="device-picker"
+      class="music-device-picker"
+      aria-labelledby="device-picker-title"
+    >
+      <button
+        class="dismiss"
+        data-close
+        aria-label="Fechar dispositivos"
+        data-icon="close"
+      ></button>
+      <h2 id="device-picker-title">Dispositivos</h2>
+      <section id="device-picker-body"></section>
     </dialog>
     <dialog id="preferences">
       <button
@@ -501,6 +551,7 @@
     </dialog>
     <div id="notice" role="status" hidden></div>
     <audio id="audio" preload="metadata"></audio>
+    <script src="/launch.js" defer></script>
     <script src="/icons.js" defer></script>
     <script src="/app.js" defer></script>
     <script src="/sortable.js" defer></script>

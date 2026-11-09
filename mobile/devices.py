@@ -17,6 +17,7 @@ def initialize(con):
         CREATE TABLE IF NOT EXISTS device_commands(id INTEGER PRIMARY KEY AUTOINCREMENT,
           owner TEXT,target TEXT,payload TEXT,created REAL);
         CREATE TABLE IF NOT EXISTS device_events(owner TEXT,id TEXT,created REAL,PRIMARY KEY(owner,id));
+        CREATE TABLE IF NOT EXISTS music_playback(owner TEXT PRIMARY KEY,device_id TEXT,revision INTEGER DEFAULT 0);
     """)
     if "source" not in {row[1] for row in con.execute("PRAGMA table_info(playlists)")}:
         con.execute("ALTER TABLE playlists ADD COLUMN source TEXT DEFAULT ''")
@@ -55,6 +56,30 @@ def device_list(con, owner):
     return [dict(id=row["id"],name=row["name"],kind=row["kind"],online=time.time()-row["last_seen"]<25,player=json.loads(row["player"])) for row in con.execute("SELECT * FROM music_devices WHERE owner=? ORDER BY name", (owner,))]
 
 
+def playback_session(con, owner):
+    row = con.execute("SELECT d.*,p.revision FROM music_playback p JOIN music_devices d ON d.id=p.device_id AND d.owner=p.owner WHERE p.owner=?", (owner,)).fetchone()
+    if not row:
+        return None
+    now = time.time()
+    return dict(device_id=row["id"],name=row["name"],kind=row["kind"],online=now-row["last_seen"]<25,
+                player=json.loads(row["player"]),updated_at=row["last_seen"],server_time=now,revision=row["revision"])
+
+
+def select_playback(con, owner, identifier, player, previous):
+    activation = player.get("activation", 0)
+    explicit = activation > previous.get("activation", 0)
+    legacy_start = not activation and player["state"] == "playing" and (previous.get("state") != "playing" or previous.get("track_id") != player["track_id"])
+    if not explicit and not legacy_start:
+        return
+    row = con.execute("SELECT device_id FROM music_playback WHERE owner=?", (owner,)).fetchone()
+    con.execute("INSERT INTO music_playback(owner,device_id,revision) VALUES (?,?,1) ON CONFLICT(owner) DO UPDATE SET device_id=excluded.device_id,revision=revision+1", (owner,identifier))
+    if row and row["device_id"] != identifier:
+        previous_device=con.execute("SELECT player FROM music_devices WHERE owner=? AND id=?",(owner,row["device_id"])).fetchone()
+        expected=json.loads(previous_device["player"]).get("activation",0) if previous_device else 0
+        con.execute("INSERT INTO device_commands(owner,target,payload,created) VALUES (?,?,?,?)",
+                    (owner,row["device_id"],json.dumps(dict(action="pause",expected_activation=expected)),time.time()))
+
+
 def player_state(raw):
     if not isinstance(raw, dict):
         abort(400)
@@ -63,7 +88,7 @@ def player_state(raw):
         result["art"] = ""
     result["track_id"] = raw.get("track_id") if isinstance(raw.get("track_id"),str) and provider.ID.fullmatch(raw["track_id"]) else None
     result["state"] = raw.get("state") if raw.get("state") in ("playing","paused","stopped") else "stopped"
-    for key, maximum in (("position_ms",86400000),("duration_ms",86400000),("volume",100)):
+    for key, maximum in (("position_ms",86400000),("duration_ms",86400000),("volume",100),("activation",2**53-1)):
         value = raw.get(key,0)
         if not isinstance(value,(int,float)) or isinstance(value,bool) or not 0<=value<=maximum:
             abort(400)
@@ -203,10 +228,13 @@ def register(app, db, save_tracks, create_job, wake, enqueue_tracks):
     @app.post("/api/devices/commands")
     def command():
         raw=request.get_json();target=raw.get("target");command=raw.get("command",{})
-        if not isinstance(command,dict) or command.get("action") not in ("pause","resume","next","previous","volume","seek","transfer"): abort(400)
+        if not isinstance(command,dict) or command.get("action") not in ("pause","resume","next","previous","volume","seek","transfer","select","queue"): abort(400)
         safe={"action":command["action"]}
         if safe["action"]=="transfer": safe["player"]=player_state(command.get("player",{}))
-        for key,maximum in (("value",100),("position_ms",86400000)):
+        if safe["action"]=="queue":
+            safe["queue"]=player_state({"queue":command.get("queue",[])})["queue"]
+        if safe["action"] in ("seek","volume") and ("position_ms" if safe["action"]=="seek" else "value") not in command: abort(400)
+        for key,maximum in (("value",100),("position_ms",86400000),("expected_activation",2**53-1)):
             if key in command:
                 if not isinstance(command[key],int) or isinstance(command[key],bool) or not 0<=command[key]<=maximum: abort(400)
                 safe[key]=command[key]
@@ -234,7 +262,9 @@ def register(app, db, save_tracks, create_job, wake, enqueue_tracks):
                     con.execute("INSERT INTO device_events VALUES (?,?,?)",(owner,event_id,time.time()))
                 accepted.append(event_id)
             if isinstance(raw.get("player"),dict):
-                con.execute("UPDATE music_devices SET player=?,last_seen=? WHERE id=?",(json.dumps(player_state(raw["player"])),time.time(),identifier))
+                player=player_state(raw["player"])
+                select_playback(con,owner,identifier,player,json.loads(row["player"]))
+                con.execute("UPDATE music_devices SET player=?,last_seen=? WHERE id=?",(json.dumps(player),time.time(),identifier))
             else: con.execute("UPDATE music_devices SET last_seen=? WHERE id=?",(time.time(),identifier))
             ack=raw.get("ack",0)
             if not isinstance(ack,int) or not 0<=ack<=2**53: abort(400)
@@ -242,7 +272,7 @@ def register(app, db, save_tracks, create_job, wake, enqueue_tracks):
             commands=[dict(id=r["id"],command=json.loads(r["payload"])) for r in con.execute("SELECT * FROM device_commands WHERE target=? AND owner=? AND created>? ORDER BY id LIMIT 20",(identifier,owner,time.time()-60))]
             catalog=library(con,owner)
             revision=hashlib.sha256(json.dumps(catalog,sort_keys=True,separators=(',',':')).encode()).hexdigest()
-            response=dict(id=identifier,revision=revision,accepted=accepted,commands=commands,devices=device_list(con,owner))
+            response=dict(id=identifier,revision=revision,accepted=accepted,commands=commands,devices=device_list(con,owner),session=playback_session(con,owner))
             if raw.get("revision")!=revision: response["library"]=catalog
         if events: wake.set()
         return jsonify(response)
@@ -253,4 +283,5 @@ def register(app, db, save_tracks, create_job, wake, enqueue_tracks):
         with db() as con:
             con.execute("DELETE FROM music_devices WHERE id=? AND owner=?",(identifier,g.user["id"]))
             con.execute("DELETE FROM device_commands WHERE target=? AND owner=?",(identifier,g.user["id"]))
+            con.execute("DELETE FROM music_playback WHERE owner=? AND device_id=?",(g.user["id"],identifier))
         return jsonify(ok=True)

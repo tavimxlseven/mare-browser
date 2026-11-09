@@ -97,7 +97,7 @@ async function useAccount(user) {
   document.body.classList.toggle("light", $("theme").value === "light");
   $("network").value = (await local("meta", "network")) || "wifi";
   for (const id of ["theme", "network"]) $(id).settingTrigger?.refreshValue();
-  if(typeof startDeviceLink==='function')void startDeviceLink();
+  if (typeof startDeviceLink === "function") void startDeviceLink();
 }
 
 function authMode(register) {
@@ -218,7 +218,12 @@ $("logout").onclick = task(async () => {
   } catch (error) {
     if (error.status !== 401) throw error;
   }
+  window.stopDeviceLink?.();
   audio.pause();
+  if ("mediaSession" in navigator) {
+    navigator.mediaSession.metadata = null;
+    navigator.mediaSession.playbackState = "none";
+  }
   audio.removeAttribute("src");
   const db = await database;
   const tx = db.transaction(["meta", "audio"], "readwrite");

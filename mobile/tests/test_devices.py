@@ -8,7 +8,7 @@ class DeviceTests(unittest.TestCase):
         self.origin={"Origin":"https://music.example"}
         self.admin=server.app.test_client()
         with server.db() as con:
-            for table in ("device_commands","device_events","device_codes","music_devices","sessions","playlists","jobs","tracks"):
+            for table in ("music_playback","device_commands","device_events","device_codes","music_devices","sessions","playlists","jobs","tracks"):
                 con.execute("DELETE FROM "+table)
         server.accounts.attempts.clear()
         self.assertEqual(self.admin.post('/api/login',json={'password':'test-password'},headers=self.origin).status_code,200)
@@ -72,3 +72,42 @@ class DeviceTests(unittest.TestCase):
         self.assertEqual(response['commands'],[])
         self.assertNotIn('library',response)
         self.assertFalse(any(d['id']=='other-device' for d in response['devices']))
+
+    def test_one_account_output_is_mirrored_without_idle_devices_stealing_playback(self):
+        pc,headers,pc_id,_=self.pair()
+        phone_id=self.admin.post("/api/devices/register",json={"name":"Fixture phone"},headers=self.origin).json["id"]
+        track="a"*22
+        player=dict(track_id=track,title="Fixture song",artist="Fixture artist",state="playing",position_ms=1234,duration_ms=190000,queue=["b"*22],activation=100)
+        response=self.admin.post("/api/devices/sync",json={"id":phone_id,"player":player},headers=self.origin)
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(response.json["session"]["device_id"],phone_id)
+        mirror=pc.post("/api/devices/sync",json={"player":{}},headers=headers).json["session"]
+        self.assertEqual(mirror["player"]["track_id"],track)
+        self.assertEqual(mirror["player"]["position_ms"],1234)
+        self.assertEqual(mirror["device_id"],phone_id)
+        self.assertTrue(mirror["online"])
+        pc_player={**player,"activation":200,"position_ms":5000}
+        response=pc.post("/api/devices/sync",json={"player":pc_player},headers=headers).json
+        self.assertEqual(response["session"]["device_id"],pc_id)
+        response=self.admin.post("/api/devices/sync",json={"id":phone_id,"player":player},headers=self.origin).json
+        self.assertEqual(response["session"]["device_id"],pc_id)
+        self.assertEqual(response["commands"][0]["command"],dict(action="pause",expected_activation=100))
+        response=pc.post("/api/devices/sync",json={"player":{**pc_player,"state":"paused"}},headers=headers).json
+        self.assertEqual(response["session"]["device_id"],pc_id)
+        self.assertEqual(response["session"]["player"]["state"],"paused")
+        self.assertEqual(self.admin.post("/api/devices/commands",json={"target":pc_id,"command":{"action":"next"}},headers=self.origin).status_code,200)
+        self.assertEqual(pc.post("/api/devices/sync",json={},headers=headers).json["commands"][-1]["command"]["action"],"next")
+        self.assertEqual(pc.post("/api/devices/sync",json={"player":{**pc_player,"activation":-1}},headers=headers).status_code,400)
+
+    def test_output_selection_works_while_paused_and_never_exposes_another_account(self):
+        pc,headers,pc_id,_=self.pair()
+        response=pc.post("/api/devices/sync",json={"player":{"activation":1,"state":"paused"}},headers=headers).json
+        self.assertEqual(response["session"]["device_id"],pc_id)
+        with server.db() as con:
+            con.execute("UPDATE music_devices SET last_seen=0 WHERE id=?",(pc_id,))
+        self.assertFalse(self.admin.get("/api/devices",headers=self.origin).json["devices"][0]["online"])
+        with server.db() as con:
+            con.execute("INSERT INTO music_devices(id,owner,name,kind,last_seen,player) VALUES ('foreign','another-owner','Private device','web',0,?)",(json.dumps({"title":"Private song"}),))
+            con.execute("UPDATE music_playback SET device_id='foreign'")
+        self.assertIsNone(pc.post("/api/devices/sync",json={},headers=headers).json["session"])
+        self.assertEqual(self.admin.post("/api/devices/commands",json={"target":pc_id,"command":{"action":"queue","queue":["invalid"]}},headers=self.origin).status_code,400)

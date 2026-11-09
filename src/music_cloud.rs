@@ -28,6 +28,7 @@ struct State {
     player: Value,
     update: Option<Value>,
     devices: Value,
+    session: Value,
     commands: Value,
     revision: String,
     ack: u64,
@@ -120,7 +121,7 @@ impl Cloud {
     }
     pub fn snapshot(&self) -> Value {
         let s = self.shared.lock().unwrap_or_else(|e| e.into_inner());
-        json!({"connected":s.config.is_some(),"connecting":s.connecting,"error":s.error,"origin":s.config.as_ref().map(|c|&c.origin),"id":s.config.as_ref().map(|c|&c.id),"user":s.config.as_ref().map(|c|&c.user),"pending":s.events.len(),"devices":s.devices,"commands":s.commands})
+        json!({"connected":s.config.is_some(),"connecting":s.connecting,"error":s.error,"origin":s.config.as_ref().map(|c|&c.origin),"id":s.config.as_ref().map(|c|&c.id),"user":s.config.as_ref().map(|c|&c.user),"pending":s.events.len(),"devices":s.devices,"session":s.session,"commands":s.commands})
     }
     pub fn connect(&mut self, input: &str, code: &str, seed: Vec<Value>) -> Result<(), String> {
         let origin = origin(input)?;
@@ -346,6 +347,7 @@ impl Cloud {
                             write_events(&directory, &s.events);
                             s.revision = r["revision"].as_str().unwrap_or("").into();
                             s.devices = r["devices"].clone();
+                            s.session = r["session"].clone();
                             s.commands = r["commands"].clone();
                             if r["library"].is_object() {
                                 s.update = Some(r["library"].clone());
@@ -355,7 +357,7 @@ impl Cloud {
                         Err(e) => s.error = e,
                     }
                 }
-                for _ in 0..30 {
+                for _ in 0..15 {
                     if cancel.load(Ordering::Acquire) {
                         break;
                     }

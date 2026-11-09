@@ -13,6 +13,7 @@ window.attachMusicTools = function ({
   currentCollection,
   redraw,
   notify,
+  output = () => null,
 }) {
   const $ = (selector) => element.querySelector(selector);
   let searching = false,
@@ -302,18 +303,40 @@ window.attachMusicTools = function ({
     const menu = document.createElement("div");
     menu.className = "music-context";
     menu.setAttribute("role", "menu");
+    const playable =
+      !!row.local?.available ||
+      (!!output()?.remote() && row.uri?.startsWith("spotify:track:"));
+    const menuGlyph = {
+      play: "play",
+      play_next: "next",
+      queue: "queue",
+      favorite: "heart",
+      collection: "folder",
+      remove_collection: "close",
+      download: "download",
+      details: "info",
+      artist: "search",
+      share: "share",
+      sleep: "clock",
+      delete: "trash",
+      remove: "unlink",
+    };
     const item = (action, title, disabled = false) =>
-      '<button role="menuitem" data-song-menu="' +
+      '<button role="menuitem" class="' +
+      (["delete", "remove"].includes(action) ? "danger" : "") +
+      '" data-song-menu="' +
       action +
       '" ' +
       (disabled ? "disabled" : "") +
       ">" +
+      icon(menuGlyph[action] || "music") +
+      "<span>" +
       esc(title) +
-      "</button>";
+      "</span></button>";
     menu.innerHTML =
-      item("play", "Reproduzir", !row.local?.available) +
-      item("play_next", "Tocar a seguir", !row.local?.available) +
-      item("queue", "Adicionar à fila", !row.local?.available) +
+      item("play", "Reproduzir", !playable) +
+      item("play_next", "Tocar a seguir", !playable) +
+      item("queue", "Adicionar à fila", !playable) +
       item(
         "favorite",
         row.favorite ? "Remover das curtidas" : "Adicionar às músicas curtidas",
@@ -333,7 +356,10 @@ window.attachMusicTools = function ({
       item("artist", "Buscar artista", !row.artists) +
       item("share", "Copiar link", !row.uri) +
       item("sleep", "Temporizador") +
-      (row.local?.available ? "<hr>" + item("delete", "Excluir download") : "");
+      (row.local?.available
+        ? "<hr>" + item("delete", "Excluir download…")
+        : "") +
+      (row.uri ? item("remove", "Remover link da biblioteca…") : "");
     element.append(menu);
     menu.style.left = Math.max(8, Math.min(x, innerWidth - 290)) + "px";
     menu.style.top =
@@ -358,6 +384,41 @@ window.attachMusicTools = function ({
       const action = event.target.closest("[data-song-menu]")?.dataset.songMenu;
       if (!action) return;
       menu.remove();
+      if (action === "remove") {
+        element
+          .querySelector(
+            '[data-action="remove"][data-uri="' + CSS.escape(row.uri) + '"]',
+          )
+          ?.click();
+        return;
+      }
+      if (
+        output()?.remote() &&
+        ["play", "queue", "play_next"].includes(action)
+      ) {
+        const id = row.uri.split(":").at(-1),
+          ids = output().remote().player.queue || [];
+        if (action === "play")
+          await output().play({
+            id,
+            title: row.title,
+            artist: row.artists,
+            art: row.thumbnail,
+          });
+        else
+          await output().command("queue", {
+            queue:
+              action === "play_next"
+                ? [id, ...ids.filter((i) => i !== id)]
+                : [...ids, id],
+          });
+        notify(
+          action === "play_next"
+            ? "Esta música toca a seguir."
+            : "Fila atualizada no dispositivo de saída.",
+        );
+        return;
+      }
       if (action === "queue" || action === "play_next") {
         if (action === "play_next") queue.playNext(row.local.id);
         else queue.add(row.local.id);

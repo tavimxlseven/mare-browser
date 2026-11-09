@@ -1,4 +1,142 @@
 (function (root) {
+  // Mirrored display state is deliberately separate from the local audio state.
+  root.createMusicOutput = function ({
+    getState,
+    localPlayer,
+    send,
+    receive,
+    changed = () => {},
+  }) {
+    let pendingTarget = null,
+      pendingUntil = 0;
+    let activation = 0,
+      claimingUntil = 0,
+      sampleKey = "",
+      sampledAt = 0,
+      basePosition = 0;
+    function remote() {
+      const state = getState(),
+        session = state.session;
+      if (
+        session &&
+        session.device_id === state.id &&
+        (session.player?.activation || 0) >= activation
+      )
+        claimingUntil = 0;
+      if (
+        !session?.online ||
+        session.device_id === state.id ||
+        performance.now() < claimingUntil
+      )
+        return null;
+      const key = JSON.stringify([
+        session.device_id,
+        session.revision,
+        session.updated_at,
+        session.player,
+      ]);
+      if (key !== sampleKey) {
+        sampleKey = key;
+        sampledAt = performance.now();
+        basePosition = session.player?.position_ms || 0;
+        if (session.player?.state === "playing")
+          basePosition += Math.max(
+            0,
+            Math.min(
+              25000,
+              (session.server_time - session.updated_at) * 1000 || 0,
+            ),
+          );
+      }
+      const player = { ...session.player };
+      player.position_ms = Math.min(
+        player.duration_ms || 86400000,
+        basePosition +
+          (player.state === "playing" ? performance.now() - sampledAt : 0),
+      );
+      return { ...session, player };
+    }
+    function claim() {
+      activation = Math.max(Date.now(), activation + 1);
+      claimingUntil = performance.now() + 10000;
+      changed();
+    }
+    async function command(action, params = {}) {
+      const output = remote();
+      if (!output) return false;
+      await send(output.device_id, { action, ...params });
+      return true;
+    }
+    async function play(track, queue) {
+      const output = remote();
+      if (!output) return false;
+      await send(output.device_id, {
+        action: "transfer",
+        player: {
+          track_id: track.id,
+          title: track.title,
+          artist: track.artist || track.artists || "",
+          art: track.art || track.thumbnail || "",
+          state: "playing",
+          position_ms: 0,
+          duration_ms: track.duration_ms || 0,
+          queue: queue || output.player.queue || [],
+          source: getState().id,
+        },
+      });
+      return true;
+    }
+    async function select(device) {
+      const state = getState(),
+        output = remote(),
+        player = output?.player || localPlayer();
+      const source = output?.device_id || state.id;
+      if (device.id === source) return;
+      pendingTarget = device.id;
+      pendingUntil = performance.now() + 15000;
+      try {
+        if (device.id === state.id) {
+          if (output?.player.track_id)
+            return await receive({ ...output.player, source });
+          else claim();
+        } else if (device.id !== source) {
+          await send(
+            device.id,
+            player.track_id
+              ? { action: "transfer", player: { ...player, source } }
+              : { action: "select" },
+          );
+        }
+      } catch (error) {
+        pendingTarget = null;
+        throw error;
+      }
+    }
+    return {
+      remote,
+      claim,
+      command,
+      play,
+      select,
+      activation: () => activation,
+      reset: () => {
+        activation = 0;
+        claimingUntil = 0;
+        sampleKey = "";
+        pendingTarget = null;
+        pendingUntil = 0;
+      },
+      pending: () => {
+        if (
+          getState().session?.device_id === pendingTarget ||
+          performance.now() >= pendingUntil
+        )
+          pendingTarget = null;
+        return pendingTarget;
+      },
+      current: () => remote()?.player || localPlayer(),
+    };
+  };
   root.createMusicDevices = function (
     container,
     {
@@ -13,6 +151,8 @@
       disconnect,
       icon,
       notify,
+      output,
+      picker = false,
     },
   ) {
     let signature = "",
@@ -121,6 +261,106 @@
         return;
       }
       const devices = Array.isArray(state.devices) ? state.devices : [];
+      const selected =
+        output?.remote()?.device_id ||
+        (state.session?.online ? state.session.device_id : state.id);
+      if (output) {
+        container.innerHTML =
+          (picker ? "" : "<h4>" + icon("devices") + " Dispositivos</h4>") +
+          '<p class="device-output-intro">Escolha onde ouvir</p><div class="device-output-list" role="listbox" aria-label="Saída de áudio"></div>' +
+          '<p class="device-output-status" role="status">' +
+          esc(
+            state.error ||
+              "A mesma conta conecta seus aparelhos com o Maré aberto.",
+          ) +
+          "</p>" +
+          (!picker && desktop
+            ? '<button class="device-secondary" data-disconnect>Desconectar este PC</button>'
+            : "");
+        const list = container.querySelector(".device-output-list");
+        const visible = devices.length
+          ? devices
+              .filter(
+                (d) =>
+                  d.online ||
+                  d.id === state.id ||
+                  d.id === state.session?.device_id,
+              )
+              .sort(
+                (a, b) => Number(b.id === selected) - Number(a.id === selected),
+              )
+          : [
+              {
+                id: state.id,
+                name: desktop ? "Este PC" : "Este celular",
+                kind: desktop ? "desktop" : "web",
+                online: true,
+                player: localPlayer(),
+              },
+            ];
+        for (const device of visible) {
+          const self = device.id === state.id,
+            active = device.id === selected;
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "device-output-row";
+          button.role = "option";
+          button.setAttribute("aria-selected", String(active));
+          const preparing = output.pending() === device.id;
+          button.disabled = !device.online || busy || preparing;
+          button.innerHTML =
+            '<span class="device-output-icon">' +
+            icon(device.kind === "desktop" ? "computer" : "phone") +
+            "</span><span><strong>" +
+            esc(device.name) +
+            "</strong><small>" +
+            esc(
+              !device.online
+                ? "Indisponível agora"
+                : preparing
+                  ? "Conectando esta saída…"
+                  : active
+                    ? (device.player?.state === "playing"
+                        ? "Reproduzindo"
+                        : "Saída selecionada") +
+                      (self ? " · este aparelho" : "")
+                    : self
+                      ? "Este aparelho"
+                      : "Disponível",
+            ) +
+            '</small></span><span class="device-output-check">' +
+            (active ? icon("check") : "") +
+            "</span>";
+          button.onclick = async () => {
+            if (busy) return;
+            busy = true;
+            button.disabled = true;
+            try {
+              const result = await output.select(device);
+              notify(
+                result?.pending
+                  ? "Preparando neste aparelho. A saída atual continua tocando."
+                  : self
+                    ? "Saída: este aparelho"
+                    : "Conectando a " + device.name,
+              );
+            } catch (error) {
+              notify(error.message);
+            } finally {
+              busy = false;
+              render(true);
+            }
+          };
+          list.append(button);
+        }
+        container
+          .querySelector("[data-disconnect]")
+          ?.addEventListener("click", async () => {
+            await disconnect();
+            render(true);
+          });
+        return;
+      }
       container.innerHTML =
         "<h4>" +
         icon("devices") +

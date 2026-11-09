@@ -7,7 +7,7 @@ window.attachMusicLayout = function (element) {
     compact: false,
     queueHidden: false,
     theme: "dark",
-    accent: "rose",
+    accent: "green",
     textSize: 13,
     artworkSize: 160,
     coverRadius: 12,
@@ -92,6 +92,7 @@ window.attachMusicLayout = function (element) {
       clamp(config.coverRadius, 0, 24) + "px",
     );
     element.classList.toggle("music-narrow", width < 1050);
+    element.classList.toggle("music-tight", width < 880);
     element.classList.toggle("music-compact", !!config.compact);
     element.classList.toggle("queue-hidden", !!config.queueHidden);
     element.classList.toggle(
@@ -125,13 +126,14 @@ window.attachMusicLayout = function (element) {
       clamp(config.radius, 0, 24) + "px",
     );
     for (const grip of element.querySelectorAll("[data-music-resize]")) {
-      grip.setAttribute(
-        "aria-valuenow",
-        String(
-          Math.round(grip.dataset.musicResize === "library" ? library : queue),
-        ),
+      const now = Math.round(
+        grip.dataset.musicResize === "library" ? library : queue,
       );
+      grip.setAttribute("aria-valuenow", String(now));
+      grip.setAttribute("aria-valuetext", now + " px");
     }
+    // Lets the view keep its queue toggle in step with narrow/wide changes.
+    element.dispatchEvent(new CustomEvent("music-layout"));
   }
   function schedule() {
     if (!frame)
@@ -221,6 +223,36 @@ window.attachMusicLayout = function (element) {
   }
   const observer = new ResizeObserver(schedule);
   observer.observe(element);
+  // Narrow windows show the queue as an overlay: Escape or a press outside of
+  // it (other than on the player, which owns the toggle) closes it again.
+  const overlayOpen = () => element.classList.contains("queue-expanded");
+  const closeOverlay = () => {
+    config.openNarrow = false;
+    apply();
+    save();
+  };
+  const onKey = (event) => {
+    if (
+      event.key !== "Escape" ||
+      !overlayOpen() ||
+      event.defaultPrevented ||
+      element.querySelector("dialog[open], .music-context")
+    )
+      return;
+    closeOverlay();
+    element.querySelector(".spotify-player [data-action=queue]")?.focus();
+  };
+  const onPointer = (event) => {
+    if (
+      overlayOpen() &&
+      !event.target.closest(
+        ".music-queue, .spotify-player, dialog, .music-context",
+      )
+    )
+      closeOverlay();
+  };
+  element.addEventListener("keydown", onKey);
+  element.addEventListener("pointerdown", onPointer);
   apply();
   return {
     config,
@@ -300,6 +332,8 @@ window.attachMusicLayout = function (element) {
       save();
     },
     dispose() {
+      element.removeEventListener("keydown", onKey);
+      element.removeEventListener("pointerdown", onPointer);
       observer.disconnect();
       cancelAnimationFrame(frame);
       grips.forEach((g) => g.remove());

@@ -3,6 +3,14 @@
 }
 :root {
   color-scheme: dark;
+  scrollbar-width: none;
+}
+body:has(.music-launch),
+body:has(dialog[open]) {
+  overflow: hidden;
+}
+body::-webkit-scrollbar {
+  display: none;
 }
 body {
   --bg: #101015;

@@ -52,6 +52,16 @@ function confirmAction(
 
 async function addToQueue(track, next = false) {
   await ensureSaved(track);
+  if (window.musicOutput?.remote()) {
+    const ids = musicOutput.remote().player.queue || [];
+    await musicOutput.command("queue", {
+      queue: next
+        ? [track.id, ...ids.filter((id) => id !== track.id)]
+        : [...ids, track.id],
+    });
+    notice(next ? "Esta música toca a seguir" : "Adicionada ao fim da fila");
+    return;
+  }
   if (track.status !== "ready" && !offlineIds.has(track.id)) {
     await api("prepare", {
       tracks: [{ ...track, artists: track.artist, thumbnail: track.art }],

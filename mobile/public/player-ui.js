@@ -4,9 +4,21 @@ let queueMode = "upcoming";
 let queueBeforeDrag = [];
 const queueSort = attachMusicSort($("queue"), {
   onStart: () => {
-    queueBeforeDrag = [...queue];
+    queueBeforeDrag = [
+      ...(window.musicOutput?.remote()?.player.queue || queue),
+    ];
   },
   onCommit: (keys) => {
+    if (window.musicOutput?.remote()) {
+      musicOutput
+        .command("queue", {
+          queue: keys
+            .map((key) => queueBeforeDrag[Number(key)])
+            .filter(Boolean),
+        })
+        .catch((e) => notice(e.message));
+      return;
+    }
     queue = keys.map((key) => queueBeforeDrag[Number(key)]).filter(Boolean);
     savePlayer();
     drawQueue();
@@ -38,6 +50,12 @@ function dragHandle(name) {
   return button;
 }
 async function selectQueue(index) {
+  if (window.musicOutput?.remote()) {
+    const ids = musicOutput.remote().player.queue || [];
+    const track = library.tracks.find((t) => t.id === ids[index]);
+    if (track) await musicOutput.play(track, ids.slice(index + 1));
+    return;
+  }
   const before = [...queue];
   const track = library.tracks.find((t) => t.id === before[index]);
   if (track && (await play(track))) {
@@ -51,7 +69,15 @@ function drawQueue() {
   if (queueSort.dragging) return;
   const container = $("queue");
   container.replaceChildren();
-  const ids = queueMode === "history" ? playHistory : queue;
+  const remote = window.musicOutput?.remote();
+  if (remote) queueMode = "upcoming";
+  $("history-tab").disabled = !!remote;
+  $("shuffle").disabled = $("repeat").disabled = !!remote;
+  const ids = remote
+    ? remote.player.queue || []
+    : queueMode === "history"
+      ? playHistory
+      : queue;
   $("clear-history").hidden = queueMode !== "history" || !ids.length;
   $("upcoming-tab").setAttribute(
     "aria-selected",
@@ -147,13 +173,23 @@ $("clear-history").onclick = task(async () => {
   drawQueue();
 });
 $("player-like").onclick = task(async () => {
-  if (!current) return;
-  const t = library.tracks.find((t) => t.id === current.id) || current;
+  const shown = window.getMusicDisplayTrack
+    ? window.getMusicDisplayTrack()
+    : current;
+  if (!shown) return;
+  const t = library.tracks.find((t) => t.id === shown.id) || shown;
   await api("tracks/" + t.id, { liked: !t.liked });
   await refresh();
 });
-$("player-more").onclick = () => current && options(current);
+$("player-more").onclick = () => {
+  const shown = window.getMusicDisplayTrack
+    ? window.getMusicDisplayTrack()
+    : current;
+  if (shown) options(shown);
+};
 $("previous").onclick = task(async () => {
+  if (!window.applyingDeviceCommand && window.musicOutput?.remote())
+    return musicOutput.command("previous");
   if (audio.currentTime > 3 || !playHistory.length) {
     audio.currentTime = 0;
     return;

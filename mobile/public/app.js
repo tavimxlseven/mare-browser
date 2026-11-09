@@ -155,7 +155,7 @@ let offlineIds = new Set();
 function row(track, list) {
   const el = document.createElement("article");
   el.className = "track";
-  el.dataset.trackId=track.id;
+  el.dataset.trackId = track.id;
   const art = document.createElement("div");
   art.className = "art";
   artwork(track, art);
@@ -540,6 +540,14 @@ function savePlayer() {
   }).catch(() => {});
 }
 async function play(track, list) {
+  if (!window.applyingDeviceCommand && window.musicOutput?.remote()) {
+    const ids = list
+      ? list.map((t) => t.id)
+      : musicOutput.remote().player.queue || [];
+    const index = list ? ids.indexOf(track.id) : -1;
+    await musicOutput.play(track, list ? ids.slice(index + 1) : ids);
+    return true;
+  }
   window.cancelMusicTransfer?.(track.id);
   const version = ++playVersion;
   track = library.tracks.find((t) => t.id === track.id) || track;
@@ -611,33 +619,41 @@ async function play(track, list) {
     throw error;
   }
   if (version !== playVersion) return false;
+  window.musicOutput?.claim();
   savePlayer();
   return true;
 }
 function drawPlayer() {
-  if (!current) return;
+  const shown = window.getMusicDisplayTrack
+    ? window.getMusicDisplayTrack()
+    : current;
+  if (!shown) {
+    $("mini").hidden = true;
+    return;
+  }
   $("mini").hidden = false;
-  $("mini-title").textContent = current.title;
-  $("mini-artist").textContent = current.artist;
-  $("mini-art").src = current.art || "/artwork/" + current.id;
+  $("mini-title").textContent = shown.title;
+  $("mini-artist").textContent = shown.artist;
+  $("mini-art").src = shown.art || "/artwork/" + shown.id;
   $("mini-art").onerror = () => {
     $("mini-art").onerror = null;
     $("mini-art").src = "/icon-192.png";
   };
-  $("player-title").textContent = current.title;
-  $("player-artist").textContent = current.artist;
-  artwork(current, $("cover"));
-  $("player-backdrop").src = current.art || "/artwork/" + current.id;
-  const latest = library.tracks.find((t) => t.id === current.id) || current;
+  $("player-title").textContent = shown.title;
+  $("player-artist").textContent = shown.artist;
+  artwork(shown, $("cover"));
+  $("player-backdrop").src = shown.art || "/artwork/" + shown.id;
+  const latest = library.tracks.find((t) => t.id === shown.id) || shown;
   $("player-like").setAttribute("aria-pressed", String(!!latest.liked));
   drawQueue();
+  window.paintMusicOutput?.();
   if ("mediaSession" in navigator) {
     navigator.mediaSession.metadata = new MediaMetadata({
-      title: current.title,
-      artist: current.artist,
+      title: shown.title,
+      artist: shown.artist,
       album: "Maré Música",
-      artwork: current.art
-        ? [{ src: current.art }]
+      artwork: shown.art
+        ? [{ src: shown.art }]
         : [
             {
               src: location.origin + "/icon-512.png",
@@ -657,6 +673,12 @@ function shuffleItems(items) {
   return result;
 }
 async function next(automatic = false) {
+  if (
+    !automatic &&
+    !window.applyingDeviceCommand &&
+    window.musicOutput?.remote()
+  )
+    return musicOutput.command("next");
   if (repeat === "one" && automatic && current) {
     audio.currentTime = 0;
     await audio.play();
@@ -690,6 +712,14 @@ async function next(automatic = false) {
   savePlayer();
 }
 function toggle() {
+  if (!window.applyingDeviceCommand && window.musicOutput?.remote()) {
+    musicOutput
+      .command(
+        musicOutput.remote().player.state === "playing" ? "pause" : "resume",
+      )
+      .catch((e) => notice(e.message));
+    return;
+  }
   if (current && !audio.getAttribute("src")) {
     play(current).catch((e) => notice(e.message));
     return;
@@ -702,6 +732,11 @@ function stamp(s) {
   return Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0");
 }
 audio.onplay = audio.onpause = () => {
+  if (window.musicOutput?.remote()) {
+    window.paintMusicOutput?.();
+    savePlayer();
+    return;
+  }
   $("mini-play").innerHTML = $("big-play").innerHTML = icon(
     audio.paused ? "play" : "pause",
   );
@@ -717,6 +752,10 @@ function paintMobileSeek(percent, position) {
   $("elapsed").textContent = stamp(position);
 }
 audio.ontimeupdate = () => {
+  if (window.musicOutput?.remote()) {
+    window.paintMusicOutput?.();
+    return;
+  }
   $("duration").textContent = stamp(audio.duration);
   const actual = audio.duration
     ? (audio.currentTime / audio.duration) * 100
@@ -733,7 +772,16 @@ audio.onerror = () =>
     "Não foi possível tocar. Verifique se a música está pronta ou salva no aparelho.",
   );
 $("seek").onchange = () => {
-  if (Number.isFinite(audio.duration))
+  if (window.musicOutput?.remote()) {
+    const p = musicOutput.remote().player;
+    musicOutput
+      .command("seek", {
+        position_ms: Math.round(
+          ((p.duration_ms || 0) * Number($("seek").value)) / 100,
+        ),
+      })
+      .catch((e) => notice(e.message));
+  } else if (Number.isFinite(audio.duration))
     audio.currentTime = (audio.duration * Number($("seek").value)) / 100;
   seeking = false;
   $("seek").classList.remove("scrubbing");
@@ -750,7 +798,11 @@ $("seek").onpointerup = () => {
 $("seek").oninput = () => {
   seeking = true;
   const fraction = Number($("seek").value) / 100;
-  paintMobileSeek(100 * fraction, (audio.duration || 0) * fraction);
+  const duration =
+    window.musicOutput?.remote()?.player.duration_ms / 1000 ||
+    audio.duration ||
+    0;
+  paintMobileSeek(100 * fraction, duration * fraction);
 };
 $("seek").onpointercancel = $("seek").onblur = () => {
   seeking = false;
@@ -760,6 +812,8 @@ $("seek").onpointercancel = $("seek").onblur = () => {
 $("mini-play").onclick = $("big-play").onclick = toggle;
 $("next").onclick = $("forward").onclick = task(() => next(false));
 $("previous").onclick = () => {
+  if (!window.applyingDeviceCommand && window.musicOutput?.remote())
+    return musicOutput.command("previous");
   audio.currentTime = 0;
 };
 $("shuffle").onclick = () => {
@@ -791,7 +845,12 @@ $("open-player").onclick = () => {
   openSheet($("player"));
   drawQueue();
 };
-$("save-current").onclick = task(() => current && saveTracks([current]));
+$("save-current").onclick = task(() => {
+  const shown = window.getMusicDisplayTrack
+    ? window.getMusicDisplayTrack()
+    : current;
+  return shown && saveTracks([shown]);
+});
 $("search-form").onsubmit = task(async (e) => {
   e.preventDefault();
   const b = e.submitter;
@@ -984,12 +1043,26 @@ async function restorePlayer() {
   if (navigator.audioSession) navigator.audioSession.type = "playback";
   if ("mediaSession" in navigator)
     for (const [action, handler] of Object.entries({
-      play: () => (audio.src ? audio.play() : current && play(current)),
-      pause: () => audio.pause(),
+      play: () =>
+        window.musicOutput?.remote()
+          ? musicOutput.command("resume")
+          : audio.src
+            ? audio.play()
+            : current && play(current),
+      pause: () =>
+        window.musicOutput?.remote()
+          ? musicOutput.command("pause")
+          : audio.pause(),
       nexttrack: () => next(false),
-      previoustrack: () => (audio.currentTime = 0),
+      previoustrack: () => $("previous").onclick(),
       seekto: (e) => {
-        if (Number.isFinite(e.seekTime)) audio.currentTime = e.seekTime;
+        if (Number.isFinite(e.seekTime)) {
+          if (window.musicOutput?.remote())
+            return musicOutput.command("seek", {
+              position_ms: Math.round(e.seekTime * 1000),
+            });
+          audio.currentTime = e.seekTime;
+        }
       },
     })) {
       try {
@@ -1006,9 +1079,11 @@ document.addEventListener("visibilitychange", () => {
   else sync();
 });
 document.addEventListener("DOMContentLoaded", () =>
-  boot().catch((e) =>
-    notice("Não foi possível abrir o armazenamento. " + e.message),
-  ),
+  boot()
+    .catch((e) =>
+      notice("Não foi possível abrir o armazenamento. " + e.message),
+    )
+    .finally(() => window.finishMusicLaunch?.()),
 );
 
 $("resume-preparation").onclick = task(async () => {
