@@ -1576,19 +1576,28 @@
   min-width: 0;
 }
 .spotify-app .music-controls {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(5, 36px);
   align-items: center;
-  gap: 12px;
+  justify-content: center;
+  gap: 8px;
 }
 .spotify-app .music-controls button {
   position: relative;
-  width: 32px;
-  height: 32px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+  line-height: 1;
   border-radius: 999px;
 }
 .spotify-app .music-controls button svg {
-  width: 17px;
-  height: 17px;
+  display: block;
+  width: 18px;
+  height: 18px;
 }
 .spotify-app .music-controls .music-play {
   width: 36px;
@@ -1613,7 +1622,7 @@
 .spotify-app .music-controls [aria-pressed="true"]::after {
   content: "";
   position: absolute;
-  bottom: 1px;
+  bottom: -3px;
   left: 50%;
   width: 4px;
   height: 4px;
