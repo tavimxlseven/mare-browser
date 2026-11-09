@@ -10,7 +10,9 @@ use std::{
 };
 
 const REPOSITORY: &str = "https://github.com/tavimxlseven/mare-browser";
-const LATEST: &str = "https://api.github.com/repos/tavimxlseven/mare-browser/releases/latest";
+// The public release asset endpoint avoids unauthenticated GitHub API rate limits.
+const LATEST: &str =
+    "https://github.com/tavimxlseven/mare-browser/releases/latest/download/SHA256SUMS.txt";
 const MAX_SETUP: u64 = 512 * 1024 * 1024;
 #[derive(Default)]
 struct State {
@@ -152,6 +154,37 @@ fn checksum(manifest: &str, asset: &str) -> Result<String, String> {
         Err("A versão não tem uma soma de verificação válida.".into())
     }
 }
+fn latest_setup(manifest: &str) -> Result<(String, String, String), String> {
+    let mut setups = Vec::new();
+    for line in manifest.lines() {
+        let Some(asset) = line.split_whitespace().nth(1) else {
+            continue;
+        };
+        let asset = asset.trim_start_matches('*');
+        let Some(number) = asset
+            .strip_prefix("Mare-Setup-")
+            .and_then(|name| name.strip_suffix("-x64.exe"))
+        else {
+            continue;
+        };
+        let Some(parsed) = version(number) else {
+            continue;
+        };
+        if number != format!("{}.{}.{}", parsed.0, parsed.1, parsed.2) {
+            continue;
+        }
+        setups.push((
+            number.to_string(),
+            asset.to_string(),
+            checksum(manifest, asset)?,
+        ));
+    }
+    if setups.len() == 1 {
+        Ok(setups.remove(0))
+    } else {
+        Err("O manifesto não identifica um instalador estável único.".into())
+    }
+}
 fn file_digest(path: &Path) -> Result<String, String> {
     let mut input = File::open(path).map_err(|e| e.to_string())?;
     let mut digest = Sha256::new();
@@ -175,10 +208,12 @@ fn allowed_url(url: &url::Url) -> bool {
         return false;
     }
     match url.host_str().unwrap_or("") {
-        "api.github.com" => url.path() == "/repos/tavimxlseven/mare-browser/releases/latest",
-        "github.com" => url
-            .path()
-            .starts_with("/tavimxlseven/mare-browser/releases/download/v"),
+        "github.com" => {
+            url.path() == "/tavimxlseven/mare-browser/releases/latest/download/SHA256SUMS.txt"
+                || url
+                    .path()
+                    .starts_with("/tavimxlseven/mare-browser/releases/download/v")
+        }
         "release-assets.githubusercontent.com" | "objects.githubusercontent.com" => true,
         _ => false,
     }
@@ -195,27 +230,20 @@ fn prepare(
     root: &Path,
     progress: impl Fn(Value),
 ) -> Result<Option<(PathBuf, String, String)>, String> {
-    let release: Value = serde_json::from_slice(&small_file(LATEST, 2_000_000)?)
-        .map_err(|_| "Resposta de atualização inválida.")?;
-    if release["draft"] == true || release["prerelease"] == true {
-        return Ok(None);
-    }
-    let tag = release["tag_name"]
-        .as_str()
-        .ok_or("Versão da atualização ausente.")?;
-    let remote = version(tag).ok_or("Versão da atualização inválida.")?;
+    let latest_manifest = String::from_utf8(small_file(LATEST, 65536)?)
+        .map_err(|_| "Manifesto de atualização inválido.")?;
+    let (number, asset, expected) = latest_setup(&latest_manifest)?;
+    let remote = version(&number).ok_or("Versão da atualização inválida.")?;
     if remote <= version(env!("CARGO_PKG_VERSION")).unwrap() {
         return Ok(None);
     }
-    let number = format!("{}.{}.{}", remote.0, remote.1, remote.2);
-    if tag != format!("v{number}") {
-        return Err("Tag da versão inválida.".into());
-    }
-    let asset = format!("Mare-Setup-{number}-x64.exe");
+    let tag = format!("v{number}");
     let base = format!("{REPOSITORY}/releases/download/{tag}");
     let manifest = String::from_utf8(small_file(&format!("{base}/SHA256SUMS.txt"), 65536)?)
         .map_err(|_| "Manifesto de atualização inválido.")?;
-    let expected = checksum(&manifest, &asset)?;
+    if checksum(&manifest, &asset)? != expected {
+        return Err("O manifesto da versão mudou. Tente verificar novamente.".into());
+    }
     let folder = root.join("updates");
     std::fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
     let final_path = folder.join(&asset);
@@ -420,6 +448,20 @@ mod tests {
         assert!(checksum(&format!("{hash}  other.exe"), "Mare-Setup-1.0.0-x64.exe").is_err());
         assert!(checksum(&format!("{hash}  app.exe\n{hash} app.exe"), "app.exe").is_err());
         assert!(checksum("not-a-hash app.exe", "app.exe").is_err());
+        let (number, asset, digest) =
+            latest_setup(&format!("{hash}  Mare-Setup-1.0.0-x64.exe")).unwrap();
+        assert_eq!(
+            (number.as_str(), asset.as_str(), digest.as_str()),
+            ("1.0.0", "Mare-Setup-1.0.0-x64.exe", hash.as_str())
+        );
+        for invalid in [
+            format!("{hash} Mare-Setup-1.0.0-beta-x64.exe"),
+            format!("{hash} ../../Mare-Setup-1.0.0-x64.exe"),
+            format!("{hash} Mare-Setup-01.0.0-x64.exe"),
+            format!("{hash} Mare-Setup-1.0.0-x64.exe\n{hash} Mare-Setup-2.0.0-x64.exe"),
+        ] {
+            assert!(latest_setup(&invalid).is_err());
+        }
     }
     #[test]
     fn updater_urls_cannot_escape_trusted_hosts() {
