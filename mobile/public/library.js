@@ -61,7 +61,6 @@ function animateView() {
 }
 function showPlaylist(id) {
   navigateView("library", id);
-  local("meta", "selected", id).catch(() => {});
 }
 function updatePlaylistHeader() {
   const p =

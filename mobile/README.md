@@ -45,6 +45,7 @@ Never publish environment files, SSH keys, passwords, the SQLite database, sessi
 - Wi-Fi confirmation is the default. iOS exposes no reliable Wi-Fi-only transfer API. The user chooses whether to proceed and may enable mobile data in settings.
 - Home Screen shell caches locally. First login, search, imports and new server preparations need internet.
 - Media Session and Audio Session APIs are used when available. Playback, lock-screen controls and offline storage must also be verified on a physical iPhone.
+- Each launch opens the library home independently of the saved playback queue and position. Track changes reuse the audio element without an explicit pause; online playback does not wait for IndexedDB and the next offline file is warmed in a bounded, account-scoped cache. Lock-screen progress is updated through Media Session. The PWA cannot assign itself Android process priority or continue after the browser is force-stopped. Background transitions still require verification on the target phone/browser.
 - Invitation-only registration, hashed passwords, administrator-only single-use invitations valid for seven days, revocation, expiring sessions, login throttling and same-origin mutations. Only invitation hashes are stored.
 - Playlists, favorites, library membership, preparation jobs and audio access are scoped to the authenticated account. Public song metadata and completed audio files may be reused internally between accounts. Removing a song from one library preserves other users’ copies.
 - Browser storage uses a separate IndexedDB database for each account. Offline audio remains local to each device. Signing out clears that account’s local data.
@@ -60,6 +61,8 @@ Never publish environment files, SSH keys, passwords, the SQLite database, sessi
 Administrators can open `/admin` in a desktop browser without installing the PWA. It uses the same authenticated session and administrator-only invite endpoints; the install requirement continues to apply to the normal app entry.
 
 Run `python -m unittest discover -s tests` from this directory. Tests use a temporary database and mock provider responses, never production data or a user's library.
+
+From the repository root, run `node scripts/music-background-check.cjs` to verify online/offline track handoffs, absence of an explicit transition pause and cancellation of superseded playback requests.
 
 ## Upgrading the shared-library version
 

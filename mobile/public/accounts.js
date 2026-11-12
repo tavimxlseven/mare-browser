@@ -18,6 +18,9 @@ if (isAdminEntry()) {
 
 async function useAccount(user) {
   const previous = currentUser?.id;
+  ++playVersion;
+  nextAudio = null;
+  mediaMetadataKey = "";
   if (previous && previous !== user.id) {
     downloadController?.abort();
     audio.pause();
@@ -84,7 +87,9 @@ async function useAccount(user) {
   downloads = new Set((await local("meta", "downloads")) || []);
   deviceBatch = (await local("meta", "device-batch")) || [...downloads];
   dismissedJobs = new Set((await local("meta", "dismissed-jobs")) || []);
-  selected = (await local("meta", "selected")) || null;
+  // Restore playback independently from navigation: each launch starts at home.
+  view = "library";
+  selected = null;
   const db = await database;
   offlineIds = new Set(
     await new Promise((resolve, reject) => {
@@ -212,6 +217,8 @@ $("logout").onclick = task(async () => {
     ))
   )
     return;
+  ++playVersion;
+  nextAudio = null;
   downloadController?.abort();
   try {
     await api("logout", {});

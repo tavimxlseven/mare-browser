@@ -19,6 +19,44 @@ let downloads = new Set(),
 const audio = $("audio");
 let seeking = false;
 let playVersion = 0;
+let nextAudio = null;
+let mediaMetadataKey = "";
+let lastPlayerSave = 0;
+
+// Keep only the next offline file ready; no network download or extra audio player.
+function warmNextAudio() {
+  const id = queue.find((id) =>
+    library.tracks.some(
+      (t) => t.id === id && (t.status === "ready" || offlineIds.has(id)),
+    ),
+  );
+  const owner = currentUser?.id;
+  if (!id || !offlineIds.has(id)) {
+    nextAudio = null;
+    return;
+  }
+  if (nextAudio?.id === id && nextAudio.owner === owner) return;
+  const entry = { id, owner, blob: null };
+  nextAudio = entry;
+  entry.promise = local("audio", id)
+    .then((blob) => {
+      if (nextAudio === entry && currentUser?.id === owner) entry.blob = blob;
+      return blob;
+    })
+    .catch(() => null);
+}
+function updateMediaPosition() {
+  if (window.musicOutput?.remote() || !navigator.mediaSession?.setPositionState)
+    return;
+  if (!Number.isFinite(audio.duration) || audio.duration <= 0) return;
+  try {
+    navigator.mediaSession.setPositionState({
+      duration: audio.duration,
+      playbackRate: audio.playbackRate || 1,
+      position: Math.max(0, Math.min(audio.currentTime || 0, audio.duration)),
+    });
+  } catch {}
+}
 let searchVersion = 0,
   searchController = null;
 const pendingMutations = new Map();
@@ -582,7 +620,14 @@ async function play(track, list) {
     );
     return;
   }
-  const blob = await local("audio", track.id);
+  const prepared =
+    nextAudio?.id === track.id && nextAudio.owner === currentUser?.id
+      ? nextAudio
+      : null;
+  // Online playback must reach play() without waiting for IndexedDB.
+  const blob = offlineIds.has(track.id)
+    ? prepared?.blob || (await (prepared?.promise || local("audio", track.id)))
+    : null;
   if (version !== playVersion) return false;
   if (list) {
     playbackContext = list.map((t) => t.id);
@@ -591,8 +636,7 @@ async function play(track, list) {
       ? shuffleItems(playbackContext.filter((id) => id !== track.id))
       : playbackContext.slice(position + 1);
   }
-  audio.pause();
-  if (objectUrl) URL.revokeObjectURL(objectUrl);
+  const previousUrl = objectUrl;
   objectUrl = blob ? URL.createObjectURL(blob) : "";
   audio.src = objectUrl || "/media/" + track.id;
   if (restoredPosition && current?.id === track.id) {
@@ -614,9 +658,13 @@ async function play(track, list) {
     local("meta", "history", playHistory).catch(() => {});
   }
   current = track;
-  drawPlayer();
   try {
-    await audio.play();
+    // Start the same media element immediately, without explicitly abandoning audio focus.
+    const started = audio.play();
+    if (previousUrl) URL.revokeObjectURL(previousUrl);
+    warmNextAudio();
+    drawPlayer();
+    await started;
   } catch (error) {
     if (version !== playVersion) return false;
     throw error;
@@ -650,7 +698,14 @@ function drawPlayer() {
   $("player-like").setAttribute("aria-pressed", String(!!latest.liked));
   drawQueue();
   window.paintMusicOutput?.();
-  if ("mediaSession" in navigator) {
+  const metadataKey = JSON.stringify([
+    shown.id,
+    shown.title,
+    shown.artist,
+    shown.art,
+  ]);
+  if ("mediaSession" in navigator && metadataKey !== mediaMetadataKey) {
+    mediaMetadataKey = metadataKey;
     navigator.mediaSession.metadata = new MediaMetadata({
       title: shown.title,
       artist: shown.artist,
@@ -746,6 +801,7 @@ audio.onplay = audio.onpause = () => {
   $("mini").classList.toggle("playing", !audio.paused);
   if ("mediaSession" in navigator)
     navigator.mediaSession.playbackState = audio.paused ? "paused" : "playing";
+  updateMediaPosition();
   savePlayer();
 };
 function paintMobileSeek(percent, position) {
@@ -767,8 +823,20 @@ audio.ontimeupdate = () => {
     paintMobileSeek(actual, audio.currentTime);
   }
   $("mini-progress").value = actual;
-  if (Math.floor(audio.currentTime) % 5 === 0) savePlayer();
+  updateMediaPosition();
+  warmNextAudio();
+  if (Date.now() - lastPlayerSave >= 5000) {
+    lastPlayerSave = Date.now();
+    savePlayer();
+  }
 };
+for (const event of [
+  "loadedmetadata",
+  "durationchange",
+  "seeked",
+  "ratechange",
+])
+  audio.addEventListener(event, updateMediaPosition);
 audio.onended = task(() => next(true));
 audio.onerror = () =>
   notice(
@@ -1043,13 +1111,16 @@ async function restorePlayer() {
     $("repeat").dataset.mode = repeat;
     drawPlayer();
   }
-  if (navigator.audioSession) navigator.audioSession.type = "playback";
+  warmNextAudio();
+  try {
+    if (navigator.audioSession) navigator.audioSession.type = "playback";
+  } catch {}
   if ("mediaSession" in navigator)
     for (const [action, handler] of Object.entries({
       play: () =>
         window.musicOutput?.remote()
           ? musicOutput.command("resume")
-          : audio.src
+          : audio.getAttribute("src")
             ? audio.play()
             : current && play(current),
       pause: () =>
@@ -1077,6 +1148,7 @@ window.addEventListener("online", () => {
   onlineSession = true;
   sync();
 });
+window.addEventListener("pagehide", savePlayer);
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) savePlayer();
   else sync();
