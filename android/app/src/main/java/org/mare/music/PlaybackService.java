@@ -238,6 +238,19 @@ public final class PlaybackService extends MediaSessionService {
           }
           break;
         }
+      case "previous":
+        if (player.getCurrentPosition() > 3000) player.seekTo(0);
+        else if (player.hasPreviousMediaItem()) player.seekToPreviousMediaItem();
+        else if (player.getCurrentMediaItem() != null) {
+          int at = context.indexOf(player.getCurrentMediaItem().mediaId);
+          if (at > 0) {
+            List<MediaItem> media = items(context.subList(at - 1, context.size()));
+            player.setMediaItems(media);
+            player.prepare();
+            player.play();
+          } else player.seekTo(0);
+        }
+        break;
       case "play":
         if (player.getPlaybackState() == Player.STATE_IDLE)
           player.seekTo(player.getCurrentMediaItemIndex(), player.getCurrentPosition());
@@ -348,7 +361,13 @@ public final class PlaybackService extends MediaSessionService {
               "playing",
               player.getPlayWhenReady() && player.getPlaybackState() != Player.STATE_ENDED)
           .put("position", player.getCurrentPosition())
-          .put("duration", Math.max(0, player.getDuration()))
+          .put(
+              "duration",
+              player.getDuration() > 0
+                  ? player.getDuration()
+                  : track != null && service.catalog.containsKey(track.mediaId)
+                      ? service.catalog.get(track.mediaId).optLong("duration_ms")
+                      : 0)
           .put("volume", player.getVolume())
           .put("queue", new JSONArray(service.remaining()))
           .put("repeat", service.repeat)

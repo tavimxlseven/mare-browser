@@ -45,7 +45,8 @@ public final class MainActivity extends Activity {
   private boolean active, refreshing, shuffle;
   private long refreshed;
   private Dialog player;
-  private TextView playerPlay, elapsed, remainingTime;
+  private TextView playerPlay, elapsed, remainingTime, playerName, playerArtist;
+  private ImageView playerCover;
   private SeekBar seek;
   private boolean scrubbing;
   private final Runnable pulse =
@@ -835,8 +836,12 @@ public final class MainActivity extends Activity {
       JSONObject t = track(id);
       if (t != null) paintMini(t, value.optBoolean("playing"));
       if (changed && player != null && player.isShowing()) {
-        player.dismiss();
-        openPlayer();
+        JSONObject playing = track(current);
+        if (playing != null && playerName != null) {
+          playerName.setText(playing.optString("title"));
+          playerArtist.setText(playing.optString("artist"));
+          loadImage(playerCover, playing.optString("art"));
+        }
       }
     }
     JSONArray files = value.optJSONArray("offline");
@@ -878,7 +883,13 @@ public final class MainActivity extends Activity {
     TextView caption = text("Tocando agora", 13, MUTED);
     caption.setGravity(Gravity.CENTER);
     header.addView(caption, new LinearLayout.LayoutParams(0, -2, 1));
-    header.addView(iconButton("•••", () -> songActions(t)));
+    header.addView(
+        iconButton(
+            "•••",
+            () -> {
+              JSONObject shown = track(current);
+              if (shown != null) songActions(shown);
+            }));
     page.addView(header);
     gap(page, 24);
     int coverSize =
@@ -887,14 +898,17 @@ public final class MainActivity extends Activity {
             (int) (getResources().getDisplayMetrics().heightPixels * .34));
     LinearLayout.LayoutParams artSize = new LinearLayout.LayoutParams(coverSize, coverSize);
     artSize.gravity = Gravity.CENTER_HORIZONTAL;
-    page.addView(cover(t.optString("art"), 300), artSize);
+    playerCover = cover(t.optString("art"), 300);
+    page.addView(playerCover, artSize);
     gap(page, 26);
     TextView name = title(t.optString("title"), 24);
+    playerName = name;
     name.setMaxLines(2);
     name.setEllipsize(android.text.TextUtils.TruncateAt.END);
     page.addView(name);
     gap(page, 6);
-    page.addView(text(t.optString("artist"), 17, MUTED));
+    playerArtist = text(t.optString("artist"), 17, MUTED);
+    page.addView(playerArtist);
     gap(page, 20);
     seek = new SeekBar(this);
     seek.setMax(1000);
@@ -938,7 +952,7 @@ public final class MainActivity extends Activity {
             });
     controls.addView(shuffleButton, new LinearLayout.LayoutParams(0, dp(48), 1));
     controls.addView(
-        iconButton("↤", () -> command("seek", MusicApi.json("position", 0))),
+        iconButton("↤", () -> command("previous", new JSONObject())),
         new LinearLayout.LayoutParams(0, dp(56), 1));
     playerPlay = button(state.optBoolean("playing") ? "Ⅱ" : "▶", true, () -> toggle());
     playerPlay.setBackground(bg(TEXT, 40));
@@ -1494,12 +1508,27 @@ public final class MainActivity extends Activity {
         canvas.drawCircle(12, 13, 8, pen);
         canvas.drawLine(9, 2, 15, 2, pen);
         canvas.drawLine(12, 13, 12, 8, pen);
-      } else if (kind.equals("shuffle") || kind.equals("repeat")) {
+      } else if (kind.equals("shuffle")) {
         pen.setStyle(Paint.Style.STROKE);
         p.moveTo(3, 6);
         p.cubicTo(11, 6, 13, 18, 21, 18);
         p.moveTo(3, 18);
         p.cubicTo(11, 18, 13, 6, 21, 6);
+        canvas.drawPath(p, pen);
+      } else if (kind.equals("repeat")) {
+        pen.setStyle(Paint.Style.STROKE);
+        p.moveTo(5, 10);
+        p.cubicTo(5, 6, 7, 5, 11, 5);
+        p.lineTo(19, 5);
+        p.lineTo(16, 2);
+        p.moveTo(19, 5);
+        p.lineTo(16, 8);
+        p.moveTo(19, 14);
+        p.cubicTo(19, 18, 17, 19, 13, 19);
+        p.lineTo(5, 19);
+        p.lineTo(8, 16);
+        p.moveTo(5, 19);
+        p.lineTo(8, 22);
         canvas.drawPath(p, pen);
       } else if (kind.equals("↓")) {
         pen.setStyle(Paint.Style.STROKE);
