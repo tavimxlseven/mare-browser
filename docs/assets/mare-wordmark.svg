@@ -1,9 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="440" height="130" viewBox="0 0 440 130" role="img" aria-label="Maré">
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="130" viewBox="0 0 680 130" role="img" aria-label="Compass Browser">
   <defs><linearGradient id="ocean" x2="0" y2="1"><stop stop-color="#258ce9"/><stop offset="1" stop-color="#1256b8"/></linearGradient></defs>
   <rect x="10" y="10" width="110" height="110" rx="28" fill="url(#ocean)"/>
   <circle cx="65" cy="65" r="39" fill="none" stroke="#fff" stroke-width="3" opacity=".92"/>
   <path d="m88 42-15 31-31 15 15-31z" fill="#f6fbff"/>
   <path d="m88 42-15 31-8-8z" fill="#ff737d"/>
   <circle cx="65" cy="65" r="3" fill="#176ac7"/>
-  <text x="145" y="91" font-family="Segoe UI,Helvetica,Arial,sans-serif" font-size="78" font-weight="600" fill="#6d83a9">Maré</text>
+  <text x="145" y="91" font-family="Segoe UI,Helvetica,Arial,sans-serif" font-size="52" font-weight="600" fill="#6d83a9">Compass Browser</text>
 </svg>

@@ -1,4 +1,4 @@
-const CACHE = "mare-music-shell-v19";
+const CACHE = "noise-music-shell-v20";
 const SHELL = [
   "/",
   "/launch.css",
@@ -37,7 +37,7 @@ self.addEventListener("activate", (event) =>
       .then((keys) =>
         Promise.all(
           keys
-            .filter((k) => k.startsWith("mare-music-shell-") && k !== CACHE)
+            .filter((k) => (k.startsWith("mare-music-shell-") || k.startsWith("noise-music-shell-")) && k !== CACHE)
             .map((k) => caches.delete(k)),
         ),
       )

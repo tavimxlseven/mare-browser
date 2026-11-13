@@ -131,7 +131,7 @@ fn select(seeds: Vec<Seed>, processes: &[Process]) -> BTreeMap<u32, Seed> {
             if let Some(parent) = selected.get(&process.parent) {
                 let engine = process.name.eq_ignore_ascii_case("msedgewebview2.exe")
                     || process.name.eq_ignore_ascii_case("crashpad_handler.exe");
-                if parent.group != "Maré Browser" && (parent.group != "Motor WebView2" || engine)
+                if parent.group != "Compass Browser" && (parent.group != "Motor WebView2" || engine)
                     || engine
                 {
                     let seed = Seed {
@@ -335,7 +335,7 @@ mod tests {
         };
         let selected = select(
             vec![
-                seed(1, "Maré Browser"),
+                seed(1, "Compass Browser"),
                 seed(3, "Spotify"),
                 seed(4, "Motor WebView2"),
             ],

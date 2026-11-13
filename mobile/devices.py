@@ -52,7 +52,7 @@ def bearer(con):
 
 def library(con, owner):
     tracks = [dict(row) for row in con.execute("SELECT t.id,t.title,t.artist,t.art,t.duration_ms,u.liked FROM tracks t JOIN user_tracks u ON u.track_id=t.id WHERE u.owner=? ORDER BY t.id", (owner,))]
-    playlists = [dict(id=row["id"],name=row["name"],source=row["source"],tracks=json.loads(row["tracks"]),importing=bool(con.execute("SELECT 1 FROM jobs WHERE owner=? AND source=? AND kind='import' AND status IN ('queued','importing')",(owner,row["source"])).fetchone())) for row in con.execute("SELECT * FROM playlists WHERE owner=? ORDER BY id", (owner,))]
+    playlists = [dict(id=row["id"],name=row["name"],source=row["source"],tracks=json.loads(row["tracks"]),importing=bool(con.execute("SELECT 1 FROM jobs WHERE owner=? AND source=? AND kind IN ('import','sync') AND status IN ('queued','importing')",(owner,row["source"])).fetchone())) for row in con.execute("SELECT * FROM playlists WHERE owner=? ORDER BY id", (owner,))]
     for playlist in playlists:
         meta=con.execute("SELECT art,custom_name,custom_art FROM playlists WHERE owner=? AND id=?",(owner,playlist["id"])).fetchone()
         playlist.update(dict(meta))
@@ -132,7 +132,7 @@ def apply_event(con, owner, device, event, save_tracks, create_job, enqueue_trac
             create_job(con,"import",source,"Importando música",[],owner)
         else:
             con.execute("INSERT OR IGNORE INTO playlists(id,name,tracks,owner,source) VALUES (?,?,?,?,?)", (identifier,str(payload.get("name","Playlist"))[:100],"[]",owner,source))
-            existing = con.execute("SELECT 1 FROM jobs WHERE owner=? AND source=? AND kind='import' AND status IN ('queued','importing','preparing')",(owner,source)).fetchone()
+            existing = con.execute("SELECT 1 FROM jobs WHERE owner=? AND source=? AND kind IN ('import','sync') AND status IN ('queued','importing','preparing')",(owner,source)).fetchone()
             if not existing: create_job(con,"import",source,"Importando playlist",[],owner)
             if payload.get("art"):
                 con.execute("UPDATE playlists SET art=? WHERE owner=? AND id=?",(playlist_metadata.artwork(payload["art"]),owner,identifier))
@@ -227,7 +227,7 @@ def register(app, db, save_tracks, create_job, wake, enqueue_tracks):
             user=con.execute("SELECT * FROM users WHERE username=? COLLATE NOCASE",(str(raw.get("username",""))[:32],)).fetchone()
             if not user or not check_password_hash(user["password_hash"],str(raw.get("password",""))[:128]): abort(401)
             token=secrets.token_urlsafe(32);identifier=secrets.token_hex(12)
-            con.execute("INSERT INTO music_devices(id,owner,token_hash,name,kind,last_seen) VALUES (?,?,?,?,?,?)",(identifier,user["id"],hashlib.sha256(token.encode()).hexdigest(),"Maré no PC","desktop",time.time()))
+            con.execute("INSERT INTO music_devices(id,owner,token_hash,name,kind,last_seen) VALUES (?,?,?,?,?,?)",(identifier,user["id"],hashlib.sha256(token.encode()).hexdigest(),"Noise no PC","desktop",time.time()))
         return jsonify(token=token,id=identifier,user=accounts.identity(user))
 
     @app.post("/api/devices/register")

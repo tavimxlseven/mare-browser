@@ -240,7 +240,7 @@
         container.innerHTML =
           "<h4>" +
           icon("devices") +
-          ' PC e celular</h4><p>Conecte sua conta do Maré. A biblioteca acompanha você e as playlists adicionadas no PC também são preparadas para o celular.</p><form><label>Servidor do Maré<input name="origin" type="text" inputmode="url" autocapitalize="none" spellcheck="false" required placeholder="https://seu-servidor.example" autocomplete="url"></label><label>Usuário do Maré<input name="username" required maxlength="32" autocomplete="username"></label><label>Senha<input name="password" type="password" required maxlength="128" autocomplete="current-password"></label><button class="device-primary" ' +
+          ' PC e celular</h4><p>Conecte sua conta do Noise. A biblioteca acompanha você e as playlists adicionadas no PC também são preparadas para o celular.</p><form><label>Servidor do Noise<input name="origin" type="text" inputmode="url" autocapitalize="none" spellcheck="false" required placeholder="https://seu-servidor.example" autocomplete="url"></label><label>Usuário do Noise<input name="username" required maxlength="32" autocomplete="username"></label><label>Senha<input name="password" type="password" required maxlength="128" autocomplete="current-password"></label><button class="device-primary" ' +
           (state.connecting ? "disabled" : "") +
           ">" +
           (state.connecting ? "Conectando…" : "Entrar na minha conta") +
@@ -251,7 +251,7 @@
           ) +
           "</p>";
         if (accountEntry) {
-          container.querySelector("h4").textContent = "Entrar no Maré Música";
+          container.querySelector("h4").textContent = "Entrar no Noise Music";
           container.querySelector("p").textContent =
             "Sua biblioteca, playlists e aparelhos na mesma conta do celular.";
         }
@@ -310,7 +310,7 @@
           '<p class="device-output-status" role="status">' +
           esc(
             state.error ||
-              "A mesma conta conecta seus aparelhos com o Maré aberto.",
+              "A mesma conta conecta seus aparelhos com o Noise aberto.",
           ) +
           "</p>" +
           (!picker && desktop
@@ -418,7 +418,7 @@
         (pairing && pairing.expires > Date.now()
           ? '<div class="device-pair-code"><strong>' +
             esc(pairing.code) +
-            "</strong><small>Digite este código nos ajustes do Maré no PC. Válido por cinco minutos.</small><button data-copy-server>Copiar endereço do servidor</button></div>"
+            "</strong><small>Digite este código nos ajustes do Noise no PC. Válido por cinco minutos.</small><button data-copy-server>Copiar endereço do servidor</button></div>"
           : "") +
         '<div class="device-list"></div><p role="status">' +
         esc(

@@ -231,6 +231,40 @@ $("playlist-options").onclick = () => {
     await refresh();
   });
   const form = $("entry-form");
+  form.querySelector(".spotify-sync-options")?.remove();
+  if (playlist.spotify_sync?.available) {
+    const sync = document.createElement("section");
+    sync.className = "spotify-sync-options";
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.setAttribute("aria-pressed", String(playlist.spotify_sync.enabled));
+    toggle.textContent = playlist.spotify_sync.enabled ? "Atualização do Spotify ativada" : "Ativar atualização do Spotify";
+    toggle.onclick = task(async () => {
+      toggle.disabled = true;
+      try {
+        const enabled = toggle.getAttribute("aria-pressed") !== "true";
+        await api("playlists/" + playlist.id + "/sync", { enabled });
+        toggle.setAttribute("aria-pressed", String(enabled));
+        toggle.textContent = enabled ? "Atualização do Spotify ativada" : "Ativar atualização do Spotify";
+        await refresh();
+      } finally { toggle.disabled = false; }
+    });
+    const refreshButton = document.createElement("button");
+    refreshButton.type = "button";
+    refreshButton.textContent = "Atualizar do Spotify agora";
+    refreshButton.onclick = task(async () => {
+      refreshButton.disabled = true;
+      try {
+        await api("playlists/" + playlist.id + "/sync", { refresh: true });
+        refreshButton.textContent = "Atualização solicitada";
+        await refresh();
+      } catch (error) { refreshButton.disabled = false; throw error; }
+    });
+    const description = document.createElement("small");
+    description.textContent = playlist.spotify_sync.error || "Consulta a playlist pública a cada 30 minutos. Suas adições, capa e nome personalizados ficam preservados. Não altera o Spotify.";
+    sync.append(toggle, refreshButton, description);
+    form.append(sync);
+  }
   form.querySelector(".primary").textContent = "Salvar alterações";
   const editor = document.createElement("div");
   editor.id = "playlist-cover-editor";

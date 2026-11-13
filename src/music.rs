@@ -211,7 +211,7 @@ impl Music {
         Ok(music)
     }
     // The original CLI records exact Spotify IDs beside finished playlist files.
-    // Match only filenames already registered by Maré, never open a manifest-supplied path.
+    // Match only filenames already registered by Noise, never open a manifest-supplied path.
     fn index_playlist_ids(&mut self) -> bool {
         let Ok(root) = self.directory.join("audio").canonicalize() else {
             return false;

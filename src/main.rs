@@ -328,8 +328,8 @@ impl Browser {
             .and_then(|app| app["name"].as_str());
         let title = app_title
             .or_else(|| self.state.active_tab().map(|tab| tab.title.as_str()))
-            .unwrap_or("Maré");
-        self.window.set_title(&format!("{title} — Maré"));
+            .unwrap_or("Compass");
+        self.window.set_title(&format!("{title} — Compass"));
         if let Ok(mut snapshot) = serde_json::to_value(&self.state) {
             snapshot["apps"] = app_state;
             snapshot["music_remote"] = self.music_remote.status();
@@ -1002,8 +1002,8 @@ impl Browser {
             "resources_poll" => {
                 let mut seeds = vec![task_manager::Seed {
                     pid: std::process::id(),
-                    group: "Maré Browser".into(),
-                    label: "Maré Browser · principal".into(),
+                    group: "Compass Browser".into(),
+                    label: "Compass Browser · principal".into(),
                 }];
                 let apps = self.apps.snapshot();
                 for app in apps["running"].as_array().into_iter().flatten() {
@@ -2073,7 +2073,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     })
     .map_err(std::io::Error::other)?;
     let window = WindowBuilder::new()
-        .with_title("Maré")
+        .with_title("Compass")
         .with_window_icon(icon::window_icon())
         .with_inner_size(LogicalSize::new(1280.0, 820.0))
         .with_min_inner_size(LogicalSize::new(760.0, 520.0))
@@ -2238,7 +2238,7 @@ fn main() {
     if let Err(error) = run() {
         let path = data_directory().join("startup-error.txt");
         let _ = std::fs::write(&path, error.to_string());
-        eprintln!("Maré não iniciou: {error}\nDetalhes: {}", path.display());
+        eprintln!("Compass não iniciou: {error}\nDetalhes: {}", path.display());
     }
 }
 #[cfg(test)]

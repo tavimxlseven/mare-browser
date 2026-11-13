@@ -1,6 +1,6 @@
 //! Request filtering for the Windows WebView2 host.
 //!
-//! This is Maré's integration with the unmodified, MPL-2.0-licensed
+//! This is Compass's integration with the unmodified, MPL-2.0-licensed
 //! `adblock-rust` engine. Filter data is separately licensed; see assets/filters.
 
 use adblock::{

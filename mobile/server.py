@@ -28,6 +28,8 @@ import provider
 import accounts
 import devices
 import playlist_metadata
+import playlist_sync
+import source_session
 
 ROOT = Path(__file__).resolve().parent
 DATA = Path(os.getenv("MARE_DATA", ROOT / "state")).resolve()
@@ -95,6 +97,7 @@ with db() as con:
     con.execute("UPDATE tracks SET status='queued' WHERE status='preparing'")
     con.execute("UPDATE jobs SET status='queued' WHERE status='importing'")
     devices.initialize(con)
+    playlist_sync.initialize(con)
 
 
 def recover_preparations():
@@ -202,12 +205,13 @@ def library():
         lists = [
             dict(p)
             for p in con.execute(
-                "SELECT id,name,tracks,art,custom_name,custom_art FROM playlists WHERE owner=? ORDER BY rowid DESC",
+                "SELECT id,name,tracks,art,custom_name,custom_art,source,sync_enabled,sync_checked,sync_success,sync_error FROM playlists WHERE owner=? ORDER BY rowid DESC",
                 (g.user["id"],),
             )
         ]
         for p in lists:
             playlist_metadata.decorate(con,g.user["id"],p)
+            playlist_sync.decorate(p)
         blocked = con.execute(
             "SELECT value FROM settings WHERE key='blocked_track'"
         ).fetchone()
@@ -291,7 +295,7 @@ def import_link():
         # Serialize the check and insert so double taps and retries share one job.
         con.execute("BEGIN IMMEDIATE")
         existing = con.execute(
-            "SELECT id FROM jobs WHERE source=? AND owner=? AND kind='import' AND status IN ('queued','importing','preparing') ORDER BY created DESC LIMIT 1",
+            "SELECT id FROM jobs WHERE source=? AND owner=? AND kind IN ('import','sync') AND status IN ('queued','importing','preparing') ORDER BY created DESC LIMIT 1",
             (source, g.user["id"]),
         ).fetchone()
         if existing:
@@ -314,7 +318,7 @@ def create_job(con, kind, source, name, ids, owner=accounts.ADMIN_ID):
             source,
             name,
             json.dumps(list(dict.fromkeys(ids))),
-            "queued" if kind == "import" else "preparing",
+            "queued" if kind in ("import", "sync") else "preparing",
             now,
             now,
             owner,
@@ -357,6 +361,7 @@ def enqueue_tracks(
 
 def job_snapshots(tracks, paused, jobs):
     by_id = {t["id"]: t for t in tracks}
+    owners = {j["id"]: j.get("owner") for j in jobs}
     for job in jobs:
         stored_status = job["status"]
         owner = job.pop("owner", None)
@@ -380,7 +385,7 @@ def job_snapshots(tracks, paused, jobs):
                 continue
             job["status"] = (
                 "paused"
-                if paused and (pending or job["failed"])
+                if paused and pending
                 else (
                     "preparing"
                     if pending
@@ -407,7 +412,35 @@ def job_snapshots(tracks, paused, jobs):
                     (job["id"], owner),
                 )
             job["archived"] = 1
-    return [job for job in jobs if not job.get("archived")]
+    # New attempts supersede older activity for the same collection or covered
+    # tracks. Archiving only hides the card; it never removes queued audio work.
+    visible = []
+    for job in jobs:
+        if job.get("archived"):
+            continue
+        ids = set(job["track_ids"])
+        redundant = any(
+            (ids and ids.issubset(set(other["track_ids"])))
+            or (not ids and job["source"] and other["source"] == job["source"])
+            for other in visible
+        )
+        if redundant:
+            with db() as con:
+                con.execute("UPDATE jobs SET archived=1 WHERE id=? AND owner=?", (job["id"], owners[job["id"]]))
+        else:
+            visible.append(job)
+    return visible
+
+
+@app.post("/api/jobs/<identifier>/dismiss")
+def dismiss_job(identifier):
+    with db() as con:
+        # Dismiss the notice, not its persisted queue. A new explicit request can
+        # reactivate it through enqueue_tracks.
+        changed = con.execute("UPDATE jobs SET archived=1 WHERE id=? AND owner=?", (identifier, g.user["id"]))
+        if not changed.rowcount:
+            abort(404)
+    return jsonify(ok=True)
 
 
 @app.post("/api/jobs/cleanup")
@@ -427,7 +460,7 @@ def cleanup_jobs():
         count = 0
         for row in rows:
             ids = json.loads(row["tracks"])
-            importing = row["kind"] == "import" and row["status"] in (
+            importing = row["kind"] in ("import", "sync") and row["status"] in (
                 "queued",
                 "importing",
             )
@@ -442,16 +475,22 @@ def cleanup_jobs():
 
 
 def import_job(job):
+    syncing = job["kind"] == "sync"
     try:
         collection = provider.collection(job["source"])
         kind, identifier, name, tracks = collection
         ids = list(dict.fromkeys(t["id"] for t in tracks))
+        previous_ids = set()
         with db() as con:
-            save_tracks(con, tracks, job["owner"], authoritative=True)
             if kind != "track":
                 previous = con.execute(
-                    "SELECT added_tracks,track_order FROM playlists WHERE id=? AND owner=?", (identifier, job["owner"])
+                    "SELECT added_tracks,track_order,tracks FROM playlists WHERE id=? AND owner=?", (identifier, job["owner"])
                 ).fetchone()
+                # A refresh that finishes after a deletion must not resurrect it.
+                if syncing and not previous:
+                    con.execute("UPDATE jobs SET status='complete',archived=1,updated=? WHERE id=?", (time.time(), job["id"]))
+                    return
+                previous_ids = set(json.loads(previous["tracks"])) if previous else set()
                 additions = json.loads(previous["added_tracks"]) if previous else []
                 ids = list(dict.fromkeys(ids + additions))
                 if previous:
@@ -469,23 +508,33 @@ def import_job(job):
                 con.execute("UPDATE playlists SET source=? WHERE owner=? AND id=?", (job["source"],job["owner"],identifier))
                 if getattr(collection,"art",""):
                     con.execute("UPDATE playlists SET art=? WHERE owner=? AND id=?",(collection.art,job["owner"],identifier))
-            for track_id in ids:
+                con.execute("UPDATE playlists SET sync_checked=?,sync_success=?,sync_error='' WHERE owner=? AND id=?", (time.time(),time.time(),job["owner"],identifier))
+            save_tracks(con, tracks, job["owner"], authoritative=True)
+            prepare_ids = [i for i in ids if not syncing or i not in previous_ids]
+            for track_id in prepare_ids:
                 con.execute(
                     "UPDATE tracks SET status='queued',error='' WHERE id=? AND status NOT IN ('queued','preparing','ready')",
                     (track_id,),
                 )
+            pending = [i for i in prepare_ids if con.execute("SELECT 1 FROM tracks WHERE id=? AND status IN ('queued','preparing')", (i,)).fetchone()]
             con.execute(
                 "UPDATE jobs SET name=?,tracks=?,status='preparing',updated=? WHERE id=?",
-                (name or tracks[0]["title"], json.dumps(ids), time.time(), job["id"]),
+                (name or tracks[0]["title"], json.dumps(pending if syncing else ids), time.time(), job["id"]),
             )
+            if syncing and not pending:
+                con.execute("UPDATE jobs SET status='complete',archived=1 WHERE id=?", (job["id"],))
     except Exception:
         app.logger.warning("Playlist import failed")
         with db() as con:
+            if syncing:
+                con.execute("UPDATE playlists SET sync_error=? WHERE owner=? AND source=?",
+                            ("Não foi possível atualizar do Spotify. Sua cópia foi preservada.", job["owner"], job["source"]))
             con.execute(
-                "UPDATE jobs SET status='error',message=?,updated=? WHERE id=?",
+                "UPDATE jobs SET status='error',message=?,updated=?,archived=? WHERE id=?",
                 (
                     "Não foi possível ler a playlist. Confirme se ela é pública e tente importar novamente.",
                     time.time(),
+                    int(syncing),
                     job["id"],
                 ),
             )
@@ -848,8 +897,9 @@ def prepare_track(identifier):
 def take_work():
     with db() as con:
         con.execute("BEGIN IMMEDIATE")
+        playlist_sync.schedule(con, create_job)
         metadata = con.execute(
-            "SELECT * FROM jobs WHERE kind='import' AND status='queued' ORDER BY created LIMIT 1"
+            "SELECT * FROM jobs WHERE kind IN ('import','sync') AND status='queued' ORDER BY created LIMIT 1"
         ).fetchone()
         if metadata:
             con.execute(
@@ -883,6 +933,8 @@ def worker():
 
 
 devices.register(app, db, save_tracks, create_job, wake, enqueue_tracks)
+playlist_sync.register(app, db, create_job, wake)
+source_session.register(app, db, DATA, wake)
 
 
 if __name__ == "__main__":

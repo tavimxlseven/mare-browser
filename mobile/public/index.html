@@ -12,7 +12,7 @@
       name="apple-mobile-web-app-status-bar-style"
       content="black-translucent"
     />
-    <title>Maré Música</title>
+    <title>Noise Music</title>
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/music-icon-180.png" />
     <link rel="stylesheet" href="/launch.css" />
@@ -24,7 +24,7 @@
     <section
       id="music-launch"
       class="music-launch"
-      aria-label="Abrindo Maré Música"
+      aria-label="Abrindo Noise Music"
     >
       <div class="launch-aura" aria-hidden="true"></div>
       <div class="launch-identity">
@@ -35,7 +35,7 @@
           alt=""
           class="launch-mark"
         />
-        <h1>Maré Música</h1>
+        <h1>Noise Music</h1>
         <p id="launch-message">Sua música, com você.</p>
         <button id="launch-retry" type="button" hidden>Tentar novamente</button>
       </div>
@@ -45,7 +45,7 @@
     </section>
     <section id="install" class="welcome">
       <img class="app-icon" src="/icon-192.png" width="88" height="88" alt="" />
-      <p class="brand-label">Maré Música</p>
+      <p class="brand-label">Noise Music</p>
       <h1>Sua biblioteca.<br />Em outro ritmo.</h1>
       <p>Suas playlists, sua música e um lugar para levar tudo com você.</p>
       <div class="install-steps">
@@ -65,16 +65,16 @@
         </div>
       </div>
       <button id="install-button" class="primary" hidden>
-        Instalar Maré Música
+        Instalar Noise Music
       </button>
       <p class="hint">
-        Abra pelo ícone do Maré para entrar. Depois de salvas, suas músicas
+        Abra pelo ícone do Noise para entrar. Depois de salvas, suas músicas
         também tocam offline.
       </p>
     </section>
     <section id="login" class="welcome" hidden>
       <img class="app-icon" src="/icon-192.png" width="76" height="76" alt="" />
-      <p class="brand-label">Maré Música</p>
+      <p class="brand-label">Noise Music</p>
       <h1 id="auth-title">Bom ter você por aqui.</h1>
       <p id="auth-description">Entre para abrir suas playlists.</p>
       <div class="auth-tabs" role="tablist" aria-label="Acesso">
@@ -141,8 +141,8 @@
     </section>
     <div id="app" hidden>
       <header>
-        <a class="wordmark" href="/" aria-label="Maré Música"
-          ><img src="/icon-192.png" alt="" width="28" height="28" />Maré
+        <a class="wordmark" href="/" aria-label="Noise Music"
+          ><img src="/icon-192.png" alt="" width="28" height="28" />Noise
           <span>Música</span></a
         >
         <button
@@ -343,7 +343,7 @@
           aria-label="Fechar player"
           data-icon="chevron"
         ></button>
-        <p class="sheet-caption">Maré Música</p>
+        <p class="sheet-caption">Noise Music</p>
       </div>
       <div id="album-view"><div id="cover" class="cover"></div></div>
       <div class="now-heading">
@@ -519,13 +519,20 @@
           automaticamente.
         </p>
       </section>
+      <section class="settings-section" id="source-session-settings" hidden>
+        <h2>Fonte de áudio</h2>
+        <p id="source-session-state" role="status"></p>
+        <p>Quando o YouTube pedir uma nova sessão, atualize aqui o arquivo privado cookies.txt. O login automático não é suportado pela fonte.</p>
+        <label class="cover-upload">Atualizar sessão do YouTube<input id="source-session-file" type="file" accept=".txt,text/plain" hidden></label>
+        <p class="hint">Somente o administrador pode atualizar a sessão. O arquivo fica privado no servidor.</p>
+      </section>
       <section class="settings-section" id="device-settings"></section>
       <section class="settings-section">
         <h2>Neste aparelho</h2>
         <p id="storage"></p>
         <p>
           Mantenha o app aberto ao salvar músicas no celular. Se o iPhone
-          suspender a transferência, abra o Maré para retomar.
+          suspender a transferência, abra o Noise para retomar.
         </p>
         <button id="persist">Preservar armazenamento offline</button>
       </section>

@@ -11,7 +11,7 @@ function openAdminEntry() {
 }
 if (isAdminEntry()) {
   $("register-tab").hidden = true;
-  $("auth-title").textContent = "Administração do Maré";
+  $("auth-title").textContent = "Administração do Noise";
   $("auth-description").textContent =
     "Entre com sua conta de administrador para gerenciar os convites.";
 }

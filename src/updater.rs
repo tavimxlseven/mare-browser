@@ -80,7 +80,7 @@ impl Manager {
                 );
             }
             let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-            let folder = exe.parent().ok_or("Pasta do Maré indisponível.")?;
+            let folder = exe.parent().ok_or("Pasta do Compass indisponível.")?;
             std::process::Command::new(path)
                 .args([
                     "/VERYSILENT",

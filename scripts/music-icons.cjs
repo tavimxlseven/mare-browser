@@ -11,12 +11,13 @@ const mark = fs.readFileSync(path.join(root, "music-mark.svg"), "utf8");
 for (const size of [180, 192, 512]) {
   const svg = mark.replace(
     "<defs>",
-    '<rect width="512" height="512" fill="#f34270"/><defs>',
+    '<rect width="512" height="512" fill="#101015"/><defs>',
   );
   const png = new Resvg(svg, { fitTo: { mode: "width", value: size } })
     .render()
     .asPng();
   fs.writeFileSync(path.join(root, "music-icon-" + size + ".png"), png);
+  fs.writeFileSync(path.join(root, "icon-" + size + ".png"), png);
 }
 const maskable =
   '<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"><rect width="512" height="512" fill="#101015"/><svg x="72" y="72" width="368" height="368" viewBox="0 0 512 512">' +

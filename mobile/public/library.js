@@ -109,6 +109,7 @@ function visibleJobs() {
   return [...(library.jobs || [])]
     .sort((a, b) => Number(b.kind === "import") - Number(a.kind === "import"))
     .filter((job) => {
+      if (dismissedJobs.has(job.id)) return false;
       const key = job.track_ids?.length
         ? [...job.track_ids].sort().join(",")
         : job.id;
@@ -166,6 +167,7 @@ function drawIsland() {
     detail = "Lendo as músicas do Spotify";
   } else if (paused) {
     detail = "Preparação pausada · fila preservada";
+    percent = job.total ? ((job.ready + job.failed) / job.total) * 100 : 0;
   } else if (job?.status === "error") {
     detail = job.message;
   } else if (job) {
@@ -214,17 +216,19 @@ function drawIsland() {
     current: active?.id,
     offline: [...offlineIds],
     pending: [...downloads],
+    jobs: visibleJobs().map(j => [j.id, j.status, j.ready, j.failed]),
   });
   if ($("job-list").dataset.signature !== detailSignature) {
     $("job-list").dataset.signature = detailSignature;
     $("job-list").replaceChildren();
     const jobs = visibleJobs();
-    if (jobs.length > 1) {
+    if (jobs.length > 1 && !paused) {
       const selector = document.createElement("div");
       selector.className = "job-tabs";
       for (const other of jobs.slice(0, 8)) {
         const b = document.createElement("button");
         b.textContent = other.name;
+        b.title = other.name;
         b.classList.toggle("selected", other.id === job?.id);
         b.onclick = () => {
           islandJobId = other.id;
@@ -294,7 +298,8 @@ function drawIsland() {
   $("island-retry").hidden =
     !paused && job?.status !== "partial" && job?.status !== "error";
   $("island-dismiss").hidden =
-    !job || !["complete", "partial", "error"].includes(job.status);
+    !job;
+  $("island-dismiss").textContent = paused ? "Dispensar avisos · manter fila" : "Dispensar aviso";
 }
 function expandIsland() {
   $("island-body").hidden = false;
@@ -352,7 +357,11 @@ $("island-toggle").onclick = () => {
 };
 $("island-dismiss").onclick = task(async () => {
   const job = selectedJob();
-  if (job) dismissedJobs.add(job.id);
+  const jobs = job?.status === "paused" ? visibleJobs().filter(j => j.status === "paused") : job ? [job] : [];
+  for (const item of jobs) {
+    await api("jobs/" + encodeURIComponent(item.id) + "/dismiss", {});
+    dismissedJobs.add(item.id);
+  }
   islandJobId = null;
   await local("meta", "dismissed-jobs", [...dismissedJobs]);
   drawIsland();

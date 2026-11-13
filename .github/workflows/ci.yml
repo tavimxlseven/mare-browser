@@ -128,7 +128,7 @@ jobs:
           $tag='${{ github.ref_name }}'
           $notes="docs/releases/$tag.md"
           if(Test-Path -LiteralPath $notes){
-            gh release create $tag --repo '${{ github.repository }}' --title "Maré $tag" --notes-file $notes release/*.exe release/SHA256SUMS.txt release/MUSIC-SOURCES.txt
+            gh release create $tag --repo '${{ github.repository }}' --title "Compass Browser $tag" --notes-file $notes release/*.exe release/SHA256SUMS.txt release/MUSIC-SOURCES.txt
           }else{
-            gh release create $tag --repo '${{ github.repository }}' --title "Maré $tag" --generate-notes release/*.exe release/SHA256SUMS.txt release/MUSIC-SOURCES.txt
+            gh release create $tag --repo '${{ github.repository }}' --title "Compass Browser $tag" --generate-notes release/*.exe release/SHA256SUMS.txt release/MUSIC-SOURCES.txt
           }

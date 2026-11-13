@@ -71,7 +71,7 @@ impl Account {
                 if self.client_id.len() != 32
                     || !self.client_id.bytes().all(|b| b.is_ascii_hexdigit())
                 {
-                    return Err("Esta build precisa de um Client ID público registrado pelo mantenedor do Maré.".into());
+                    return Err("Esta build precisa de um Client ID público registrado pelo mantenedor do Noise.".into());
                 }
                 let listener = TcpListener::bind("127.0.0.1:43821").map_err(|_| {
                     "A porta de autorização está ocupada. Aguarde e tente novamente."

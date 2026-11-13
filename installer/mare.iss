@@ -1,18 +1,18 @@
 #ifndef MareVersion
-#define MareVersion "0.5.5"
+#define MareVersion "0.5.6"
 #endif
 #ifndef Payload
 #define Payload "..\dist\InstallerPayload"
 #endif
 [Setup]
 AppId={{986F3E86-C55B-4E42-9FE0-89588FB4A251}
-AppName=Maré Browser
+AppName=Compass Browser
 AppVersion={#MareVersion}
-AppPublisher=Maré Browser contributors
+AppPublisher=Compass Browser contributors
 AppPublisherURL=https://github.com/tavimxlseven/mare-browser
 AppSupportURL=https://github.com/tavimxlseven/mare-browser/issues
 DefaultDirName={localappdata}\Programs\Mare
-DefaultGroupName=Maré Browser
+DefaultGroupName=Compass Browser
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
@@ -38,10 +38,10 @@ Name: "importlegacyprofile"; Description: "Importar meu perfil antigo de D:\Mare
 Source: "{#Payload}\app\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#Payload}\MicrosoftEdgeWebview2Setup.exe"; Flags: dontcopy
 [Icons]
-Name: "{group}\Maré Browser"; Filename: "{app}\Mare.exe"; WorkingDir: "{app}"; AppUserModelID: "Mare.Browser"
-Name: "{autodesktop}\Maré Browser"; Filename: "{app}\Mare.exe"; WorkingDir: "{app}"; AppUserModelID: "Mare.Browser"; Tasks: desktopicon
+Name: "{group}\Compass Browser"; Filename: "{app}\Mare.exe"; WorkingDir: "{app}"; AppUserModelID: "Mare.Browser"
+Name: "{autodesktop}\Compass Browser"; Filename: "{app}\Mare.exe"; WorkingDir: "{app}"; AppUserModelID: "Mare.Browser"; Tasks: desktopicon
 [Run]
-Filename: "{app}\Mare.exe"; Description: "Abrir Maré Browser"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\Mare.exe"; Description: "Abrir Compass Browser"; Flags: nowait postinstall skipifsilent
 Filename: "{app}\Mare.exe"; Flags: nowait; Check: IsMareUpdate
 [Code]
 function CanImportLegacyProfile: Boolean;
@@ -54,7 +54,7 @@ begin
   if (CurStep = ssPostInstall) and WizardIsTaskSelected('importlegacyprofile') then begin
     if not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
       '-NoProfile -ExecutionPolicy Bypass -File "' + ExpandConstant('{app}\import-profile.ps1') + '" -From "D:\MareBrowserData"', '', SW_HIDE, ewWaitUntilTerminated, ExitCode) or (ExitCode <> 0) then
-      MsgBox('Não foi possível importar o perfil. Nenhum dado original foi apagado. Feche todas as janelas do Maré e execute import-profile.ps1 na pasta do programa.', mbInformation, MB_OK);
+      MsgBox('Não foi possível importar o perfil. Nenhum dado original foi apagado. Feche todas as janelas do Compass e execute import-profile.ps1 na pasta do programa.', mbInformation, MB_OK);
   end;
 end;
 function IsMareUpdate: Boolean;

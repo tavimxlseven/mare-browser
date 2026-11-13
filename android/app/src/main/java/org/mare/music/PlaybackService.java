@@ -323,7 +323,7 @@ public final class PlaybackService extends MediaSessionService {
           new MediaMetadata.Builder()
               .setTitle(track.optString("title"))
               .setArtist(track.optString("artist"))
-              .setAlbumTitle("Maré Música")
+              .setAlbumTitle("Noise Music")
               .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
               .setIsPlayable(true);
       String art = track.optString("art");

@@ -214,7 +214,7 @@ window.attachMusicTools = function ({
       ...imported.map((p) => ({
         key: p.uri,
         name: p.title,
-        detail: "Importada · cópia no Maré",
+        detail: "Importada · cópia no Noise",
         added:
           (data().playlist_additions?.[p.uri] || []).includes(row.uri) ||
           (data().playlist?.uri === p.uri &&

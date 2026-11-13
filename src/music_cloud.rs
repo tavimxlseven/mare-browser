@@ -54,7 +54,7 @@ pub fn origin(input: &str) -> Result<String, String> {
         format!("https://{input}")
     };
     let url =
-        url::Url::parse(&address).map_err(|_| "Informe o endereço HTTPS do seu Maré Música.")?;
+        url::Url::parse(&address).map_err(|_| "Informe o endereço HTTPS do seu Noise Music.")?;
     if url.scheme() != "https"
         || url.host_str().is_none()
         || !url.username().is_empty()
@@ -136,7 +136,7 @@ impl Cloud {
             .unwrap_or_else(|e| e.into_inner())
             .connecting = true;
         self.run(
-            Some((origin, json!({"code":code,"name":"Maré no PC"}))),
+            Some((origin, json!({"code":code,"name":"Noise no PC"}))),
             seed,
         );
         Ok(())
@@ -150,7 +150,7 @@ impl Cloud {
     ) -> Result<(), String> {
         let server = origin(input)?;
         if username.trim().is_empty() || password.is_empty() || password.len() > 512 {
-            return Err("Informe seu usuário e senha do Maré Música.".into());
+            return Err("Informe seu usuário e senha do Noise Music.".into());
         }
         self.disconnect();
         self.shared
@@ -408,7 +408,7 @@ fn protect(bytes: &[u8], encrypt: bool) -> Result<Vec<u8>, String> {
         if encrypt {
             CryptProtectData(
                 &input,
-                w!("Maré Música"),
+                w!("Noise Music"),
                 None,
                 None,
                 None,
@@ -447,7 +447,7 @@ fn http(origin: &str, path: &str, token: Option<&str>, body: &Value) -> Result<V
     }
     let checked = |p: *mut std::ffi::c_void| {
         if p.is_null() {
-            Err("Não foi possível conectar ao seu Maré Música.".to_string())
+            Err("Não foi possível conectar ao seu Noise Music.".to_string())
         } else {
             Ok(Handle(p))
         }
@@ -520,9 +520,9 @@ fn http(origin: &str, path: &str, token: Option<&str>, body: &Value) -> Result<V
         if status != 200 {
             return Err(if status == 401 {
                 match path {
-                    "/api/devices/login" => "Usuário ou senha não conferem. Use a mesma conta do Maré Música do celular.",
+                    "/api/devices/login" => "Usuário ou senha não conferem. Use a mesma conta do Noise Music do celular.",
                     "/api/devices/claim" => "Código expirado ou já utilizado. Gere outro código no celular.",
-                    _ => "Sessão encerrada ou revogada. Entre novamente na sua conta do Maré Música.",
+                    _ => "Sessão encerrada ou revogada. Entre novamente na sua conta do Noise Music.",
                 }.into()
             } else {
                 format!("O servidor recusou a sincronização (HTTP {status}).")

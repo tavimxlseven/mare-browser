@@ -216,7 +216,7 @@ async function startDeviceLink() {
       if (!navigator.onLine) return;
       if (!deviceLinkState.id) {
         const response = await api("devices/register", {
-          name: "Maré no celular",
+          name: "Noise no celular",
         });
         if (!response.id)
           throw Error("Atualize o app para conectar dispositivos.");

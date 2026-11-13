@@ -4,6 +4,7 @@ mod icon_ico;
 mod icon_pixels;
 fn main() {
     println!("cargo:rerun-if-changed=src/icon_pixels.rs");
+    println!("cargo:rerun-if-changed=assets/compass-256.rgba");
     println!("cargo:rerun-if-changed=src/icon_ico.rs");
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("windows") {
         return;
@@ -13,8 +14,8 @@ fn main() {
     std::fs::write(&path, ico).unwrap();
     winresource::WindowsResource::new()
         .set_icon(path.to_str().unwrap())
-        .set("FileDescription", "Maré Browser")
-        .set("ProductName", "Maré Browser")
+        .set("FileDescription", "Compass Browser")
+        .set("ProductName", "Compass Browser")
         .set("OriginalFilename", "Mare.exe")
         .compile()
         .expect("Windows icon/resource compilation");

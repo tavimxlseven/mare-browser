@@ -1,4 +1,4 @@
-# Maré Música mobile
+# Noise Music mobile
 
 Private, invitation-only music PWA focused on iPhone. Android users can use the [native playback APK](../android/README.md). The PWA remains available as a fallback. This is the mobile companion service. The Windows browser uses its existing implementation.
 
@@ -52,7 +52,7 @@ Never publish environment files, SSH keys, passwords, the SQLite database, sessi
 - Per-track artwork is resolved through Spotify oEmbed, cached in the metadata database and gradually backfilled for previously imported songs.
 - The full-screen player uses the current artwork as its backdrop, supports favorites, upcoming queue ordering, per-device playback history and offline library search.
 - Optional account pairing synchronizes playlist metadata, order, favorites and library membership with the Windows app. Search and audio download on Windows remain local; newly added PC tracks/playlists also request server preparation. Existing audio files are retained. Offline audio stays on each device; playback and volume behavior remain subject to iOS controls.
-- Song options include Play next (promotes an existing upcoming occurrence without duplication), append to queue and a searchable playlist chooser. Imported and created playlists are editable copies in Maré, independent of Spotify. Per-account manual additions survive reimporting the original source.
+- Song options include Play next (promotes an existing upcoming occurrence without duplication), append to queue and a searchable playlist chooser. Imported and created playlists are editable copies in Noise Music, independent of Spotify. Per-account manual additions survive reimporting the original source.
 - Saving a search result or adding it to a playlist persists metadata without starting audio preparation. Download/preparation remains an explicit action; queueing an unavailable song requests preparation.
 - Confirmations and preference pickers use app-owned dialogs. Cancellation, Escape and Android Back resolve a confirmation without performing the action. System installation and operating-system permissions still use the platform's required prompts.
 
@@ -84,3 +84,13 @@ Playlist drag handles support pointer/touch and Arrow Up/Down/Home/End. The serv
 
 
 Na versão 0.4.1, o PC também pode entrar diretamente com o usuário e senha da mesma conta do celular, em **Ajustes de música → Conexões**. Use o endereço HTTPS da sua instalação. O código temporário continua disponível por compatibilidade, mas não é necessário para o login direto. A senha não é persistida; somente a credencial revogável do dispositivo é protegida pelo DPAPI. Segurar uma faixa e arrastar muda sua posição; segurar e soltar abre as opções.
+
+## Noise Music: compatible rename and Spotify refresh
+
+The product names are now Compass Browser and Noise Music. Existing executable names, profile directories, APK application ID, server paths, environment variables and account/device storage keys remain compatible so an upgrade retains accounts, sessions, history, libraries and downloaded media. The service worker cleans only obsolete shell caches, never offline audio or IndexedDB account data.
+
+Public Spotify playlists refresh from Spotify to Noise every 30 minutes while the server is running. Open a playlist's editor to disable automatic refresh or request a refresh now. Changes are read-only: custom Noise names/covers and manual additions/order remain intact, and removed Spotify tracks remain in the user's general library. Existing downloaded files are reused. A failed refresh retains the previous copy and waits for the next interval; it does not flood the activity island. Private Spotify playlists and writing back to Spotify require a separate official authorization flow and are not enabled here.
+
+Activity cards with finished/errors expire even if another track has paused the source. Redundant cards are archived and any visible card can be dismissed without canceling preparation. Dismissing a paused notice dismisses the paused notices together. Explicitly requesting preparation can reactivate its card.
+
+Administrators can replace a Netscape YouTube cookies file from **Settings → Audio source**. The authenticated same-origin endpoint validates the file, atomically replaces it with private permissions outside the checkout and retries the blocked track. Ordinary accounts and device bearer tokens cannot read or replace it. The API never returns cookies, account secrets or paths. Cookie expiry timestamps are only a local check: YouTube may invalidate a session before that date or refuse the server network. yt-dlp does not support automatically renewing YouTube OAuth login. Use a dedicated session; never enter a Google password into Noise or publish the exported file.

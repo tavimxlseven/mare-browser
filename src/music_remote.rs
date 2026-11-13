@@ -423,13 +423,13 @@ fn route(
         }
         pair.attempts += 1;
         if Instant::now() > pair.expires || value["code"].as_str() != Some(pair.pin.as_str()) {
-            return Reply::error(401, "Código incorreto ou expirado. Confira o Maré.");
+            return Reply::error(401, "Código incorreto ou expirado. Confira o Noise.");
         }
         pair.sessions.retain(|_, until| *until > Instant::now());
         if pair.sessions.len() >= 4 {
             return Reply::error(
                 429,
-                "Limite de celulares pareados. Reinicie o controle no Maré.",
+                "Limite de celulares pareados. Reinicie o controle no Noise.",
             );
         }
         let Ok(token) = random_hex() else {
@@ -451,7 +451,7 @@ fn route(
             .is_some_and(|until| *until > Instant::now())
     });
     if !authorized {
-        return Reply::error(401, "Pareie este celular pelo código mostrado no Maré.");
+        return Reply::error(401, "Pareie este celular pelo código mostrado no Noise.");
     }
     if request.method == "POST" && request.path == "/api/disconnect" {
         if let (Some(token), Ok(mut pair)) = (bearer, shared.pairing.lock()) {

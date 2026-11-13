@@ -118,7 +118,7 @@ final class MusicApi {
         response = new JSONObject(bytes.toString("UTF-8"));
       } catch (JSONException error) {
         throw new IOException(
-            "O servidor não respondeu como um servidor Maré. Confira o endereço.");
+            "O servidor não respondeu como um servidor Noise. Confira o endereço.");
       }
       if (status >= 400)
         throw new IOException(

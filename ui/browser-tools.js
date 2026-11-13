@@ -5,7 +5,7 @@ window.createResourceDashboard = function (panel) {
   const mount = document.createElement("section");
   mount.className = "resource-dashboard";
   mount.innerHTML =
-    '<nav aria-label="Período do histórico"><strong>Histórico do Maré</strong><button data-range="60000" aria-pressed="true">1 min</button><button data-range="300000" aria-pressed="false">5 min</button><button data-range="900000" aria-pressed="false">15 min</button><small>Amostras coletadas enquanto este painel está aberto</small></nav><div class="resource-charts"><article><header><h3>CPU</h3><span>% da capacidade total do PC</span></header><div data-chart="cpu"></div></article><article><header><h3>RAM privada</h3><span>Memória residente exclusiva do Maré</span></header><div data-chart="ram"></div></article></div><article class="resource-groups"><h3>Por componente</h3><div></div></article>';
+    '<nav aria-label="Período do histórico"><strong>Histórico do Compass</strong><button data-range="60000" aria-pressed="true">1 min</button><button data-range="300000" aria-pressed="false">5 min</button><button data-range="900000" aria-pressed="false">15 min</button><small>Amostras coletadas enquanto este painel está aberto</small></nav><div class="resource-charts"><article><header><h3>CPU</h3><span>% da capacidade total do PC</span></header><div data-chart="cpu"></div></article><article><header><h3>RAM privada</h3><span>Memória residente exclusiva do Compass</span></header><div data-chart="ram"></div></article></div><article class="resource-groups"><h3>Por componente</h3><div></div></article>';
   panel.querySelector(".resource-totals").after(mount);
   function plot(field, values, max) {
     const target = mount.querySelector('[data-chart="' + field + '"]');

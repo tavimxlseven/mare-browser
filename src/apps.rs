@@ -175,7 +175,7 @@ impl AppManager {
 
     pub fn start(&mut self, id: &str) -> Result<(), String> {
         if id == "discord" {
-            return Err("Discord usa a aba web oficial do Maré.".into());
+            return Err("Discord usa a aba web oficial do Compass.".into());
         }
         self.collect_reapers();
         if !available(id) || !self.installed.contains(id) {

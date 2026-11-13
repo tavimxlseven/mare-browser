@@ -182,7 +182,7 @@ public final class MainActivity extends Activity {
     LinearLayout page = col();
     page.setPadding(dp(28), dp(54), dp(28), dp(30));
     page.setBackgroundColor(BG);
-    TextView brand = title("Maré", 52);
+    TextView brand = title("Noise", 52);
     brand.setTextColor(PINK);
     page.addView(brand);
     page.addView(title("Sua música.\nDo seu jeito.", 34));
@@ -190,7 +190,7 @@ public final class MainActivity extends Activity {
     page.addView(
         text("Entre para encontrar sua biblioteca em todos os seus aparelhos.", 16, MUTED));
     gap(page, 32);
-    EditText server = field("Servidor Maré", false);
+    EditText server = field("Servidor Noise", false);
     server.setText(api.origin);
     page.addView(server);
     gap(page, 12);

@@ -267,7 +267,7 @@ impl Presence {
         let activity = if let Some((title, artist)) = track.filter(|_| playing) {
             let title = title.chars().take(128).collect::<String>();
             let artist = artist.chars().take(128).collect::<String>();
-            let mut value = json!({"type":2,"status_display_type":1,"details":title,"state":if artist.is_empty(){"Maré Music"}else{artist.as_str()},"timestamps":{"start":now.saturating_sub(position/1000),"end":now.saturating_add(duration.saturating_sub(position)/1000)},"instance":false});
+            let mut value = json!({"type":2,"status_display_type":1,"details":title,"state":if artist.is_empty(){"Noise Music"}else{artist.as_str()},"timestamps":{"start":now.saturating_sub(position/1000),"end":now.saturating_add(duration.saturating_sub(position)/1000)},"instance":false});
             if crate::spotify::safe_artwork(artwork) {
                 value["assets"] = json!({"large_image":artwork,"large_text":title});
             }

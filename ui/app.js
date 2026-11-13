@@ -32,7 +32,9 @@
       '<path d="M4.8 16.5h-.6a2 2 0 0 1-2-2V5.8a2.5 2.5 0 0 1 2.5-2.5h10a2.5 2.5 0 0 1 2.5 2.5v.6"/><rect x="7" y="8" width="14.5" height="12.7" rx="3" fill="currentColor" fill-opacity=".12"/>',
     more: '<circle cx="5" cy="12" r="1" fill="currentColor"/><circle cx="12" cy="12" r="1" fill="currentColor"/><circle cx="19" cy="12" r="1" fill="currentColor"/>',
     compass:
-      '<circle cx="12" cy="12" r="9"/><path d="m16.8 7.2-3 6.6-6.6 3 3-6.6 6.6-3Z"/><path d="m10.2 10.2 3.6 3.6M12 3v1M12 20v1M3 12h1M20 12h1"/>',
+      '<circle cx="12" cy="12" r="9"/><path d="m4.8 19.2 6.2-8.3 8.2-6.1-6.1 8.2Z" fill="#eaf8ff" stroke="none"/><path d="m4.8 19.2 6.2-8.3 2.1 2.1Z" fill="#ff7b29" stroke="none"/>',
+    noise:
+      '<path d="M4 12V11a8 8 0 0 1 16 0v1" stroke="#ad9adc"/><path d="M6 12H5a3 3 0 0 0-3 3v3a3 3 0 0 0 3 3h1Z" stroke="#f64d97"/><path d="M18 12h1a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3h-1Z" stroke="#45d8e8"/><path d="M8 15h1l1-2 2 5 2-7 1 4h1" stroke="#ad9adc"/>',
     home: '<path d="m3 11 9-8 9 8M5 10v10h14V10M9 20v-7h6v7"/>',
     book: '<path d="M12 6C8 3 4 4 2.5 5v14c3-1.5 6-1.5 9.5 1 3.5-2.5 6.5-2.5 9.5-1V5c-1.5-1-5.5-2-9.5 1Zm0 0v14"/>',
     glasses:
@@ -231,7 +233,7 @@
       sendRaw({ cmd: "window", action: "close" });
     } catch {
       notify(
-        "A nota ainda não foi salva. Tente salvar novamente antes de fechar o Maré.",
+        "A nota ainda não foi salva. Tente salvar novamente antes de fechar o Compass.",
       );
     } finally {
       ui.closeRequested = false;
@@ -371,7 +373,7 @@
       : `web:${state.active_id}`;
     applyTheme();
     renderUpdate();
-    document.title = `${tab.title || hostname(tab.url)} — Maré`;
+    document.title = `${tab.title || hostname(tab.url)} — Compass`;
     document.body.classList.toggle("private-mode", !!tab.private);
     $("#back").disabled = !!foregroundApp || !tab.can_go_back;
     $("#forward").disabled = !!foregroundApp || !tab.can_go_forward;
@@ -419,7 +421,7 @@
     if (!isNative && !isStart(tab)) {
       $("#remote-placeholder p").textContent = "Prévia da interface";
       $("#remote-domain").textContent =
-        `${tab.url} — abra o aplicativo Maré para navegar.`;
+        `${tab.url} — abra o aplicativo Compass para navegar.`;
       $(".remote-spinner").style.animation = "none";
     }
     $(".private-note").hidden = !tab.private;
@@ -1189,7 +1191,7 @@
     if (!card) {
       card = document.createElement("aside");
       card.id = "update-notice";
-      card.setAttribute("aria-label", "Atualização do Maré");
+      card.setAttribute("aria-label", "Atualização do Compass");
       card.hidden = true;
       document.body.append(card);
     }
@@ -1211,7 +1213,7 @@
     card.hidden = false;
     const ready = value.status === "ready";
     const title = ready
-      ? "Seu Maré está pronto para atualizar"
+      ? "Seu Compass está pronto para atualizar"
       : value.status === "downloading"
         ? "Uma nova versão está chegando"
         : value.status === "current"
@@ -1220,12 +1222,12 @@
             ? "Não foi possível atualizar"
             : "Buscando atualizações";
     const text = ready
-      ? `A versão ${value.version} será instalada ao fechar o Maré. Suas abas e dados serão preservados.`
+      ? `A versão ${value.version} será instalada ao fechar o Compass. Suas abas e dados serão preservados.`
       : value.status === "downloading"
         ? `Baixando a versão ${value.version} · ${((value.received || 0) / 1048576).toFixed(1)} MB`
         : value.status === "error"
           ? value.message
-          : "Maré " + state.version;
+          : "Compass " + state.version;
     card.innerHTML = `<button class="icon-button update-dismiss" aria-label="Fechar aviso">${icon("close")}</button><span class="update-emblem">${icon(ready ? "check" : "download")}</span><strong>${esc(title)}</strong><p>${esc(text)}</p>${value.status === "downloading" ? '<div class="update-transfer" role="status">Você pode continuar navegando.</div>' : ""}${ready ? '<button class="button primary update-install">Reiniciar e atualizar</button>' : value.status === "error" ? '<button class="button update-retry">Tentar novamente</button>' : ""}`;
     $(".update-dismiss", card).onclick = () => {
       updateDismissed = key;
@@ -1312,7 +1314,7 @@
             : "Buscar atualizações…",
           "updates",
         ) +
-        menuItem("sliders", "Consumo do Maré", "task-manager", "Shift+Esc") +
+        menuItem("sliders", "Consumo do Compass", "task-manager", "Shift+Esc") +
         menuItem("code", "Ferramentas de desenvolvedor", "devtools", "F12"),
       $("#more-button"),
       "more",
@@ -1378,7 +1380,7 @@
                 .map((value) => "<li>" + esc(value) + "</li>")
                 .join("")
             : "<li>Nenhuma permissão adicional declarada.</li>") +
-          '</ul><p>Extensões com acesso a sites podem ler ou alterar o conteúdo dessas páginas.</p><button class="button primary" data-extension-confirm>Adicionar ao Maré</button><button class="button" data-extension-cancel>Cancelar</button></section>'
+          '</ul><p>Extensões com acesso a sites podem ler ou alterar o conteúdo dessas páginas.</p><button class="button primary" data-extension-confirm>Adicionar ao Compass</button><button class="button" data-extension-cancel>Cancelar</button></section>'
         : extensionState.error
           ? '<p role="alert">' + esc(extensionState.error) + "</p>"
           : "";
@@ -1455,7 +1457,7 @@
     showOverlay(
       "resources",
       "Gerenciador de tarefas",
-      `<p class="resource-intro">Consumo desta instância do Maré, incluindo motor e apps abertos.</p><div class="resource-totals"><div><small>RAM privada</small><strong id="resource-ram">—</strong></div><div><small>Memória privada</small><strong id="resource-private">—</strong></div><div><small>CPU do Maré</small><strong id="resource-cpu">Coletando…</strong></div><div><small>Processos</small><strong id="resource-count">—</strong></div></div><div class="resource-table-scroll"><table class="resource-table"><thead><tr><th>Processo</th><th>PID</th><th>RAM privada</th><th>Residente</th><th>Memória privada</th><th>CPU</th></tr></thead><tbody id="resource-rows"></tbody></table></div><p class="resource-explanation">RAM privada é a memória residente exclusiva. Memória privada inclui memória comprometida que pode estar fora da RAM. A coluna residente inclui páginas compartilhadas; sua soma pode contá-las mais de uma vez. Renderizadores podem atender mais de uma aba.</p><div class="resource-actions"><small id="resource-status" role="status">Lendo processos do Maré…</small><button class="button" id="resource-engine">Detalhes WebView2</button><button class="button" id="resource-refresh">Atualizar</button></div>`,
+      `<p class="resource-intro">Consumo desta instância do Compass, incluindo motor e apps abertos.</p><div class="resource-totals"><div><small>RAM privada</small><strong id="resource-ram">—</strong></div><div><small>Memória privada</small><strong id="resource-private">—</strong></div><div><small>CPU do Compass</small><strong id="resource-cpu">Coletando…</strong></div><div><small>Processos</small><strong id="resource-count">—</strong></div></div><div class="resource-table-scroll"><table class="resource-table"><thead><tr><th>Processo</th><th>PID</th><th>RAM privada</th><th>Residente</th><th>Memória privada</th><th>CPU</th></tr></thead><tbody id="resource-rows"></tbody></table></div><p class="resource-explanation">RAM privada é a memória residente exclusiva. Memória privada inclui memória comprometida que pode estar fora da RAM. A coluna residente inclui páginas compartilhadas; sua soma pode contá-las mais de uma vez. Renderizadores podem atender mais de uma aba.</p><div class="resource-actions"><small id="resource-status" role="status">Lendo processos do Compass…</small><button class="button" id="resource-engine">Detalhes WebView2</button><button class="button" id="resource-refresh">Atualizar</button></div>`,
       "resources-panel",
     );
     resourceDashboard = window.createResourceDashboard($("#overlay-panel"));
@@ -1790,7 +1792,7 @@
       notes: "Suas ideias, sempre à mão.",
       calculator: "Contas rápidas sem sair da navegação.",
       spotify: "Sua biblioteca, playlists e músicas em um só lugar.",
-      discord: "Converse com suas comunidades, numa aba do Maré.",
+      discord: "Converse com suas comunidades, numa aba do Compass.",
     };
     return catalog.length
       ? [...catalog]
@@ -1812,7 +1814,7 @@
     showOverlay(
       "store",
       "Apps",
-      `<div class="apps-editorial"><div><span>Seu espaço no Maré</span><h3>Seus apps. No mesmo lugar.</h3><p>Música, conversas e pequenas ferramentas para o seu dia.</p></div><div class="apps-editorial-icons" aria-hidden="true">${icon("spotify")}${icon("notes")}${icon("discord")}</div></div><div class="apps-section-heading"><h3>Explore os apps</h3><span>Feitos para abrir em abas</span></div><div class="store-catalog" id="store-catalog">${storeRows()}</div><div class="store-footer"><span id="store-running"></span><span>Sua biblioteca no Maré</span></div>`,
+      `<div class="apps-editorial"><div><span>Seu espaço no Compass</span><h3>Seus apps. No mesmo lugar.</h3><p>Música, conversas e pequenas ferramentas para o seu dia.</p></div><div class="apps-editorial-icons" aria-hidden="true">${icon("noise")}${icon("notes")}${icon("discord")}</div></div><div class="apps-section-heading"><h3>Explore os apps</h3><span>Feitos para abrir em abas</span></div><div class="store-catalog" id="store-catalog">${storeRows()}</div><div class="store-footer"><span id="store-running"></span><span>Sua biblioteca no Compass</span></div>`,
       "store-panel",
     );
     bindStore();
@@ -1918,7 +1920,7 @@
         id: activeId,
         name: "Aplicativo",
       };
-    document.title = `${app.name} — Maré`;
+    document.title = `${app.name} — Compass`;
     if (!ui.workspaceBuilt) {
       workspace.innerHTML = `<header class="native-app-header"><button class="button app-back" id="app-back">${icon("back")}Voltar à navegação</button><div class="native-app-name"><span id="app-title-icon"></span><h1 id="app-title"></h1></div><button class="icon-button" id="app-store" title="Apps" aria-label="Apps">${icon("apps")}</button></header><div class="native-app-body" id="native-app-body"></div><footer class="native-app-footer"><span id="app-status"></span><span>Aplicativo Rust</span></footer>`;
       $("#app-back").onclick = () => leaveApp();
@@ -1949,7 +1951,7 @@
         else if (activeId === "spotify") buildSpotify();
         else if (activeId === "discord")
           $("#native-app-body").innerHTML =
-            '<div class="larper-loading"><span>Preparando larperCord…</span><small>Cliente nativo em uma aba do Maré.</small></div>';
+            '<div class="larper-loading"><span>Preparando larperCord…</span><small>Cliente nativo em uma aba do Compass.</small></div>';
         else
           $("#native-app-body").innerHTML =
             '<div class="app-unavailable">Este aplicativo não tem uma interface disponível nesta versão.</div>';
@@ -2433,7 +2435,7 @@
   }
   function showShield() {
     showPopup(
-      `<div class="shield-panel"><div class="shield-heading">${icon("shield")}<div><strong>Proteção do Maré</strong><span id="shield-status"></span></div></div><div class="shield-count"><strong id="shield-count">—</strong><span>requisições bloqueadas nesta página</span></div><div class="protection-toggle"><label for="shield-site"><strong id="shield-host">Esta página</strong><small>Bloqueio neste site</small></label><label class="switch"><input id="shield-site" type="checkbox"><span></span></label></div><div class="protection-toggle"><label for="shield-global">Proteção de anúncios e rastreadores</label><label class="switch"><input id="shield-global" type="checkbox"><span></span></label></div><p class="shield-details" id="shield-details"></p></div>`,
+      `<div class="shield-panel"><div class="shield-heading">${icon("shield")}<div><strong>Proteção do Compass</strong><span id="shield-status"></span></div></div><div class="shield-count"><strong id="shield-count">—</strong><span>requisições bloqueadas nesta página</span></div><div class="protection-toggle"><label for="shield-site"><strong id="shield-host">Esta página</strong><small>Bloqueio neste site</small></label><label class="switch"><input id="shield-site" type="checkbox"><span></span></label></div><div class="protection-toggle"><label for="shield-global">Proteção de anúncios e rastreadores</label><label class="switch"><input id="shield-global" type="checkbox"><span></span></label></div><p class="shield-details" id="shield-details"></p></div>`,
       $("#shield-button"),
       "shield",
     );
@@ -2459,7 +2461,7 @@
       ? "Proteção das páginas — disponível nas abas da web"
       : protection?.host
         ? `Proteção ${siteEnabled ? "ativada" : "desativada"} em ${protection.host}`
-        : "Proteção do Maré";
+        : "Proteção do Compass";
     if ($("#settings-shield")) $("#settings-shield").checked = enabled;
     if (ui.popup !== "shield") return;
     $("#shield-status").textContent =
@@ -2497,7 +2499,7 @@
     ];
     showOverlay(
       "settings",
-      "Ajustes do Maré",
+      "Ajustes do Compass",
       `<section class="settings-section"><h3>Aparência</h3><div class="theme-picker">${[
         ["system", "Automática"],
         ["light", "Clara"],
@@ -2509,7 +2511,7 @@
         )
         .join(
           "",
-        )}</div></section><section class="settings-section"><h3>Navegação</h3><div class="setting-row"><span class="setting-label" id="search-engine-label">Mecanismo de pesquisa</span>${selectMarkup("search-engine", "search-engine-label", s.search_engine, searchEngines)}</div><div class="setting-row"><label for="restore-session">Continuar de onde parei<small>Reabrir as abas comuns ao iniciar o Maré.</small></label><label class="switch"><input id="restore-session" type="checkbox" ${s.restore_session ? "checked" : ""}><span></span></label></div></section><section class="settings-section"><h3>Página inicial</h3><div class="wallpaper-picker">${wallpapers.map(([value, label]) => `<button class="wallpaper-choice wallpaper ${value}" data-wallpaper="${value}" aria-pressed="${s.home_background === value}"><span class="landscape" aria-hidden="true"><i></i><i></i><i></i><i></i></span>${label}</button>`).join("")}</div></section><section class="settings-section"><h3>Proteção</h3><div class="setting-row"><label for="settings-shield">Bloquear anúncios e rastreadores<small>Use o botão de proteção para configurar cada site.</small></label><label class="switch"><input id="settings-shield" type="checkbox" ${(state.protection?.enabled ?? s.shield_enabled) !== false ? "checked" : ""}><span></span></label></div></section><section class="settings-section"><h3>Atualizações</h3><div class="setting-row"><label for="automatic-updates">Atualizar automaticamente<small>Buscar e baixar novas versões ao iniciar. Instalar ao fechar o Maré.</small></label><label class="switch"><input id="automatic-updates" type="checkbox" ${s.automatic_updates !== false ? "checked" : ""}><span></span></label></div></section><section class="settings-section"><h3>Dados de navegação</h3><div class="setting-row"><div class="setting-label">Histórico<small>${state.history.length} ${state.history.length === 1 ? "página registrada" : "páginas registradas"}</small></div><button class="button" id="clear-history">Limpar histórico…</button></div><div class="setting-row"><div class="setting-label">Cookies e dados dos sites<small>Limpar pode encerrar sessões nos sites.</small></div><button class="button danger" id="clear-data">Limpar dados…</button></div></section><p class="about-footer">Maré ${esc(state.version)} · Código aberto</p>`,
+        )}</div></section><section class="settings-section"><h3>Navegação</h3><div class="setting-row"><span class="setting-label" id="search-engine-label">Mecanismo de pesquisa</span>${selectMarkup("search-engine", "search-engine-label", s.search_engine, searchEngines)}</div><div class="setting-row"><label for="restore-session">Continuar de onde parei<small>Reabrir as abas comuns ao iniciar o Compass.</small></label><label class="switch"><input id="restore-session" type="checkbox" ${s.restore_session ? "checked" : ""}><span></span></label></div></section><section class="settings-section"><h3>Página inicial</h3><div class="wallpaper-picker">${wallpapers.map(([value, label]) => `<button class="wallpaper-choice wallpaper ${value}" data-wallpaper="${value}" aria-pressed="${s.home_background === value}"><span class="landscape" aria-hidden="true"><i></i><i></i><i></i><i></i></span>${label}</button>`).join("")}</div></section><section class="settings-section"><h3>Proteção</h3><div class="setting-row"><label for="settings-shield">Bloquear anúncios e rastreadores<small>Use o botão de proteção para configurar cada site.</small></label><label class="switch"><input id="settings-shield" type="checkbox" ${(state.protection?.enabled ?? s.shield_enabled) !== false ? "checked" : ""}><span></span></label></div></section><section class="settings-section"><h3>Atualizações</h3><div class="setting-row"><label for="automatic-updates">Atualizar automaticamente<small>Buscar e baixar novas versões ao iniciar. Instalar ao fechar o Compass.</small></label><label class="switch"><input id="automatic-updates" type="checkbox" ${s.automatic_updates !== false ? "checked" : ""}><span></span></label></div></section><section class="settings-section"><h3>Dados de navegação</h3><div class="setting-row"><div class="setting-label">Histórico<small>${state.history.length} ${state.history.length === 1 ? "página registrada" : "páginas registradas"}</small></div><button class="button" id="clear-history">Limpar histórico…</button></div><div class="setting-row"><div class="setting-label">Cookies e dados dos sites<small>Limpar pode encerrar sessões nos sites.</small></div><button class="button danger" id="clear-data">Limpar dados…</button></div></section><p class="about-footer">Compass ${esc(state.version)} · Código aberto</p>`,
     );
     bindSelect("search-engine", (value) =>
       changeSettings({ search_engine: value }),
@@ -2580,7 +2582,7 @@
     showOverlay(
       "confirm",
       "Limpar histórico?",
-      `<p class="dialog-intro">Os endereços das páginas visitadas serão removidos do Maré. Seus favoritos e sua Lista de Leitura serão mantidos.</p><div class="dialog-actions"><button class="button" id="confirm-cancel">Cancelar</button><button class="button primary" id="confirm-clear">Limpar histórico</button></div>`,
+      `<p class="dialog-intro">Os endereços das páginas visitadas serão removidos do Compass. Seus favoritos e sua Lista de Leitura serão mantidos.</p><div class="dialog-actions"><button class="button" id="confirm-cancel">Cancelar</button><button class="button primary" id="confirm-clear">Limpar histórico</button></div>`,
     );
     $("#confirm-cancel").onclick = closeTransient;
     $("#confirm-clear").onclick = () => {
@@ -2898,7 +2900,7 @@
         break;
       case "window":
         changed = false;
-        notify("Os controles da janela funcionam no aplicativo Maré.");
+        notify("Os controles da janela funcionam no aplicativo Compass.");
         break;
       case "copy_url":
         copyUrl();
@@ -2995,7 +2997,7 @@
         (item) => item.id === state.apps.active_id,
       );
       showPopup(
-        `<div class="popup-info"><strong>${esc(app?.name || "Aplicativo")}</strong><p>Aplicativo Rust em uma aba do Maré.</p></div>`,
+        `<div class="popup-info"><strong>${esc(app?.name || "Aplicativo")}</strong><p>Aplicativo Rust em uma aba do Compass.</p></div>`,
         $("#site-info"),
         "info",
       );
@@ -3003,7 +3005,7 @@
     }
     const tab = active();
     showPopup(
-      `<div class="popup-info"><strong>${esc(isStart(tab) ? "Maré" : hostname(tab.url))}</strong><p>${esc(isStart(tab) ? "Seu navegador de código aberto." : tab.url.startsWith("https:") ? "Esta página usa uma conexão HTTPS." : "Esta página usa uma conexão HTTP sem criptografia.")}</p>${tab.private ? "<p>Esta aba não salva o histórico de páginas visitadas.</p>" : ""}</div>`,
+      `<div class="popup-info"><strong>${esc(isStart(tab) ? "Compass" : hostname(tab.url))}</strong><p>${esc(isStart(tab) ? "Seu navegador de código aberto." : tab.url.startsWith("https:") ? "Esta página usa uma conexão HTTPS." : "Esta página usa uma conexão HTTP sem criptografia.")}</p>${tab.private ? "<p>Esta aba não salva o histórico de páginas visitadas.</p>" : ""}</div>`,
       $("#site-info"),
       "info",
     );

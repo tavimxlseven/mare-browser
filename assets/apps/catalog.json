@@ -21,18 +21,18 @@
   },
   {
     "id": "spotify",
-    "name": "Spotify",
+    "name": "Noise Music",
     "description": "Biblioteca, busca de músicas, playlists e áudio local em um app independente.",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "status": "available",
     "kind": "native",
-    "icon": "music",
+    "icon": "noise",
     "installable": true
   },
   {
     "id": "discord",
     "name": "Discord",
-    "description": "Discord oficial em uma aba do Maré. Login normal e perfil persistente, sem cliente ou token separado.",
+    "description": "Discord oficial em uma aba do Compass. Login normal e perfil persistente, sem cliente ou token separado.",
     "version": "Web",
     "status": "available",
     "kind": "web",

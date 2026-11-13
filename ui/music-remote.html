@@ -3,7 +3,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="theme-color" content="#121212" />
-  <title>Maré · Controle de música</title>
+  <title>Noise · Controle de música</title>
   <style>
     * {
       box-sizing: border-box;
@@ -156,11 +156,11 @@
     }
   </style>
   <main>
-    <header><strong>Maré Music</strong><small>Controle na Wi-Fi</small></header>
+    <header><strong>Noise Music</strong><small>Controle na Wi-Fi</small></header>
     <section id="pair">
       <h1>Conecte ao seu player</h1>
       <p>
-        Ative o controle nas configurações de música do Maré e digite o código
+        Ative o controle nas configurações de música do Noise e digite o código
         mostrado no PC.
       </p>
       <form id="pair-form">
@@ -196,7 +196,7 @@
           <ellipse cx="17" cy="16" rx="3" ry="2" />
         </svg>
       </div>
-      <h1 id="title">Aguardando o Maré</h1>
+      <h1 id="title">Aguardando o Noise</h1>
       <p id="artist"></p>
       <label for="seek">Posição da música</label
       ><input id="seek" type="range" min="0" max="1" value="0" step="1000" />
@@ -234,7 +234,7 @@
         Desconectar este celular
       </button>
       <p class="subtle">
-        Fechar o app de música ou desativar o controle no Maré encerra o acesso.
+        Fechar o app de música ou desativar o controle no Noise encerra o acesso.
       </p>
     </section>
     <p id="status" role="status" aria-live="polite"></p>
@@ -266,7 +266,7 @@
     }
     function errorText(error) {
       return error?.name === "AbortError" || error instanceof TypeError
-        ? "Não foi possível conectar ao Maré. Confira o PC e a Wi-Fi."
+        ? "Não foi possível conectar ao Noise. Confira o PC e a Wi-Fi."
         : error?.message || "Não foi possível executar o comando.";
     }
     async function api(path, body) {
@@ -287,7 +287,7 @@
         try {
           data = await r.json();
         } catch {
-          throw Error("Resposta inválida do Maré.");
+          throw Error("Resposta inválida do Noise.");
         }
         if (!r.ok) {
           if (r.status === 401 && path != "/api/pair") disconnected();
@@ -308,7 +308,7 @@
         const p = s.player || {},
           t = s.track || {};
         $("title").textContent = t.title || "Nenhuma faixa selecionada";
-        $("artist").textContent = t.artists || "Escolha uma música no Maré.";
+        $("artist").textContent = t.artists || "Escolha uma música no Noise.";
         const art = t.artwork || "";
         if ($("cover").getAttribute("src") !== art) {
           if (art) $("cover").src = art;
@@ -349,7 +349,7 @@
     async function control(action, params = {}) {
       try {
         await api("/api/control", { action, ...params });
-        message("Comando enviado ao Maré.");
+        message("Comando enviado ao Noise.");
       } catch (e) {
         message(errorText(e));
       }

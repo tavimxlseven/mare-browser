@@ -342,6 +342,7 @@ function render(force = false) {
 }
 function showEntry(title, label, callback) {
   $("playlist-cover-editor")?.remove();
+  document.querySelector(".spotify-sync-options")?.remove();
   $("entry-value").maxLength = 500;
   $("entry-form").querySelector(".primary").textContent = "Continuar";
   if ($("delete-playlist")) $("delete-playlist").hidden = true;
@@ -439,6 +440,8 @@ async function ensureSaved(t) {
 }
 async function refresh() {
   library = await api("library");
+  // Server-side dismissal is durable. Bound the local compatibility list too.
+  dismissedJobs = new Set([...dismissedJobs].filter(id => library.jobs.some(job => job.id === id)));
   onlineSession = true;
   await local("meta", "library", library);
   await reconcileDownloads();
@@ -740,7 +743,7 @@ function drawPlayer() {
     navigator.mediaSession.metadata = new MediaMetadata({
       title: shown.title,
       artist: shown.artist,
-      album: "Maré Música",
+      album: "Noise Music",
       artwork: shown.art
         ? [{ src: shown.art }]
         : [
@@ -1021,6 +1024,14 @@ for (const b of document.querySelectorAll("[data-close]"))
 $("settings").onclick = task(async () => {
   openSheet($("preferences"));
   await loadInvites();
+  $("source-session-settings").hidden = !currentUser?.is_admin;
+  if (currentUser?.is_admin) {
+    const source = await api("source/session");
+    $("source-session-state").textContent = source.paused
+      ? "A fonte pediu autenticação. Atualize a sessão para retomar a fila salva."
+      : source.locally_valid ? "Arquivo de sessão configurado. A fonte ainda pode exigir nova autenticação."
+      : "Nenhuma sessão válida configurada.";
+  }
   $("preparation-state").textContent = library.preparation?.paused
     ? "A fonte de áudio recusou o acesso. Os downloads estão pausados e a fila foi preservada."
     : "Downloads disponíveis.";
@@ -1028,6 +1039,20 @@ $("settings").onclick = task(async () => {
   $("storage").textContent = s
     ? "Neste aparelho · " + Math.round(s.usage / 1048576) + " MB usados"
     : "";
+});
+$("source-session-file").onchange = task(async (event) => {
+  const input = event.target, file = input.files?.[0];
+  if (!file) return;
+  input.disabled = true;
+  const status = $("source-session-state");
+  try {
+    if (file.size > 100000) throw Error("O arquivo deve ter até 100 KB.");
+    status.textContent = "Validando sessão…";
+    await api("source/session", { cookies: await file.text() });
+    status.textContent = "Sessão atualizada. Retomando a fila preservada.";
+    await refresh();
+  } catch (error) { status.textContent = error.message; }
+  finally { input.value = ""; input.disabled = false; }
 });
 $("theme").onchange = task(async () => {
   document.body.classList.toggle("light", $("theme").value === "light");

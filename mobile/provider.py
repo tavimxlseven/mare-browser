@@ -173,6 +173,7 @@ def download(identifier, directory, metadata=None):
     if not ID.fullmatch(identifier):
         raise ValueError("track id")
     from audio_source import download as audio_download, NoMatchingAudio
+    from source_session import session_path
 
     if not metadata or not metadata.get("duration_ms"):
         resolved = json.loads(
@@ -192,7 +193,8 @@ def download(identifier, directory, metadata=None):
             identifier,
             directory,
             metadata,
-            os.getenv("SUNNIFY_COOKIES_FILE", "").strip(),
+            str(session_path(Path(os.getenv("MARE_DATA", directory))))
+            if session_path(Path(os.getenv("MARE_DATA", directory))).is_file() else "",
         )
     except Exception as error:
         if isinstance(error, NoMatchingAudio):
