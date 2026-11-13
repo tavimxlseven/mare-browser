@@ -78,6 +78,20 @@ class SyncActivityTests(unittest.TestCase):
         self.assertEqual(self.client.get("/api/library").json["playlists"], [])
         self.assertEqual(self.client.post('/api/playlists/unknown/sync', json={}, headers=self.origin).status_code, 404)
 
+    def test_requested_audio_takes_priority_over_background_spotify_refresh(self):
+        identifier, source, tracks = self.fixture()
+        self.client.post(f'/api/playlists/{identifier}/sync', json={'refresh': True}, headers=self.origin)
+        with server.db() as con:
+            con.execute("UPDATE tracks SET status='queued' WHERE id=?", (tracks[0]['id'],))
+        self.assertEqual(server.take_work(), (None, tracks[0]['id']))
+        # The other worker must not occupy the extractor with metadata either.
+        self.assertEqual(server.take_work(), (None, None))
+        with server.db() as con:
+            con.execute("UPDATE tracks SET status='ready'")
+        metadata, audio = server.take_work()
+        self.assertEqual(metadata['kind'], 'sync')
+        self.assertIsNone(audio)
+
     def test_finished_failed_work_expires_even_when_source_is_paused(self):
         identifier, source, tracks = self.fixture()
         with server.db() as con:

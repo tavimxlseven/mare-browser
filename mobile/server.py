@@ -897,15 +897,9 @@ def prepare_track(identifier):
 def take_work():
     with db() as con:
         con.execute("BEGIN IMMEDIATE")
-        playlist_sync.schedule(con, create_job)
         metadata = con.execute(
-            "SELECT * FROM jobs WHERE kind IN ('import','sync') AND status='queued' ORDER BY created LIMIT 1"
+            "SELECT * FROM jobs WHERE kind='import' AND status='queued' ORDER BY created LIMIT 1"
         ).fetchone()
-        if metadata:
-            con.execute(
-                "UPDATE jobs SET status='importing',updated=? WHERE id=?",
-                (time.time(), metadata["id"]),
-            )
         blocked = con.execute(
             "SELECT value FROM settings WHERE key='blocked_track'"
         ).fetchone()
@@ -916,6 +910,14 @@ def take_work():
             ).fetchone()
         if job:
             con.execute("UPDATE tracks SET status='preparing' WHERE id=?", (job["id"],))
+        # Background Spotify refresh must not occupy the VM's extraction slot
+        # while requested audio is queued or preparing in the other worker.
+        busy = con.execute("SELECT 1 FROM tracks WHERE status IN ('queued','preparing') LIMIT 1").fetchone()
+        if not metadata and not job and (blocked or not busy):
+            playlist_sync.schedule(con, create_job)
+            metadata = con.execute("SELECT * FROM jobs WHERE kind='sync' AND status='queued' ORDER BY created LIMIT 1").fetchone()
+        if metadata:
+            con.execute("UPDATE jobs SET status='importing',updated=? WHERE id=?", (time.time(), metadata["id"]))
     return (dict(metadata) if metadata else None, job["id"] if job else None)
 
 
