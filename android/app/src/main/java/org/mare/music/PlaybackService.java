@@ -91,6 +91,8 @@ public final class PlaybackService extends MediaSessionService {
       player.stop();
       player.clearMediaItems();
       AudioStore.manager(this).setStopReason(null, 1);
+      AudioStore.clearAccount(this, scope);
+      AudioStore.authenticate("");
       catalog.clear();
       account = "";
       scope = "";
@@ -265,12 +267,7 @@ public final class PlaybackService extends MediaSessionService {
           .put("queue", new JSONArray(service.remaining()))
           .put("offline", AudioStore.completed(context, service.scope))
           .put("error", service.error);
-      JSONArray failed = new JSONArray();
-      for (Download download : AudioStore.manager(context).getCurrentDownloads())
-        if (download.request.id.startsWith(service.scope + "/")
-            && download.state == Download.STATE_FAILED)
-          failed.put(download.request.id.substring(service.scope.length() + 1));
-      value.put("failed", failed);
+      value.put("failed", AudioStore.byState(context, service.scope, Download.STATE_FAILED));
     } catch (Exception ignored) {
     }
     return value;

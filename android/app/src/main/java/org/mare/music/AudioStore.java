@@ -10,7 +10,6 @@ import androidx.media3.exoplayer.offline.*;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.util.Map;
 import java.util.concurrent.Executors;
 import org.json.JSONArray;
 
@@ -43,7 +42,10 @@ final class AudioStore {
   }
 
   static void authenticate(String cookie) {
-    http.setDefaultRequestProperties(cookie.isEmpty() ? Map.of() : Map.of("Cookie", cookie));
+    http.setDefaultRequestProperties(
+        cookie.isEmpty()
+            ? java.util.Collections.emptyMap()
+            : java.util.Collections.singletonMap("Cookie", cookie));
   }
 
   static String scope(String origin, String account) {
@@ -60,9 +62,12 @@ final class AudioStore {
   }
 
   static JSONArray completed(Context context, String scope) {
+    return byState(context, scope, Download.STATE_COMPLETED);
+  }
+
+  static JSONArray byState(Context context, String scope, int state) {
     JSONArray result = new JSONArray();
-    try (DownloadCursor cursor =
-        manager(context).getDownloadIndex().getDownloads(Download.STATE_COMPLETED)) {
+    try (DownloadCursor cursor = manager(context).getDownloadIndex().getDownloads(state)) {
       while (cursor.moveToNext()) {
         String id = cursor.getDownload().request.id;
         if (id.startsWith(scope + "/")) result.put(id.substring(scope.length() + 1));
@@ -70,5 +75,15 @@ final class AudioStore {
     } catch (Exception ignored) {
     }
     return result;
+  }
+
+  static void clearAccount(Context context, String scope) {
+    try (DownloadCursor cursor = manager(context).getDownloadIndex().getDownloads()) {
+      while (cursor.moveToNext()) {
+        String id = cursor.getDownload().request.id;
+        if (id.startsWith(scope + "/")) manager(context).removeDownload(id);
+      }
+    } catch (Exception ignored) {
+    }
   }
 }

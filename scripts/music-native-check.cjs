@@ -80,6 +80,21 @@ assert.equal(scope.current.id, "b");
 assert.equal(audio.currentTime, 1);
 assert.equal(scope.downloads.size, 0);
 assert.ok(scope.offlineIds.has("b"));
+scope.downloads.add("a");
+scope.window.receiveMareNativeState({
+  account: "first",
+  id: "b",
+  playing: true,
+  queue: [],
+  position: 1200,
+  duration: 20000,
+  failed: ["a"],
+});
+assert.equal(
+  scope.downloads.has("a"),
+  false,
+  "a failed native transfer must not leave a permanent task",
+);
 audio.currentTime = 8;
 assert.equal(commands.at(-1).action, "seek");
 assert.equal(commands.at(-1).position, 8000);

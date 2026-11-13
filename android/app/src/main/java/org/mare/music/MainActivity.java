@@ -6,13 +6,13 @@ import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.webkit.*;
 import android.widget.*;
 import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
-import java.util.Set;
 import org.json.JSONObject;
 
 @androidx.media3.common.util.UnstableApi
@@ -21,6 +21,7 @@ public final class MainActivity extends Activity {
   private String origin;
   private final Handler handler = new Handler();
   private boolean resumed;
+  private ValueCallback<Uri[]> selectedFiles;
   private final Runnable tick =
       new Runnable() {
         public void run() {
@@ -103,6 +104,26 @@ public final class MainActivity extends Activity {
     CookieManager.getInstance().setAcceptCookie(true);
     CookieManager.getInstance().setAcceptThirdPartyCookies(web, false);
     WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG);
+    web.setWebChromeClient(
+        new WebChromeClient() {
+          @Override
+          public boolean onShowFileChooser(
+              WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
+            if (selectedFiles != null) selectedFiles.onReceiveValue(null);
+            selectedFiles = callback;
+            try {
+              Intent picker =
+                  new Intent(Intent.ACTION_OPEN_DOCUMENT)
+                      .addCategory(Intent.CATEGORY_OPENABLE)
+                      .setType("image/*");
+              startActivityForResult(picker, 20);
+            } catch (RuntimeException error) {
+              selectedFiles.onReceiveValue(null);
+              selectedFiles = null;
+            }
+            return true;
+          }
+        });
     web.setWebViewClient(
         new WebViewClient() {
           @Override
@@ -125,7 +146,7 @@ public final class MainActivity extends Activity {
     WebViewCompat.addWebMessageListener(
         web,
         "MareNative",
-        Set.of(origin),
+        java.util.Collections.singleton(origin),
         (view, message, sourceOrigin, mainFrame, reply) -> {
           if (!mainFrame || !ServerAddress.sameOrigin(origin, sourceOrigin.toString())) return;
           String raw = message.getData();
@@ -181,8 +202,24 @@ public final class MainActivity extends Activity {
   }
 
   @Override
+  protected void onActivityResult(int request, int result, Intent data) {
+    super.onActivityResult(request, result, data);
+    if (request == 20 && selectedFiles != null) {
+      selectedFiles.onReceiveValue(
+          result == RESULT_OK && data != null && data.getData() != null
+              ? new Uri[] {data.getData()}
+              : null);
+      selectedFiles = null;
+    }
+  }
+
+  @Override
   protected void onDestroy() {
     handler.removeCallbacks(tick);
+    if (selectedFiles != null) {
+      selectedFiles.onReceiveValue(null);
+      selectedFiles = null;
+    }
     if (web != null) {
       web.destroy();
       web = null;

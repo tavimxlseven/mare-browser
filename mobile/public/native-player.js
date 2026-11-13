@@ -171,12 +171,23 @@ window.createMareNativeAudio = () => {
         savingIds.delete(id);
         if (downloads.delete(id)) changed = true;
       }
+      let failed = false;
+      for (const id of next.failed || []) {
+        savingIds.delete(id);
+        if (downloads.delete(id)) {
+          changed = true;
+          failed = true;
+        }
+      }
+      if (failed)
+        notice(
+          "Alguns downloads falharam. Confira a conexão e toque em Salvar no aparelho para tentar novamente.",
+        );
       if (changed) {
         local("meta", "downloads", [...downloads]).catch(() => {});
         render();
         drawIsland();
       }
-      for (const id of next.failed || []) savingIds.delete(id);
       if (next.error && next.error !== lastError) notice(next.error);
       lastError = next.error || "";
       if (wasPlaying !== next.playing || oldId !== next.id)
