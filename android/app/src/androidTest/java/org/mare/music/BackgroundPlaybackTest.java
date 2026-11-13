@@ -26,6 +26,10 @@ public class BackgroundPlaybackTest {
   @org.junit.Before
   public void wakeAndUnlock() throws Exception {
     var instrumentation = InstrumentationRegistry.getInstrumentation();
+    instrumentation
+        .getUiAutomation()
+        .executeShellCommand("pm grant org.mare.music android.permission.POST_NOTIFICATIONS")
+        .close();
     instrumentation.getUiAutomation().executeShellCommand("input keyevent KEYCODE_WAKEUP").close();
     instrumentation.getUiAutomation().executeShellCommand("wm dismiss-keyguard").close();
     SystemClock.sleep(400);
@@ -78,13 +82,22 @@ public class BackgroundPlaybackTest {
     SystemClock.sleep(1000);
     instrumentation.runOnMainSync(
         () -> assertFalse(containsWebView(activity.getWindow().getDecorView())));
-    File folder = new File(context.getExternalFilesDir(null), "screenshots");
-    folder.mkdirs();
-    try (FileOutputStream output = new FileOutputStream(new File(folder, "native-library.png"))) {
-      instrumentation
-          .getUiAutomation()
-          .takeScreenshot()
-          .compress(android.graphics.Bitmap.CompressFormat.PNG, 100, output);
+    if (android.os.Build.VERSION.SDK_INT >= 29) {
+      android.content.ContentValues values = new android.content.ContentValues();
+      values.put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, "native-library.png");
+      values.put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/png");
+      values.put(
+          android.provider.MediaStore.Images.Media.RELATIVE_PATH, "Pictures/MareTestEvidence");
+      android.net.Uri image =
+          context
+              .getContentResolver()
+              .insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+      try (java.io.OutputStream output = context.getContentResolver().openOutputStream(image)) {
+        instrumentation
+            .getUiAutomation()
+            .takeScreenshot()
+            .compress(android.graphics.Bitmap.CompressFormat.PNG, 100, output);
+      }
     }
     api.clear();
   }
