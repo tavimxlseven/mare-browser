@@ -19,7 +19,6 @@ android {
     testOptions { unitTests.returnDefaultValues = true }
 }
 dependencies {
-    implementation 'androidx.webkit:webkit:1.12.1'
     implementation 'androidx.media3:media3-exoplayer:1.8.0'
     implementation 'androidx.media3:media3-session:1.8.0'
     implementation 'androidx.media3:media3-database:1.8.0'

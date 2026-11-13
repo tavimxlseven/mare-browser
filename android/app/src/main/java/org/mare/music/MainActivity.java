@@ -64,6 +64,7 @@ public final class MainActivity extends Activity {
   public void onCreate(Bundle saved) {
     super.onCreate(saved);
     api = new MusicApi(this);
+    setVolumeControlStream(android.media.AudioManager.STREAM_MUSIC);
     getWindow().setStatusBarColor(BG);
     getWindow().setNavigationBarColor(BG);
     if (Build.VERSION.SDK_INT >= 33
@@ -292,6 +293,10 @@ public final class MainActivity extends Activity {
                 selected = "";
                 render();
               });
+      item.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+      item.setTextColor(MUTED);
+      item.setCompoundDrawablePadding(dp(5));
+      item.setCompoundDrawablesWithIntrinsicBounds(null, new ControlIcon(label, MUTED), null, null);
       nav.addView(item, new LinearLayout.LayoutParams(0, dp(64), 1));
     }
     root.addView(nav);
@@ -338,7 +343,8 @@ public final class MainActivity extends Activity {
     } else
       for (int i = 0; i < tracks().length(); i++) {
         JSONObject t = tracks().optJSONObject(i);
-        if (!tab.equals("Baixadas") || offline.contains(t.optString("id"))) list.add(t);
+        if ((!tab.equals("Baixadas") || offline.contains(t.optString("id")))
+            && (!selected.equals("liked") || liked(t))) list.add(t);
       }
     return list;
   }
@@ -348,7 +354,11 @@ public final class MainActivity extends Activity {
     content.removeAllViews();
     LinearLayout header = row();
     header.addView(
-        title(playlist() != null ? playlist().optString("name") : tab, 32),
+        title(
+            playlist() != null
+                ? playlist().optString("name")
+                : selected.equals("liked") ? "Músicas curtidas" : tab,
+            32),
         new LinearLayout.LayoutParams(0, -2, 1));
     header.addView(button("＋", false, () -> importMenu()));
     header.addView(button("•••", false, () -> settings()));
@@ -400,7 +410,16 @@ public final class MainActivity extends Activity {
       gap(content, 8);
       content.addView(button("Editar playlist", false, () -> playlistActions(p)));
       gap(content, 24);
-    } else if (tab.equals("Biblioteca")) {
+    } else if (tab.equals("Biblioteca") && selected.isEmpty()) {
+      content.addView(
+          button(
+              "Músicas curtidas",
+              false,
+              () -> {
+                selected = "liked";
+                render();
+              }));
+      gap(content, 22);
       content.addView(title("Suas playlists", 21));
       gap(content, 14);
       if (playlists().length() == 0)
@@ -562,7 +581,7 @@ public final class MainActivity extends Activity {
             new String[] {
               "Tocar a seguir",
               "Adicionar ao fim da fila",
-              t.optBoolean("liked") ? "Remover das curtidas" : "Curtir",
+              liked(t) ? "Remover das curtidas" : "Curtir",
               "Adicionar à playlist",
               "Salvar no aparelho",
               "Remover download",
@@ -580,9 +599,7 @@ public final class MainActivity extends Activity {
                       message("Fila atualizada");
                     });
               else if (i == 2)
-                ensure(
-                    t,
-                    () -> mutate("tracks/" + id, MusicApi.json("liked", !t.optBoolean("liked"))));
+                ensure(t, () -> mutate("tracks/" + id, MusicApi.json("liked", !liked(t))));
               else if (i == 3) {
                 String[] names = new String[playlists().length()];
                 for (int j = 0; j < names.length; j++)
@@ -614,6 +631,10 @@ public final class MainActivity extends Activity {
                     .show();
             })
         .show();
+  }
+
+  private boolean liked(JSONObject t) {
+    return t.optBoolean("liked") || t.optInt("liked", 0) == 1;
   }
 
   private boolean playable(JSONObject t) {
@@ -1203,7 +1224,24 @@ public final class MainActivity extends Activity {
       pen.setStrokeCap(Paint.Cap.ROUND);
       pen.setStyle(Paint.Style.FILL);
       Path p = new Path();
-      if (kind.equals("▶") || kind.equals("❯") || kind.equals("↦") || kind.equals("↤")) {
+      if (kind.equals("Biblioteca")) {
+        pen.setStyle(Paint.Style.STROKE);
+        canvas.drawLine(4, 4, 4, 20, pen);
+        canvas.drawLine(10, 4, 10, 20, pen);
+        canvas.drawLine(15, 5, 21, 19, pen);
+      } else if (kind.equals("Buscar")) {
+        pen.setStyle(Paint.Style.STROKE);
+        canvas.drawCircle(10, 10, 6, pen);
+        canvas.drawLine(15, 15, 21, 21, pen);
+      } else if (kind.equals("Baixadas")) {
+        pen.setStyle(Paint.Style.STROKE);
+        canvas.drawLine(12, 3, 12, 16, pen);
+        p.moveTo(7, 11);
+        p.lineTo(12, 16);
+        p.lineTo(17, 11);
+        canvas.drawPath(p, pen);
+        canvas.drawLine(4, 21, 20, 21, pen);
+      } else if (kind.equals("▶") || kind.equals("❯") || kind.equals("↦") || kind.equals("↤")) {
         if (kind.equals("↤")) {
           canvas.translate(24, 0);
           canvas.scale(-1, 1);
