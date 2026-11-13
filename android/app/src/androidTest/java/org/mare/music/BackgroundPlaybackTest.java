@@ -23,6 +23,14 @@ import org.junit.runner.RunWith;
 @UnstableApi
 @RunWith(AndroidJUnit4.class)
 public class BackgroundPlaybackTest {
+  @org.junit.Before
+  public void wakeAndUnlock() throws Exception {
+    var instrumentation = InstrumentationRegistry.getInstrumentation();
+    instrumentation.getUiAutomation().executeShellCommand("input keyevent KEYCODE_WAKEUP").close();
+    instrumentation.getUiAutomation().executeShellCommand("wm dismiss-keyguard").close();
+    SystemClock.sleep(400);
+  }
+
   @Test
   public void nativeLibraryRendersWithoutAWebView() throws Exception {
     var instrumentation = InstrumentationRegistry.getInstrumentation();
@@ -65,7 +73,8 @@ public class BackgroundPlaybackTest {
         .commit();
     android.app.Activity activity =
         instrumentation.startActivitySync(
-            new Intent(context, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            new Intent(context, MainActivity.class)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK));
     SystemClock.sleep(1000);
     instrumentation.runOnMainSync(
         () -> assertFalse(containsWebView(activity.getWindow().getDecorView())));
@@ -95,7 +104,8 @@ public class BackgroundPlaybackTest {
     var instrumentation = InstrumentationRegistry.getInstrumentation();
     Context context = instrumentation.getTargetContext();
     instrumentation.startActivitySync(
-        new Intent(context, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        new Intent(context, MainActivity.class)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK));
     instrumentation.runOnMainSync(
         () -> {
           String command =
@@ -160,7 +170,8 @@ public class BackgroundPlaybackTest {
     var instrumentation = InstrumentationRegistry.getInstrumentation();
     Context context = instrumentation.getTargetContext();
     instrumentation.startActivitySync(
-        new Intent(context, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        new Intent(context, MainActivity.class)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK));
     File first = wave(context, "first.wav", 2), second = wave(context, "second.wav", 20);
     AtomicReference<ExoPlayer> actual = new AtomicReference<>();
     instrumentation.runOnMainSync(
