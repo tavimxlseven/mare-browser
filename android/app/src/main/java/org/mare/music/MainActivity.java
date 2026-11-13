@@ -215,6 +215,15 @@ public final class MainActivity extends Activity {
               },
               r -> {
                 password.setText("");
+                library = new JSONObject();
+                state = new JSONObject();
+                offline.clear();
+                pending.clear();
+                queue.clear();
+                context.clear();
+                current = "";
+                selected = "";
+                tab = "Biblioteca";
                 ((android.view.inputmethod.InputMethodManager)
                         getSystemService(INPUT_METHOD_SERVICE))
                     .hideSoftInputFromWindow(password.getWindowToken(), 0);
@@ -948,6 +957,12 @@ public final class MainActivity extends Activity {
                                 r -> {
                                   command("logout", new JSONObject());
                                   api.clear();
+                                  library = new JSONObject();
+                                  offline.clear();
+                                  pending.clear();
+                                  queue.clear();
+                                  context.clear();
+                                  current = "";
                                   content = null;
                                   miniTitle = null;
                                   login();
