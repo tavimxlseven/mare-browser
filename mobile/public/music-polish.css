@@ -1,4 +1,7 @@
 /* Shared interaction polish: movement follows actions, never an idle animation loop. */
+.source-maintenance-actions { display:flex; flex-wrap:wrap; gap:10px; margin-block:16px; }
+.source-maintenance-actions button { min-height:44px; flex:1 1 180px; }
+#source-session-settings[data-state="refreshing"] #source-session-state { color:var(--accent,#ff829f); }
 .spotify-sync-options {
   display: grid;
   gap: 12px;

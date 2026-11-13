@@ -1026,11 +1026,7 @@ $("settings").onclick = task(async () => {
   await loadInvites();
   $("source-session-settings").hidden = !currentUser?.is_admin;
   if (currentUser?.is_admin) {
-    const source = await api("source/session");
-    $("source-session-state").textContent = source.paused
-      ? "A fonte pediu autenticação. Atualize a sessão para retomar a fila salva."
-      : source.locally_valid ? "Arquivo de sessão configurado. A fonte ainda pode exigir nova autenticação."
-      : "Nenhuma sessão válida configurada.";
+    await loadSourceSession();
   }
   $("preparation-state").textContent = library.preparation?.paused
     ? "A fonte de áudio recusou o acesso. Os downloads estão pausados e a fila foi preservada."

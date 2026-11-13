@@ -522,8 +522,13 @@
       <section class="settings-section" id="source-session-settings" hidden>
         <h2>Fonte de áudio</h2>
         <p id="source-session-state" role="status"></p>
-        <p>Quando o YouTube pedir uma nova sessão, atualize aqui o arquivo privado cookies.txt. O login automático não é suportado pela fonte.</p>
-        <label class="cover-upload">Atualizar sessão do YouTube<input id="source-session-file" type="file" accept=".txt,text/plain" hidden></label>
+        <p>Quando a fonte pedir autenticação, o Noise tenta atualizar a sessão salva. Se o Google pedir login ou confirmação, conecte novamente pelo painel.</p>
+        <div class="source-maintenance-actions">
+          <button id="source-refresh"><span data-icon="retry"></span>Atualizar sessão</button>
+          <button id="source-connect"><span data-icon="lock"></span>Conectar Google</button>
+        </div>
+        <p id="source-session-updated" class="hint"></p>
+        <label class="cover-upload">Importar cookies.txt (alternativa)<input id="source-session-file" type="file" accept=".txt,text/plain" hidden></label>
         <p class="hint">Somente o administrador pode atualizar a sessão. O arquivo fica privado no servidor.</p>
       </section>
       <section class="settings-section" id="device-settings"></section>
@@ -566,6 +571,7 @@
     <script src="/music-actions.js" defer></script>
     <script src="/library.js" defer></script>
     <script src="/accounts.js" defer></script>
+    <script src="/source-settings.js" defer></script>
     <script src="/player-ui.js" defer></script>
     <script src="/navigation.js" defer></script>
     <script src="/devices-ui.js" defer></script>

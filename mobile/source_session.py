@@ -3,7 +3,6 @@ import http.cookiejar
 import os
 from pathlib import Path
 import tempfile
-import time
 
 from flask import abort, g, jsonify, request
 
@@ -28,7 +27,36 @@ def validate(path):
     return cookies
 
 
-def register(app, db, data, wake):
+def install(data, text):
+    if not isinstance(text, str) or not 20 < len(text.encode("utf-8")) <= 100_000:
+        raise ValueError("Use um arquivo cookies.txt de até 100 KB.")
+    path = session_path(data)
+    if path.is_symlink():
+        raise ValueError("A configuração da sessão precisa de manutenção.")
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    fd, name = tempfile.mkstemp(prefix=".session-", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as file:
+            file.write(text.replace("\r\n", "\n"))
+            file.flush()
+            os.fsync(file.fileno())
+        validate(name)
+        os.replace(name, path)
+    finally:
+        if os.path.exists(name):
+            os.unlink(name)
+
+
+def resume(db, wake):
+    with db() as con:
+        blocked = con.execute("SELECT value FROM settings WHERE key='blocked_track'").fetchone()
+        if blocked:
+            con.execute("UPDATE tracks SET status='queued',error='' WHERE id=? AND status='error'", (blocked[0],))
+        con.execute("DELETE FROM settings WHERE key='blocked_track'")
+    wake.set()
+
+
+def register(app, db, data, wake, maintenance=None):
     @app.get("/api/source/session")
     def status():
         if not g.user["is_admin"]:
@@ -46,7 +74,7 @@ def register(app, db, data, wake):
             paused = bool(con.execute("SELECT 1 FROM settings WHERE key='blocked_track'").fetchone())
         return jsonify(configured=configured, locally_valid=valid, paused=paused,
                        updated=path.stat().st_mtime if configured else 0,
-                       automatic_login=False)
+                       automatic_login=False, maintenance=maintenance.snapshot() if maintenance else None)
 
     @app.post("/api/source/session")
     def replace():
@@ -54,31 +82,12 @@ def register(app, db, data, wake):
             abort(403)
         payload = request.get_json()
         text = payload.get("cookies") if isinstance(payload, dict) else None
-        if not isinstance(text, str) or not 20 < len(text.encode("utf-8")) <= 100_000:
-            abort(400)
-        path = session_path(data)
-        if path.is_symlink():
-            abort(409)
-        path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        fd, name = tempfile.mkstemp(prefix=".session-", dir=path.parent)
         try:
-            with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as file:
-                file.write(text.replace("\r\n", "\n"))
-                file.flush()
-                os.fsync(file.fileno())
-            try:
-                validate(name)
-            except ValueError as error:
-                return jsonify(error=str(error)), 400
-            os.replace(name, path)
-        finally:
-            if os.path.exists(name):
-                os.unlink(name)
-        # A new admin-supplied session explicitly retries only the blocked source track.
-        with db() as con:
-            blocked = con.execute("SELECT value FROM settings WHERE key='blocked_track'").fetchone()
-            if blocked:
-                con.execute("UPDATE tracks SET status='queued',error='' WHERE id=? AND status='error'", (blocked[0],))
-            con.execute("DELETE FROM settings WHERE key='blocked_track'")
-        wake.set()
+            if maintenance:
+                maintenance.accept(text)
+            else:
+                install(data, text)
+                resume(db, wake)
+        except ValueError as error:
+            return jsonify(error=str(error)), 400
         return jsonify(ok=True)

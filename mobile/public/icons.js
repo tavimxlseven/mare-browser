@@ -1,5 +1,6 @@
 "use strict";
 const iconPaths = {
+  lock:'<rect x="5" y="10" width="14" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
   devices:'<rect x="2" y="4" width="13" height="11" rx="2"/><path d="M5 20h7m-3-5v5"/><rect x="17" y="8" width="5" height="12" rx="1.5"/>',
   computer:'<rect x="3" y="4" width="18" height="13" rx="2.5"/><path d="M8 21h8m-4-4v4"/>',
   phone:'<rect x="6" y="2" width="12" height="20" rx="3"/><path d="M10 5h4m-3 14h2"/>',

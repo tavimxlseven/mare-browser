@@ -12,6 +12,9 @@ from urllib.request import Request, urlopen
 
 class PreparationError(Exception):
     """A safe, actionable error for the player."""
+    def __init__(self, message, reason="authentication"):
+        super().__init__(message)
+        self.reason = reason
 
 
 class TrackPreparationError(ValueError):
@@ -202,6 +205,9 @@ def download(identifier, directory, metadata=None):
                 "Não encontramos um resultado compatível com esta gravação."
             ) from None
         message = str(error).lower()
+        if "http error 429" in message or "too many requests" in message:
+            raise PreparationError("A fonte pediu uma pausa antes de novas transferências. A fila foi preservada.",
+                                   reason="rate_limited") from None
         if any(
             marker in message
             for marker in (

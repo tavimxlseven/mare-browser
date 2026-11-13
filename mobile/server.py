@@ -30,6 +30,7 @@ import devices
 import playlist_metadata
 import playlist_sync
 import source_session
+import source_maintenance
 
 ROOT = Path(__file__).resolve().parent
 DATA = Path(os.getenv("MARE_DATA", ROOT / "state")).resolve()
@@ -98,6 +99,8 @@ with db() as con:
     con.execute("UPDATE jobs SET status='queued' WHERE status='importing'")
     devices.initialize(con)
     playlist_sync.initialize(con)
+
+maintenance = source_maintenance.Maintenance(db, DATA, wake)
 
 
 def recover_preparations():
@@ -873,6 +876,7 @@ def prepare_track(identifier):
                 "UPDATE tracks SET status='ready',error='',prepare_ms=?,match_ms=?,extract_ms=? WHERE id=?",
                 (round((time.monotonic()-started)*1000), metadata.get("_match_ms",0), metadata.get("_extract_ms",0), identifier)
             )
+        maintenance.success()
     except Exception as ex:
         app.logger.warning("Preparation failed (%s)", type(ex).__name__)
         with db() as con:
@@ -892,6 +896,8 @@ def prepare_track(identifier):
                     "INSERT OR REPLACE INTO settings VALUES ('blocked_track',?)",
                     (identifier,),
                 )
+        if isinstance(ex, provider.PreparationError):
+            maintenance.failure(ex.reason)
 
 
 def take_work():
@@ -936,13 +942,15 @@ def worker():
 
 devices.register(app, db, save_tracks, create_job, wake, enqueue_tracks)
 playlist_sync.register(app, db, create_job, wake)
-source_session.register(app, db, DATA, wake)
+source_session.register(app, db, DATA, wake, maintenance)
+source_maintenance.register(app, maintenance)
 
 
 if __name__ == "__main__":
     if not os.getenv("MARE_PASSWORD_HASH"):
         raise SystemExit("MARE_PASSWORD_HASH is required")
     recover_preparations()
+    maintenance.start()
     for _ in range(2):
         threading.Thread(target=worker, daemon=True).start()
     threading.Thread(target=artwork_worker, daemon=True).start()
