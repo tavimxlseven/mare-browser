@@ -44,7 +44,12 @@ public final class MainActivity extends Activity {
   private String tab = "Biblioteca", selected = "", current = "", repeat = "off";
   private boolean active, refreshing, shuffle;
   private long refreshed;
-  private Dialog player;
+  private Dialog player, queueSheet;
+  private TextView queueNowTitle, queueNowArtist, queueNowPlay;
+  private ImageView queueNowArt;
+  private Runnable paintOpenQueue;
+  private String queueSignature = "";
+  private boolean queueDragging;
   private TextView playerPlay, elapsed, remainingTime, playerName, playerArtist;
   private ImageView playerCover;
   private SeekBar seek;
@@ -856,6 +861,18 @@ public final class MainActivity extends Activity {
         if (remainingTime != null) remainingTime.setText(time(length));
       }
     }
+    if (queueSheet != null && queueSheet.isShowing()) {
+      JSONObject now = track(current);
+      if (now != null && queueNowTitle != null) {
+        queueNowTitle.setText(now.optString("title"));
+        queueNowArtist.setText(now.optString("artist"));
+        loadImage(queueNowArt, now.optString("art"));
+        queueNowPlay.setCompoundDrawablesWithIntrinsicBounds(
+            new ControlIcon(value.optBoolean("playing") ? "Ⅱ" : "▶", BG), null, null, null);
+      }
+      if (!queueDragging && paintOpenQueue != null && !queueSignature.equals(queue.toString()))
+        paintOpenQueue.run();
+    }
     if (!value.optString("error").isEmpty()) showActivity(value.optString("error"));
   }
 
@@ -1020,6 +1037,7 @@ public final class MainActivity extends Activity {
 
   private void openQueue() {
     Dialog dialog = new Dialog(this);
+    queueSheet = dialog;
     LinearLayout page = col();
     page.setBackground(bg(PANEL, 26));
     page.setPadding(dp(20), dp(12), dp(20), dp(22));
@@ -1035,7 +1053,25 @@ public final class MainActivity extends Activity {
     JSONObject now = track(current);
     if (now != null) {
       page.addView(text("Tocando agora", 13, MUTED));
-      song(page, now, null);
+      LinearLayout nowRow = row();
+      nowRow.setPadding(0, dp(10), 0, dp(10));
+      queueNowArt = cover(now.optString("art"), 48);
+      nowRow.addView(queueNowArt, new LinearLayout.LayoutParams(dp(48), dp(48)));
+      LinearLayout nowLabels = col();
+      nowLabels.setPadding(dp(12), 0, dp(8), 0);
+      queueNowTitle = title(now.optString("title"), 15);
+      queueNowTitle.setTextColor(PINK);
+      queueNowTitle.setMaxLines(1);
+      queueNowTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
+      queueNowArtist = text(now.optString("artist"), 12, MUTED);
+      nowLabels.addView(queueNowTitle);
+      nowLabels.addView(queueNowArtist);
+      nowRow.addView(nowLabels, new LinearLayout.LayoutParams(0, -2, 1));
+      nowLabels.setOnClickListener(v -> dialog.dismiss());
+      queueNowPlay = button(state.optBoolean("playing") ? "Ⅱ" : "▶", true, () -> toggle());
+      queueNowPlay.setBackground(bg(TEXT, 24));
+      nowRow.addView(queueNowPlay, new LinearLayout.LayoutParams(dp(44), dp(44)));
+      page.addView(nowRow);
       gap(page, 16);
     }
     page.addView(title("A seguir", 17));
@@ -1049,6 +1085,7 @@ public final class MainActivity extends Activity {
     paint[0] =
         () -> {
           entries.removeAllViews();
+          queueSignature = queue.toString();
           ArrayList<String> order = new ArrayList<>(queue);
           for (int i = 0; i < order.size(); i++) {
             int index = i;
@@ -1082,6 +1119,7 @@ public final class MainActivity extends Activity {
             grip.setOnTouchListener(
                 (v, e) -> {
                   if (e.getAction() == MotionEvent.ACTION_DOWN) {
+                    queueDragging = true;
                     from[0] = e.getRawY();
                     line.setElevation(dp(8));
                     line.setBackground(bg(0xff303239, 12));
@@ -1094,7 +1132,8 @@ public final class MainActivity extends Activity {
                   }
                   if (e.getAction() == MotionEvent.ACTION_UP
                       || e.getAction() == MotionEvent.ACTION_CANCEL) {
-                    if (e.getAction() == MotionEvent.ACTION_UP) {
+                    queueDragging = false;
+                    if (e.getAction() == MotionEvent.ACTION_UP && queue.equals(order)) {
                       int target =
                           Math.max(
                               0,
@@ -1120,6 +1159,7 @@ public final class MainActivity extends Activity {
             entries.addView(text("Adicione músicas para montar sua fila.", 15, MUTED));
           entries.post(() -> visibleImages(entries));
         };
+    paintOpenQueue = paint[0];
     paint[0].run();
     gap(page, 12);
     LinearLayout footer = row();
