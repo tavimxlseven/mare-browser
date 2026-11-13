@@ -73,7 +73,7 @@ Shield implements a subset of browser privacy features. It does not provide all 
 
 ## Data
 
-User data is stored in `D:\MareBrowserData` when D: exists, or in `%LOCALAPPDATA%\MareBrowser\User Data` otherwise. Set `MARE_DATA_DIR` to choose a different location. Profiles and app data are excluded from Git.
+User data is stored in `%LOCALAPPDATA%\MareBrowser\User Data`, separately for each Windows user and installation. The presence of D: never selects a shared profile. Set `MARE_DATA_DIR` only to explicitly choose another location. See [profile migration](docs/PROFILE.md). Profiles and app data are excluded from Git.
 
 ## Contributing
 

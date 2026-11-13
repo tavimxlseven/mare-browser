@@ -48,6 +48,7 @@ async function useAccount(user) {
     $("mini").hidden = true;
   }
   currentUser = user;
+  audio.configure?.();
   database = openDatabase("mare-music-account-" + user.id);
   await database;
   // The old shared device cache belongs to the migrated administrator only.
@@ -225,6 +226,7 @@ $("logout").onclick = task(async () => {
   } catch (error) {
     if (error.status !== 401) throw error;
   }
+  audio.logout?.();
   window.stopDeviceLink?.();
   audio.pause();
   if ("mediaSession" in navigator) {

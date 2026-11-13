@@ -16,7 +16,7 @@ let downloads = new Set(),
   saving = false,
   activeSave = "",
   onlineSession = false;
-const audio = $("audio");
+const audio = window.createMareNativeAudio?.() || $("audio");
 let seeking = false;
 let playVersion = 0;
 let nextAudio = null;
@@ -25,6 +25,7 @@ let lastPlayerSave = 0;
 
 // Keep only the next offline file ready; no network download or extra audio player.
 function warmNextAudio() {
+  if (audio.native) return;
   const id = queue.find((id) =>
     library.tracks.some(
       (t) => t.id === id && (t.status === "ready" || offlineIds.has(id)),
@@ -398,8 +399,9 @@ function options(track) {
   add("Adicionar ao fim da fila", () => addToQueue(track, false));
   add("Adicionar à playlist", () => choosePlaylist(track));
   if (offlineIds.has(track.id))
-    add("Remover download deste iPhone", async () => {
+    add("Remover download deste aparelho", async () => {
       await local("audio", track.id, undefined, true);
+      audio.removeDownload?.(track.id);
       offlineIds.delete(track.id);
       render();
     });
@@ -415,6 +417,7 @@ function options(track) {
       return;
     await api("tracks/" + track.id, { action: "delete" });
     await local("audio", track.id, undefined, true);
+    audio.removeDownload?.(track.id);
     offlineIds.delete(track.id);
     if (current?.id === track.id) {
       audio.pause();
@@ -502,6 +505,12 @@ async function drain() {
     library.tracks.some((t) => t.id === id && t.status === "ready"),
   );
   if (!ready.length) return;
+  if (audio.native) {
+    audio.saveTracks(
+      ready.map((id) => library.tracks.find((t) => t.id === id)),
+    );
+    return;
+  }
   saving = true;
   const downloadOwner = currentUser?.id;
   try {
@@ -571,6 +580,7 @@ async function drain() {
   }
 }
 function savePlayer() {
+  audio.updateQueue?.();
   local("meta", "player", {
     id: current?.id,
     queue,
@@ -619,6 +629,27 @@ async function play(track, list) {
       "Preparando na nuvem. Toque em reproduzir quando a faixa estiver pronta.",
     );
     return;
+  }
+  if (audio.native) {
+    if (list) {
+      playbackContext = list.map((t) => t.id);
+      const at = playbackContext.indexOf(track.id);
+      queue = shuffle
+        ? shuffleItems(playbackContext.filter((id) => id !== track.id))
+        : playbackContext.slice(at + 1);
+    }
+    const position = current?.id === track.id ? restoredPosition : 0;
+    restoredPosition = 0;
+    if (current && current.id !== track.id) {
+      playHistory.unshift(current.id);
+      playHistory = playHistory.slice(0, 50);
+    }
+    current = track;
+    audio.startTrack(track, position);
+    drawPlayer();
+    window.musicOutput?.claim();
+    savePlayer();
+    return true;
   }
   const prepared =
     nextAudio?.id === track.id && nextAudio.owner === currentUser?.id
@@ -1036,7 +1067,9 @@ async function boot() {
       );
   }
   const installed =
-    navigator.standalone || matchMedia("(display-mode: standalone)").matches;
+    audio.native ||
+    navigator.standalone ||
+    matchMedia("(display-mode: standalone)").matches;
   if (!installed && !isAdminEntry()) return;
   const poll = async () => {
     await sync();

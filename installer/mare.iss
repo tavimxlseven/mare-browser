@@ -1,5 +1,5 @@
 #ifndef MareVersion
-#define MareVersion "0.5.4"
+#define MareVersion "0.5.5"
 #endif
 #ifndef Payload
 #define Payload "..\dist\InstallerPayload"
@@ -33,6 +33,7 @@ Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortugue
 Name: "english"; MessagesFile: "compiler:Default.isl"
 [Tasks]
 Name: "desktopicon"; Description: "Criar atalho na área de trabalho"
+Name: "importlegacyprofile"; Description: "Importar meu perfil antigo de D:\MareBrowserData para este usuário do Windows (inclui histórico e sessões)"; Flags: unchecked; Check: CanImportLegacyProfile
 [Files]
 Source: "{#Payload}\app\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#Payload}\MicrosoftEdgeWebview2Setup.exe"; Flags: dontcopy
@@ -43,6 +44,19 @@ Name: "{autodesktop}\Maré Browser"; Filename: "{app}\Mare.exe"; WorkingDir: "{a
 Filename: "{app}\Mare.exe"; Description: "Abrir Maré Browser"; Flags: nowait postinstall skipifsilent
 Filename: "{app}\Mare.exe"; Flags: nowait; Check: IsMareUpdate
 [Code]
+function CanImportLegacyProfile: Boolean;
+begin
+  Result := FileExists('D:\MareBrowserData\state.json') and not DirExists(ExpandConstant('{localappdata}\MareBrowser\User Data'));
+end;
+procedure CurStepChanged(CurStep: TSetupStep);
+var ExitCode: Integer;
+begin
+  if (CurStep = ssPostInstall) and WizardIsTaskSelected('importlegacyprofile') then begin
+    if not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+      '-NoProfile -ExecutionPolicy Bypass -File "' + ExpandConstant('{app}\import-profile.ps1') + '" -From "D:\MareBrowserData"', '', SW_HIDE, ewWaitUntilTerminated, ExitCode) or (ExitCode <> 0) then
+      MsgBox('Não foi possível importar o perfil. Nenhum dado original foi apagado. Feche todas as janelas do Maré e execute import-profile.ps1 na pasta do programa.', mbInformation, MB_OK);
+  end;
+end;
 function IsMareUpdate: Boolean;
 begin
   Result := ExpandConstant('{param:MAREUPDATE|0}') = '1';

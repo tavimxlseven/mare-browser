@@ -1,6 +1,6 @@
 # Maré Música mobile
 
-Private, invitation-only music PWA for Android and iPhone. This is the mobile companion service. The Windows browser uses its existing implementation.
+Private, invitation-only music PWA focused on iPhone. Android users can use the [native playback APK](../android/README.md). The PWA remains available as a fallback. This is the mobile companion service. The Windows browser uses its existing implementation.
 
 On iPhone, install through Safari's **Share → Add to Home Screen**. On Android, use Chrome's **Install app** or **Add to Home screen**, then open its icon. The browser landing page requires Home Screen installation before showing the player. Authentication protects the API independently of this installation screen.
 

@@ -30,6 +30,7 @@ jobs:
         run: |
           for file in mobile/public/*.js; do node --check "$file"; done
           node scripts/music-background-check.cjs
+          node scripts/music-native-check.cjs
   check-and-build:
     runs-on: windows-latest
     timeout-minutes: 35

@@ -4,7 +4,9 @@ Os dados do usuário pertencem ao perfil, e não à pasta do executável. O inst
 
 ## Onde ficam os dados
 
-`MARE_DATA_DIR`, quando definido, escolhe a pasta explicitamente. Nesta instalação de desenvolvimento o perfil continua em `D:\MareBrowserData`. Quando D: está disponível, esse é também o destino padrão. Em computadores sem D:, o destino padrão é `%LOCALAPPDATA%\MareBrowser\User Data`, separado da instalação do programa.
+O padrão no Windows é `%LOCALAPPDATA%\MareBrowser\User Data`, separado por usuário e por instalação do Windows, independentemente da existência de D:. O diretório do programa e o disco usado para desenvolvimento não escolhem o perfil. `MARE_DATA_DIR`, quando definido explicitamente, continua escolhendo outra pasta.
+
+Versões até 0.5.4 podiam usar `D:\MareBrowserData` automaticamente. Esse diretório compartilhado não é mais lido ou importado automaticamente: ele pode pertencer a outra instalação ou usuário. Para importar seu próprio perfil antigo, feche todas as janelas do Maré e execute `powershell -ExecutionPolicy Bypass -File scripts/import-profile.ps1 -From 'D:\MareBrowserData'` a partir do código-fonte. O script só copia para um destino novo, recusa links e junções, não mescla perfis e preserva a origem. Cookies protegidos por outro usuário/Windows podem exigir novo login. Um perfil novo começa vazio até uma importação explícita.
 
 | Pasta ou arquivo | Conteúdo |
 | --- | --- |

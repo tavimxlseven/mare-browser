@@ -1,0 +1,14 @@
+Maré Música Android
+
+AndroidX WebKit and AndroidX Media3 are Copyright The Android Open Source Project,
+licensed under the Apache License, Version 2.0.
+https://www.apache.org/licenses/LICENSE-2.0
+
+Media3 includes portions of ExoPlayer and its Apache-licensed dependencies.
+Guava and AndroidX concurrent futures are Copyright Google LLC / The Android
+Open Source Project and licensed under Apache-2.0. Checker Framework annotations
+are distributed under their upstream MIT license. Error Prone and J2ObjC
+annotations are distributed under Apache-2.0.
+
+This client does not include Sunnify, yt-dlp, a server account, session cookies,
+or downloaded media. Server-side components are installed and licensed separately.

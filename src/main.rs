@@ -21,6 +21,7 @@ mod native_app;
 mod permissions;
 mod playlist;
 mod presence;
+mod profile;
 mod protection;
 mod resource_control;
 mod spotify;
@@ -187,16 +188,11 @@ fn embedded_ui() -> String {
 }
 
 fn data_directory() -> PathBuf {
-    if let Some(path) = std::env::var_os("MARE_DATA_DIR") {
-        return PathBuf::from(path);
-    }
-    #[cfg(windows)]
-    if Path::new("D:\\").exists() {
-        return PathBuf::from("D:\\MareBrowserData");
-    }
-    std::env::var_os("LOCALAPPDATA")
-        .map(|base| PathBuf::from(base).join("MareBrowser").join("User Data"))
-        .unwrap_or_else(|| PathBuf::from("mare-data"))
+    profile::directory(
+        std::env::var_os("MARE_DATA_DIR"),
+        std::env::var_os("LOCALAPPDATA"),
+        std::env::var_os("USERPROFILE").or_else(|| std::env::var_os("HOME")),
+    )
 }
 
 fn shell_display_path(path: &Path) -> PathBuf {

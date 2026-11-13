@@ -55,7 +55,7 @@ A interface local tem uma Content Security Policy que bloqueia conexões de rede
 
 `BrowserState` reúne abas, aba ativa, favoritos, histórico, Lista de Leitura, downloads e configurações. IDs monotônicos evitam reutilizar a identidade de itens após restaurar uma sessão. O histórico tem um limite de 1.000 entradas.
 
-O diretório é definido por `MARE_DATA_DIR`. Sem a variável, o Windows usa `D:\MareBrowserData` quando D: existe; o fallback fica ao lado do executável em `mare-data`.
+O diretório é definido por `MARE_DATA_DIR`. Sem a variável, o Windows usa `%LOCALAPPDATA%\MareBrowser\User Data`, separado por usuário e instalação do sistema. Perfis compartilhados legados exigem importação explícita.
 
 ```text
 MareBrowserData/

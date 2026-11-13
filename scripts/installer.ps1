@@ -11,6 +11,7 @@ Copy-Item -LiteralPath (Join-Path $BinaryDirectory 'mare-browser.exe') -Destinat
 $loader=Join-Path $BinaryDirectory 'WebView2Loader.dll'
 if(Test-Path -LiteralPath $loader){Copy-Item -LiteralPath $loader -Destination $app -Force}
 foreach($file in @('LICENSE','README.md','THIRD_PARTY_NOTICES.md','THIRD_PARTY_LICENSES.txt')){Copy-Item -LiteralPath (Join-Path $projectRoot $file) -Destination $app -Force}
+Copy-Item -LiteralPath (Join-Path $projectRoot 'scripts\import-profile.ps1') -Destination (Join-Path $app 'import-profile.ps1') -Force
 $icon=Get-ChildItem -Path (Join-Path $BinaryDirectory 'build\mare-browser-*\out\mare.ico') | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 if(-not $icon){throw 'Ícone compilado ausente.'};Copy-Item -LiteralPath $icon.FullName -Destination (Join-Path $payload 'mare.ico') -Force
 $sunnify=Join-Path $app 'components\sunnify';New-Item -ItemType Directory -Force -Path $sunnify | Out-Null

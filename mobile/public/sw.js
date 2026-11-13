@@ -1,4 +1,4 @@
-const CACHE = "mare-music-shell-v18";
+const CACHE = "mare-music-shell-v19";
 const SHELL = [
   "/",
   "/launch.css",
@@ -11,6 +11,7 @@ const SHELL = [
   "/style.css",
   "/account-player.css",
   "/app.js",
+  "/native-player.js",
   "/music-actions.js",
   "/sortable.js",
   "/music-polish.css",
