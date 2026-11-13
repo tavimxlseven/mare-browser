@@ -24,6 +24,64 @@ public final class PlaybackService extends MediaSessionService {
   private List<String> context = new ArrayList<>();
   private String repeat = "off";
   private final Handler handler = new Handler();
+  private final Runnable checkpoint =
+      new Runnable() {
+        public void run() {
+          savePlayback();
+          handler.postDelayed(this, 3000);
+        }
+      };
+  private final Runnable sleep = () -> player.pause();
+
+  private void savePlayback() {
+    if (scope.isEmpty() || player == null || player.getCurrentMediaItem() == null) return;
+    JSONObject saved =
+        MusicApi.json(
+            "id",
+            player.getCurrentMediaItem().mediaId,
+            "position",
+            player.getCurrentPosition(),
+            "queue",
+            new JSONArray(remaining()),
+            "context",
+            new JSONArray(context),
+            "repeat",
+            repeat,
+            "volume",
+            player.getVolume());
+    getSharedPreferences("playback-" + scope, 0)
+        .edit()
+        .putString("state", saved.toString())
+        .apply();
+  }
+
+  private void restorePlayback() {
+    if (player.getMediaItemCount() > 0) return;
+    try {
+      JSONObject saved =
+          new JSONObject(getSharedPreferences("playback-" + scope, 0).getString("state", "{}"));
+      JSONArray tracks =
+          new JSONArray(getSharedPreferences("playback-" + scope, 0).getString("catalog", "[]"));
+      if (tracks != null)
+        for (int i = 0; i < tracks.length(); i++) {
+          JSONObject t = tracks.getJSONObject(i);
+          if (validId(t.optString("id"))) catalog.put(t.getString("id"), t);
+        }
+      List<String> timeline = new ArrayList<>();
+      String id = saved.optString("id");
+      if (validId(id)) timeline.add(id);
+      timeline.addAll(ids(saved.optJSONArray("queue")));
+      List<MediaItem> media = items(timeline);
+      if (media.isEmpty()) return;
+      context = ids(saved.optJSONArray("context"));
+      repeat = saved.optString("repeat", "off");
+      player.setRepeatMode("one".equals(repeat) ? Player.REPEAT_MODE_ONE : Player.REPEAT_MODE_OFF);
+      player.setVolume((float) saved.optDouble("volume", 1));
+      player.setMediaItems(media, 0, Math.max(0, saved.optLong("position")));
+      player.setPlayWhenReady(false);
+    } catch (Exception ignored) {
+    }
+  }
 
   @Override
   public void onCreate() {
@@ -48,6 +106,14 @@ public final class PlaybackService extends MediaSessionService {
             new Intent(this, MainActivity.class),
             PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
     session = new MediaSession.Builder(this, player).setSessionActivity(open).build();
+    DefaultMediaNotificationProvider notification =
+        new DefaultMediaNotificationProvider.Builder(this)
+            .setChannelId("mare-playback")
+            .setChannelName(R.string.playback_channel_name)
+            .build();
+    notification.setSmallIcon(R.drawable.ic_notification_music);
+    setMediaNotificationProvider(notification);
+    handler.postDelayed(checkpoint, 3000);
     player.addListener(
         new Player.Listener() {
           @Override
@@ -91,6 +157,7 @@ public final class PlaybackService extends MediaSessionService {
       player.stop();
       player.clearMediaItems();
       AudioStore.manager(this).setStopReason(null, 1);
+      getSharedPreferences("playback-" + scope, 0).edit().clear().apply();
       AudioStore.clearAccount(this, scope);
       AudioStore.authenticate("");
       catalog.clear();
@@ -103,6 +170,7 @@ public final class PlaybackService extends MediaSessionService {
     String requestedAccount = data.optString("account", account);
     if (requestedAccount.isEmpty()) return;
     if (!origin.equals(requestedOrigin) || !account.equals(requestedAccount)) {
+      savePlayback();
       player.stop();
       player.clearMediaItems();
       AudioStore.manager(this).setStopReason(null, 1);
@@ -119,8 +187,22 @@ public final class PlaybackService extends MediaSessionService {
         JSONObject track = tracks.getJSONObject(i);
         if (validId(track.optString("id"))) catalog.put(track.getString("id"), track);
       }
+    if (tracks != null)
+      getSharedPreferences("playback-" + scope, 0)
+          .edit()
+          .putString("catalog", tracks.toString())
+          .apply();
     switch (action) {
       case "configure":
+        restorePlayback();
+        break;
+      case "checkpoint":
+        savePlayback();
+        break;
+      case "sleep":
+        handler.removeCallbacks(sleep);
+        if (data.optLong("minutes") > 0)
+          handler.postDelayed(sleep, data.optLong("minutes") * 60000);
         break;
       case "start":
         {
@@ -157,6 +239,8 @@ public final class PlaybackService extends MediaSessionService {
           break;
         }
       case "play":
+        if (player.getPlaybackState() == Player.STATE_IDLE)
+          player.seekTo(player.getCurrentMediaItemIndex(), player.getCurrentPosition());
         if (player.getMediaItemCount() > 0) {
           if (player.getPlaybackState() == Player.STATE_IDLE) player.prepare();
           player.play();
@@ -226,7 +310,9 @@ public final class PlaybackService extends MediaSessionService {
           new MediaMetadata.Builder()
               .setTitle(track.optString("title"))
               .setArtist(track.optString("artist"))
-              .setAlbumTitle("Maré Música");
+              .setAlbumTitle("Maré Música")
+              .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
+              .setIsPlayable(true);
       String art = track.optString("art");
       if (art.startsWith("https://")) metadata.setArtworkUri(Uri.parse(art));
       result.add(
@@ -265,6 +351,7 @@ public final class PlaybackService extends MediaSessionService {
           .put("duration", Math.max(0, player.getDuration()))
           .put("volume", player.getVolume())
           .put("queue", new JSONArray(service.remaining()))
+          .put("repeat", service.repeat)
           .put("offline", AudioStore.completed(context, service.scope))
           .put("error", service.error);
       value.put("failed", AudioStore.byState(context, service.scope, Download.STATE_FAILED));
@@ -280,6 +367,7 @@ public final class PlaybackService extends MediaSessionService {
 
   @Override
   public void onDestroy() {
+    savePlayback();
     instance = null;
     handler.removeCallbacksAndMessages(null);
     player.release();

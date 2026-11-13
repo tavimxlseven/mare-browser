@@ -23,6 +23,68 @@ import org.junit.runner.RunWith;
 @UnstableApi
 @RunWith(AndroidJUnit4.class)
 public class BackgroundPlaybackTest {
+  @Test
+  public void restoresTrackQueueAndPositionWithoutAutoplay() throws Exception {
+    var instrumentation = InstrumentationRegistry.getInstrumentation();
+    Context context = instrumentation.getTargetContext();
+    instrumentation.startActivitySync(
+        new Intent(context, MainActivity.class)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK));
+    String scope = AudioStore.scope("https://music.example", "resume-fixture");
+    var catalog =
+        new org.json.JSONArray()
+            .put(MusicApi.json("id", "resume", "title", "Resume fixture", "status", "ready"))
+            .put(MusicApi.json("id", "next", "title", "Next fixture", "status", "ready"));
+    context
+        .getSharedPreferences("playback-" + scope, 0)
+        .edit()
+        .putString("catalog", catalog.toString())
+        .putString(
+            "state",
+            MusicApi.json(
+                    "id",
+                    "resume",
+                    "position",
+                    42000,
+                    "queue",
+                    new org.json.JSONArray().put("next"),
+                    "context",
+                    new org.json.JSONArray().put("resume").put("next"),
+                    "repeat",
+                    "all",
+                    "volume",
+                    0.4)
+                .toString())
+        .commit();
+    instrumentation.runOnMainSync(
+        () ->
+            context.startService(
+                new Intent(context, PlaybackService.class)
+                    .setAction("org.mare.music.COMMAND")
+                    .putExtra(
+                        "command",
+                        MusicApi.json(
+                                "action",
+                                "configure",
+                                "origin",
+                                "https://music.example",
+                                "account",
+                                "resume-fixture",
+                                "cookie",
+                                "")
+                            .toString())));
+    SystemClock.sleep(500);
+    instrumentation.runOnMainSync(
+        () -> {
+          org.json.JSONObject restored = PlaybackService.snapshot(context);
+          assertEquals("resume", restored.optString("id"));
+          assertEquals(42000, restored.optLong("position"));
+          assertFalse(restored.optBoolean("playing"));
+          assertEquals("next", restored.optJSONArray("queue").optString(0));
+        });
+    context.stopService(new Intent(context, PlaybackService.class));
+  }
+
   @org.junit.Before
   public void wakeAndUnlock() throws Exception {
     var instrumentation = InstrumentationRegistry.getInstrumentation();
@@ -99,7 +161,56 @@ public class BackgroundPlaybackTest {
             .compress(android.graphics.Bitmap.CompressFormat.PNG, 100, output);
       }
     }
+    instrumentation.runOnMainSync(
+        () -> {
+          try {
+            Field current = MainActivity.class.getDeclaredField("current");
+            current.setAccessible(true);
+            current.set(activity, "MidnightCity");
+            Field queue = MainActivity.class.getDeclaredField("queue");
+            queue.setAccessible(true);
+            ((java.util.List<String>) queue.get(activity)).add("AfterHours");
+            ((java.util.List<String>) queue.get(activity)).add("Nights");
+            var method = MainActivity.class.getDeclaredMethod("openPlayer");
+            method.setAccessible(true);
+            method.invoke(activity);
+          } catch (Exception error) {
+            throw new RuntimeException(error);
+          }
+        });
+    SystemClock.sleep(500);
+    capture(context, "native-player.png");
+    instrumentation.runOnMainSync(
+        () -> {
+          try {
+            var method = MainActivity.class.getDeclaredMethod("openQueue");
+            method.setAccessible(true);
+            method.invoke(activity);
+          } catch (Exception error) {
+            throw new RuntimeException(error);
+          }
+        });
+    SystemClock.sleep(500);
+    capture(context, "native-queue.png");
     api.clear();
+  }
+
+  private void capture(Context context, String name) throws Exception {
+    if (android.os.Build.VERSION.SDK_INT < 29) return;
+    android.content.ContentValues values = new android.content.ContentValues();
+    values.put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, name);
+    values.put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/png");
+    values.put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, "Pictures/MareTestEvidence");
+    android.net.Uri uri =
+        context
+            .getContentResolver()
+            .insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+    try (java.io.OutputStream out = context.getContentResolver().openOutputStream(uri)) {
+      InstrumentationRegistry.getInstrumentation()
+          .getUiAutomation()
+          .takeScreenshot()
+          .compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out);
+    }
   }
 
   private boolean containsWebView(android.view.View view) {

@@ -233,7 +233,24 @@ def search():
     q = request.args.get("q", "").strip()
     if not 2 <= len(q) <= 150:
         abort(400)
-    return jsonify(tracks=provider.search(q))
+    try:
+        return jsonify(tracks=provider.search(q))
+    except Exception:
+        # The external catalog can be unavailable independently of this app.
+        # Search only this account's real metadata; never invent Spotify identities.
+        import unicodedata
+        def normalize(value):
+            return ''.join(c for c in unicodedata.normalize('NFKD', value.casefold())
+                           if not unicodedata.combining(c))
+        tokens = normalize(q).split()
+        with db() as con:
+            rows = con.execute("""SELECT t.id,t.title,t.artist,t.art,t.status,t.duration_ms,u.liked
+                FROM user_tracks u JOIN tracks t ON t.id=u.track_id WHERE u.owner=?""",
+                (g.user['id'],)).fetchall()
+        matches = [dict(t) for t in rows if all(token in normalize(t['title']+' '+t['artist']) for token in tokens)]
+        return jsonify(tracks=matches[:50], source='library', degraded=True,
+            warning='O catálogo externo está indisponível. Mostrando resultados da sua biblioteca.'
+                if matches else 'O catálogo externo está indisponível e não há correspondências na sua biblioteca. Tente novamente mais tarde.')
 
 
 def save_tracks(con, tracks, owner=accounts.ADMIN_ID, authoritative=False):

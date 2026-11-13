@@ -16,6 +16,19 @@ import server
 
 
 class ServerTests(unittest.TestCase):
+    def test_catalog_outage_searches_only_the_current_library(self):
+        self.login()
+        with server.db() as con:
+            con.execute("INSERT INTO users VALUES (?,?,?,?,?)",('other','other-user','unused',0,0))
+            server.save_tracks(con,[dict(id='t'*22,title='Nightcrawler',artist='Travis Scott',art='')],'admin')
+            server.save_tracks(con,[dict(id='x'*22,title='Private track',artist='Travis',art='')],'other')
+        with patch('provider.search',side_effect=OSError('catalog down')):
+            response=self.client.get('/api/search?q=travis')
+        self.assertEqual(response.status_code,200)
+        self.assertTrue(response.json['degraded'])
+        self.assertEqual([t['id'] for t in response.json['tracks']],['t'*22])
+        self.assertIn('indisponível',response.json['warning'])
+
     def test_playlist_additions_are_idempotent_private_and_survive_reimport(self):
         self.login()
         identifier = "p" * 22

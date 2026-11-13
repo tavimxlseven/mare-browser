@@ -45,7 +45,7 @@ public final class MainActivity extends Activity {
   private boolean active, refreshing, shuffle;
   private long refreshed;
   private Dialog player;
-  private TextView playerPlay, elapsed;
+  private TextView playerPlay, elapsed, remainingTime;
   private SeekBar seek;
   private boolean scrubbing;
   private final Runnable pulse =
@@ -141,7 +141,8 @@ public final class MainActivity extends Activity {
         || s.equals("＋")
         || s.equals("•••")
         || s.equals("⌄")
-        || s.equals("↑")) {
+        || s.equals("↑")
+        || s.equals("↓")) {
       v.setText("");
       v.setCompoundDrawablesWithIntrinsicBounds(
           new ControlIcon(s, primary ? BG : TEXT), null, null, null);
@@ -366,26 +367,55 @@ public final class MainActivity extends Activity {
     content.addView(header);
     gap(content, 24);
     if (tab.equals("Buscar")) {
-      EditText query = field("Músicas, artistas e álbuns", false);
+      EditText query = field("Músicas e artistas", false);
+      query.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);
       content.addView(query);
       gap(content, 12);
-      content.addView(
-          button(
-              "Buscar",
-              true,
-              () -> {
-                String q = query.getText().toString();
-                request(
-                    () -> api.call("search?q=" + URLEncoder.encode(q, "UTF-8"), null),
-                    r -> {
-                      while (content.getChildCount() > 5) content.removeViewAt(4);
-                      JSONArray found = r.optJSONArray("tracks");
-                      if (found != null)
-                        for (int i = 0; i < found.length(); i++)
-                          song(content, found.optJSONObject(i), null);
-                    },
-                    this::message);
-              }));
+      LinearLayout results = col();
+      TextView status = text("Busque por uma música ou artista", 14, MUTED);
+      TextView search = button("Buscar", true, () -> {});
+      Runnable submit =
+          () -> {
+            String q = query.getText().toString().trim();
+            if (q.length() < 2) {
+              status.setText("Digite pelo menos duas letras.");
+              return;
+            }
+            search.setEnabled(false);
+            status.setText("Buscando…");
+            request(
+                () -> api.call("search?q=" + URLEncoder.encode(q, "UTF-8"), null),
+                r -> {
+                  search.setEnabled(true);
+                  if (!tab.equals("Buscar")) return;
+                  results.removeAllViews();
+                  JSONArray found = r.optJSONArray("tracks");
+                  status.setText(
+                      r.optString(
+                          "warning",
+                          found == null || found.length() == 0
+                              ? "Nenhuma música encontrada"
+                              : "Resultados"));
+                  if (found != null)
+                    for (int i = 0; i < found.length(); i++)
+                      song(results, found.optJSONObject(i), null);
+                },
+                error -> {
+                  search.setEnabled(true);
+                  status.setText(error);
+                });
+          };
+      search.setOnClickListener(v -> submit.run());
+      query.setOnEditorActionListener(
+          (v, a, e) -> {
+            submit.run();
+            return true;
+          });
+      content.addView(search);
+      gap(content, 18);
+      content.addView(status);
+      gap(content, 12);
+      content.addView(results);
       return;
     }
     if (playlist() != null) {
@@ -394,22 +424,30 @@ public final class MainActivity extends Activity {
       LinearLayout.LayoutParams spec = new LinearLayout.LayoutParams(dp(220), dp(220));
       spec.gravity = Gravity.CENTER_HORIZONTAL;
       content.addView(art, spec);
-      gap(content, 20);
-      content.addView(
+      gap(content, 18);
+      TextView description = text(visible().size() + " músicas", 14, MUTED);
+      description.setGravity(Gravity.CENTER);
+      content.addView(description);
+      gap(content, 18);
+      LinearLayout actions = row();
+      actions.addView(button("↓", false, () -> prepare(visible(), true)));
+      actions.addView(button("•••", false, () -> playlistActions(p)));
+      actions.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1));
+      TextView playPlaylist =
           button(
-              "Reproduzir",
+              "▶",
               true,
               () -> {
                 for (JSONObject t : visible())
                   if (playable(t)) {
                     start(t, visible());
-                    break;
+                    return;
                   }
-              }));
-      gap(content, 8);
-      content.addView(button("Salvar playlist", false, () -> prepare(visible(), true)));
-      gap(content, 8);
-      content.addView(button("Editar playlist", false, () -> playlistActions(p)));
+                message("Prepare as músicas desta playlist para ouvir.");
+              });
+      playPlaylist.setBackground(bg(PINK, 32));
+      actions.addView(playPlaylist, new LinearLayout.LayoutParams(dp(60), dp(60)));
+      content.addView(actions);
       gap(content, 24);
     } else if (tab.equals("Biblioteca") && selected.isEmpty()) {
       content.addView(
@@ -513,7 +551,7 @@ public final class MainActivity extends Activity {
     LinearLayout box = col();
     box.setPadding(dp(20), dp(10), dp(20), dp(10));
     box.addView(input);
-    new AlertDialog.Builder(this)
+    new MareSheet(this)
         .setTitle(title)
         .setView(box)
         .setNegativeButton("Cancelar", null)
@@ -527,7 +565,7 @@ public final class MainActivity extends Activity {
   }
 
   private void importMenu() {
-    new AlertDialog.Builder(this)
+    new MareSheet(this)
         .setTitle("Sua biblioteca")
         .setItems(
             new String[] {"Importar do Spotify", "Criar playlist"},
@@ -544,7 +582,7 @@ public final class MainActivity extends Activity {
   }
 
   private void playlistActions(JSONObject p) {
-    new AlertDialog.Builder(this)
+    new MareSheet(this)
         .setTitle(p.optString("name"))
         .setItems(
             new String[] {"Renomear", "Salvar músicas", "Excluir playlist"},
@@ -578,7 +616,7 @@ public final class MainActivity extends Activity {
 
   private void songActions(JSONObject t) {
     String id = t.optString("id");
-    new AlertDialog.Builder(this)
+    new MareSheet(this)
         .setTitle(t.optString("title"))
         .setItems(
             new String[] {
@@ -607,7 +645,7 @@ public final class MainActivity extends Activity {
                 String[] names = new String[playlists().length()];
                 for (int j = 0; j < names.length; j++)
                   names[j] = playlists().optJSONObject(j).optString("name");
-                new AlertDialog.Builder(this)
+                new MareSheet(this)
                     .setTitle("Adicionar à playlist")
                     .setItems(
                         names,
@@ -624,7 +662,7 @@ public final class MainActivity extends Activity {
                 offline.remove(id);
                 render();
               } else
-                new AlertDialog.Builder(this)
+                new MareSheet(this)
                     .setTitle("Excluir música?")
                     .setMessage("Ela será removida da sua biblioteca.")
                     .setNegativeButton("Cancelar", null)
@@ -786,6 +824,7 @@ public final class MainActivity extends Activity {
   private void adopt(JSONObject value) {
     if (!api.account.equals(value.optString("account"))) return;
     state = value;
+    repeat = value.optString("repeat", repeat);
     String id = value.optString("id");
     if (!id.isEmpty() && !id.equals("null")) {
       boolean changed = !id.equals(current);
@@ -808,7 +847,8 @@ public final class MainActivity extends Activity {
       if (!scrubbing) {
         long length = value.optLong("duration");
         seek.setProgress(length > 0 ? (int) (value.optLong("position") * 1000 / length) : 0);
-        elapsed.setText(time(value.optLong("position")) + "                       " + time(length));
+        elapsed.setText(time(value.optLong("position")));
+        if (remainingTime != null) remainingTime.setText(time(length));
       }
     }
     if (!value.optString("error").isEmpty()) showActivity(value.optString("error"));
@@ -829,65 +869,84 @@ public final class MainActivity extends Activity {
     Dialog dialog = new Dialog(this, android.R.style.Theme_Material_NoActionBar);
     player = dialog;
     LinearLayout page = col();
-    page.setPadding(dp(28), dp(24), dp(28), dp(28));
+    page.setPadding(dp(26), dp(16), dp(26), dp(24));
+    page.setFitsSystemWindows(true);
     page.setBackground(
-        new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[] {0xff38232d, BG}));
-    page.addView(button("⌄", false, () -> dialog.dismiss()));
+        new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[] {0xff34252d, BG}));
+    LinearLayout header = row();
+    header.addView(iconButton("⌄", () -> dialog.dismiss()));
+    TextView caption = text("Tocando agora", 13, MUTED);
+    caption.setGravity(Gravity.CENTER);
+    header.addView(caption, new LinearLayout.LayoutParams(0, -2, 1));
+    header.addView(iconButton("•••", () -> songActions(t)));
+    page.addView(header);
     gap(page, 24);
-    page.addView(cover(t.optString("art"), 300), new LinearLayout.LayoutParams(-1, dp(290)));
-    gap(page, 30);
-    page.addView(title(t.optString("title"), 26));
-    page.addView(text(t.optString("artist"), 18, MUTED));
-    gap(page, 24);
+    int coverSize =
+        Math.min(
+            getResources().getDisplayMetrics().widthPixels - dp(52),
+            (int) (getResources().getDisplayMetrics().heightPixels * .34));
+    LinearLayout.LayoutParams artSize = new LinearLayout.LayoutParams(coverSize, coverSize);
+    artSize.gravity = Gravity.CENTER_HORIZONTAL;
+    page.addView(cover(t.optString("art"), 300), artSize);
+    gap(page, 26);
+    TextView name = title(t.optString("title"), 24);
+    name.setMaxLines(2);
+    name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+    page.addView(name);
+    gap(page, 6);
+    page.addView(text(t.optString("artist"), 17, MUTED));
+    gap(page, 20);
     seek = new SeekBar(this);
     seek.setMax(1000);
-    seek.setProgressTintList(android.content.res.ColorStateList.valueOf(PINK));
+    seek.setPadding(0, 0, 0, 0);
+    seek.setProgressTintList(android.content.res.ColorStateList.valueOf(TEXT));
     seek.setThumbTintList(android.content.res.ColorStateList.valueOf(TEXT));
-    page.addView(seek);
-    elapsed = text("", 12, MUTED);
-    page.addView(elapsed);
+    page.addView(seek, new LinearLayout.LayoutParams(-1, dp(34)));
+    LinearLayout times = row();
+    elapsed = text(time(state.optLong("position")), 12, MUTED);
+    remainingTime = text(time(state.optLong("duration")), 12, MUTED);
+    times.addView(elapsed, new LinearLayout.LayoutParams(0, -2, 1));
+    times.addView(remainingTime);
+    page.addView(times);
     seek.setOnSeekBarChangeListener(
         new SeekBar.OnSeekBarChangeListener() {
-          public void onStartTrackingTouch(SeekBar s) {
+          public void onStartTrackingTouch(SeekBar v) {
             scrubbing = true;
           }
 
-          public void onProgressChanged(SeekBar s, int p, boolean user) {}
+          public void onProgressChanged(SeekBar v, int p, boolean user) {
+            if (user) elapsed.setText(time(state.optLong("duration") * p / 1000));
+          }
 
-          public void onStopTrackingTouch(SeekBar s) {
+          public void onStopTrackingTouch(SeekBar v) {
             command(
                 "seek",
-                MusicApi.json("position", state.optLong("duration") * s.getProgress() / 1000));
+                MusicApi.json("position", state.optLong("duration") * v.getProgress() / 1000));
             scrubbing = false;
           }
         });
-    gap(page, 24);
+    gap(page, 18);
     LinearLayout controls = row();
     controls.setGravity(Gravity.CENTER);
-    controls.addView(button("↤", false, () -> command("seek", MusicApi.json("position", 0))));
-    playerPlay = button(state.optBoolean("playing") ? "Ⅱ" : "▶", true, () -> toggle());
-    LinearLayout.LayoutParams playSize = new LinearLayout.LayoutParams(dp(76), dp(76));
-    playSize.setMargins(dp(24), 0, dp(24), 0);
-    controls.addView(playerPlay, playSize);
-    controls.addView(button("↦", false, () -> next()));
-    page.addView(controls);
-    gap(page, 24);
-    LinearLayout options = row();
-    options.addView(
-        button(
-            "Aleatório",
-            false,
+    TextView shuffleButton =
+        iconButton(
+            "shuffle",
             () -> {
               shuffle = !shuffle;
               if (shuffle) Collections.shuffle(queue);
               updateQueue();
-              message(shuffle ? "Aleatório ativado" : "Aleatório desativado");
-            }),
-        new LinearLayout.LayoutParams(0, -2, 1));
-    options.addView(
-        button(
-            "Repetir",
-            false,
+            });
+    controls.addView(shuffleButton, new LinearLayout.LayoutParams(0, dp(48), 1));
+    controls.addView(
+        iconButton("↤", () -> command("seek", MusicApi.json("position", 0))),
+        new LinearLayout.LayoutParams(0, dp(56), 1));
+    playerPlay = button(state.optBoolean("playing") ? "Ⅱ" : "▶", true, () -> toggle());
+    playerPlay.setBackground(bg(TEXT, 40));
+    controls.addView(playerPlay, new LinearLayout.LayoutParams(dp(74), dp(74)));
+    controls.addView(iconButton("↦", () -> next()), new LinearLayout.LayoutParams(0, dp(56), 1));
+    controls.addView(
+        iconButton(
+            "repeat",
             () -> {
               repeat = repeat.equals("off") ? "all" : repeat.equals("all") ? "one" : "off";
               updateQueue();
@@ -896,73 +955,178 @@ public final class MainActivity extends Activity {
                       ? "Repetir faixa"
                       : repeat.equals("all") ? "Repetir playlist" : "Repetição desativada");
             }),
-        new LinearLayout.LayoutParams(0, -2, 1));
-    page.addView(options);
-    gap(page, 12);
-    page.addView(button("Fila de reprodução", false, () -> openQueue()));
-    page.addView(button("Opções da música", false, () -> songActions(t)));
+        new LinearLayout.LayoutParams(0, dp(48), 1));
+    page.addView(controls);
+    gap(page, 26);
+    LinearLayout footer = row();
+    footer.addView(iconButton("timer", () -> timerMenu()));
+    footer.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1));
+    footer.addView(iconButton("queue", () -> openQueue()));
+    page.addView(footer);
     ScrollView scroll = new ScrollView(this);
+    scroll.setFillViewport(true);
     scroll.addView(page);
+    scroll.setOnScrollChangeListener((v, x, y, ox, oy) -> visibleImages(page));
     dialog.setContentView(scroll);
     dialog.show();
-    dialog.getWindow().setStatusBarColor(0xff38232d);
+    dialog.getWindow().setStatusBarColor(0xff34252d);
     dialog.getWindow().setNavigationBarColor(BG);
-    page.setAlpha(0);
     page.setTranslationY(dp(40));
+    page.setAlpha(0);
     page.animate().alpha(1).translationY(0).setDuration(280);
+  }
+
+  private TextView iconButton(String name, Runnable action) {
+    TextView icon = button("", false, action);
+    icon.setBackgroundColor(Color.TRANSPARENT);
+    icon.setCompoundDrawablesWithIntrinsicBounds(new ControlIcon(name, TEXT), null, null, null);
+    icon.setContentDescription(name);
+    return icon;
+  }
+
+  private void timerMenu() {
+    new MareSheet(this)
+        .setTitle("Temporizador")
+        .setItems(
+            new String[] {"15 minutos", "30 minutos", "60 minutos", "Desativar"},
+            (d, i) -> {
+              command(
+                  "sleep", MusicApi.json("minutes", i == 0 ? 15 : i == 1 ? 30 : i == 2 ? 60 : 0));
+              message("Temporizador atualizado");
+            })
+        .show();
   }
 
   private void openQueue() {
     Dialog dialog = new Dialog(this);
-    LinearLayout list = col();
-    list.setBackground(bg(PANEL, 26));
-    list.setPadding(dp(22), dp(24), dp(22), dp(24));
-    list.addView(title("A seguir", 26));
-    gap(list, 14);
-    for (int i = 0; i < queue.size(); i++) {
-      int index = i;
-      JSONObject t = track(queue.get(i));
-      if (t == null) continue;
-      LinearLayout item = row();
-      TextView name = text(t.optString("title"), 15, TEXT);
-      name.setMaxLines(1);
-      name.setEllipsize(android.text.TextUtils.TruncateAt.END);
-      item.addView(name, new LinearLayout.LayoutParams(0, dp(56), 1));
-      item.addView(
-          button(
-              "↑",
-              false,
-              () -> {
-                if (index > 0) {
-                  Collections.swap(queue, index, index - 1);
-                  updateQueue();
-                  dialog.dismiss();
-                  openQueue();
-                }
-              }));
-      name.setOnClickListener(
-          v -> {
-            String id = queue.get(index);
-            queue.subList(0, index + 1).clear();
-            start(track(id), null);
-            dialog.dismiss();
-          });
-      list.addView(item);
+    LinearLayout page = col();
+    page.setBackground(bg(PANEL, 26));
+    page.setPadding(dp(20), dp(12), dp(20), dp(22));
+    TextView handle = text("━━", 18, MUTED);
+    handle.setGravity(Gravity.CENTER);
+    page.addView(handle);
+    LinearLayout header = row();
+    header.addView(title("Fila", 26), new LinearLayout.LayoutParams(0, -2, 1));
+    header.addView(iconButton("⌄", () -> dialog.dismiss()));
+    page.addView(header);
+    page.addView(text("Sua próxima música, na ordem que você escolher", 12, MUTED));
+    gap(page, 18);
+    JSONObject now = track(current);
+    if (now != null) {
+      page.addView(text("Tocando agora", 13, MUTED));
+      song(page, now, null);
+      gap(page, 16);
     }
-    if (queue.isEmpty()) list.addView(text("Sua fila está vazia", 16, MUTED));
+    page.addView(title("A seguir", 17));
+    gap(page, 8);
+    LinearLayout entries = col();
     ScrollView scroll = new ScrollView(this);
-    scroll.addView(list);
-    dialog.setContentView(scroll);
+    scroll.addView(entries);
+    scroll.setOnScrollChangeListener((v, x, y, ox, oy) -> visibleImages(entries));
+    page.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+    Runnable[] paint = new Runnable[1];
+    paint[0] =
+        () -> {
+          entries.removeAllViews();
+          ArrayList<String> order = new ArrayList<>(queue);
+          for (int i = 0; i < order.size(); i++) {
+            int index = i;
+            JSONObject t = track(order.get(i));
+            if (t == null) continue;
+            LinearLayout line = row();
+            line.setPadding(0, dp(8), 0, dp(8));
+            line.addView(
+                cover(t.optString("art"), 48), new LinearLayout.LayoutParams(dp(48), dp(48)));
+            LinearLayout labels = col();
+            labels.setPadding(dp(12), 0, dp(6), 0);
+            TextView name = text(t.optString("title"), 15, TEXT);
+            name.setMaxLines(1);
+            name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            labels.addView(name);
+            TextView artist = text(t.optString("artist"), 12, MUTED);
+            artist.setMaxLines(1);
+            labels.addView(artist);
+            line.addView(labels, new LinearLayout.LayoutParams(0, -2, 1));
+            labels.setOnClickListener(
+                v -> {
+                  String id = order.get(index);
+                  queue.clear();
+                  queue.addAll(order.subList(index + 1, order.size()));
+                  start(track(id), null);
+                  dialog.dismiss();
+                });
+            TextView grip = iconButton("grip", () -> {});
+            grip.setContentDescription("Arrastar " + t.optString("title"));
+            float[] from = {0};
+            grip.setOnTouchListener(
+                (v, e) -> {
+                  if (e.getAction() == MotionEvent.ACTION_DOWN) {
+                    from[0] = e.getRawY();
+                    line.setElevation(dp(8));
+                    line.setBackground(bg(0xff303239, 12));
+                    scroll.requestDisallowInterceptTouchEvent(true);
+                    return true;
+                  }
+                  if (e.getAction() == MotionEvent.ACTION_MOVE) {
+                    line.setTranslationY(e.getRawY() - from[0]);
+                    return true;
+                  }
+                  if (e.getAction() == MotionEvent.ACTION_UP
+                      || e.getAction() == MotionEvent.ACTION_CANCEL) {
+                    if (e.getAction() == MotionEvent.ACTION_UP) {
+                      int target =
+                          Math.max(
+                              0,
+                              Math.min(
+                                  order.size() - 1,
+                                  index + Math.round((e.getRawY() - from[0]) / dp(64))));
+                      queue.clear();
+                      queue.addAll(order);
+                      String id = queue.remove(index);
+                      queue.add(target, id);
+                      updateQueue();
+                    }
+                    scroll.requestDisallowInterceptTouchEvent(false);
+                    paint[0].run();
+                    return true;
+                  }
+                  return false;
+                });
+            line.addView(grip);
+            entries.addView(line);
+          }
+          if (order.isEmpty())
+            entries.addView(text("Adicione músicas para montar sua fila.", 15, MUTED));
+          entries.post(() -> visibleImages(entries));
+        };
+    paint[0].run();
+    gap(page, 12);
+    LinearLayout footer = row();
+    footer.addView(
+        button(
+            shuffle ? "Aleatório ativado" : "Ordem aleatória",
+            false,
+            () -> {
+              shuffle = !shuffle;
+              if (shuffle) Collections.shuffle(queue);
+              updateQueue();
+              paint[0].run();
+            }),
+        new LinearLayout.LayoutParams(0, -2, 1));
+    footer.addView(
+        button("Timer", false, () -> timerMenu()), new LinearLayout.LayoutParams(0, -2, 1));
+    page.addView(footer);
+    dialog.setContentView(page);
     dialog.show();
     dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
-    dialog.getWindow().setLayout(-1, -2);
+    dialog.getWindow().setLayout(-1, (int) (getResources().getDisplayMetrics().heightPixels * .86));
     dialog.getWindow().setGravity(Gravity.BOTTOM);
-    list.setTranslationY(dp(60));
-    list.animate().translationY(0).setDuration(250);
+    page.setTranslationY(dp(60));
+    page.animate().translationY(0).setDuration(260);
   }
 
   private void settings() {
-    new AlertDialog.Builder(this)
+    new MareSheet(this)
         .setTitle("Ajustes de música")
         .setItems(
             new String[] {"Atualizar biblioteca", "Retomar preparação", "Sair da conta"},
@@ -970,7 +1134,7 @@ public final class MainActivity extends Activity {
               if (i == 0) refresh(true);
               else if (i == 1) mutate("resume", new JSONObject());
               else
-                new AlertDialog.Builder(this)
+                new MareSheet(this)
                     .setTitle("Sair da conta?")
                     .setNegativeButton("Cancelar", null)
                     .setPositiveButton(
@@ -1179,6 +1343,7 @@ public final class MainActivity extends Activity {
 
   @Override
   protected void onPause() {
+    if (api != null && !api.account.isEmpty()) command("checkpoint", new JSONObject());
     active = false;
     main.removeCallbacks(pulse);
     super.onPause();
@@ -1198,6 +1363,98 @@ public final class MainActivity extends Activity {
     else if (view instanceof android.view.ViewGroup) {
       android.view.ViewGroup group = (android.view.ViewGroup) view;
       for (int i = 0; i < group.getChildCount(); i++) visibleImages(group.getChildAt(i));
+    }
+  }
+
+  private final class MareSheet {
+    private final Dialog dialog = new Dialog(MainActivity.this);
+    private final LinearLayout page = col();
+
+    MareSheet(android.content.Context ignored) {
+      page.setPadding(dp(22), dp(12), dp(22), dp(24));
+      page.setBackground(bg(PANEL, 26));
+      TextView handle = text("━━", 18, MUTED);
+      handle.setGravity(Gravity.CENTER);
+      page.addView(handle);
+    }
+
+    MareSheet setTitle(String value) {
+      TextView h = title(value, 21);
+      h.setPadding(0, dp(12), 0, dp(18));
+      page.addView(h);
+      return this;
+    }
+
+    MareSheet setMessage(String value) {
+      TextView copy = text(value, 15, MUTED);
+      copy.setPadding(0, 0, 0, dp(16));
+      page.addView(copy);
+      return this;
+    }
+
+    MareSheet setView(View view) {
+      page.addView(view);
+      return this;
+    }
+
+    MareSheet setItems(String[] names, android.content.DialogInterface.OnClickListener action) {
+      for (int i = 0; i < names.length; i++) {
+        int which = i;
+        TextView item = text(names[i], 16, TEXT);
+        item.setPadding(dp(10), dp(18), dp(10), dp(18));
+        item.setBackground(bg(PANEL, 12));
+        item.setOnClickListener(
+            v -> {
+              dialog.dismiss();
+              action.onClick(dialog, which);
+            });
+        page.addView(item);
+      }
+      return this;
+    }
+
+    MareSheet setNegativeButton(
+        String value, android.content.DialogInterface.OnClickListener action) {
+      page.addView(
+          button(
+              value,
+              false,
+              () -> {
+                dialog.dismiss();
+                if (action != null) action.onClick(dialog, -2);
+              }));
+      return this;
+    }
+
+    MareSheet setPositiveButton(
+        String value, android.content.DialogInterface.OnClickListener action) {
+      gap(page, 10);
+      page.addView(
+          button(
+              value,
+              true,
+              () -> {
+                dialog.dismiss();
+                if (action != null) action.onClick(dialog, -1);
+              }));
+      return this;
+    }
+
+    Dialog show() {
+      ScrollView scroll = new ScrollView(MainActivity.this);
+      scroll.addView(page);
+      dialog.setContentView(scroll);
+      dialog.show();
+      dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+      dialog.getWindow().setLayout(-1, -2);
+      dialog.getWindow().setGravity(Gravity.BOTTOM);
+      dialog
+          .getWindow()
+          .setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+      page.setTranslationY(dp(50));
+      page.setAlpha(0);
+      page.animate().translationY(0).alpha(1).setDuration(230);
+      return dialog;
     }
   }
 
@@ -1229,7 +1486,30 @@ public final class MainActivity extends Activity {
       pen.setStrokeCap(Paint.Cap.ROUND);
       pen.setStyle(Paint.Style.FILL);
       Path p = new Path();
-      if (kind.equals("music")) {
+      if (kind.equals("grip") || kind.equals("queue")) {
+        pen.setStyle(Paint.Style.STROKE);
+        for (int y = 6; y <= 18; y += 6) canvas.drawLine(5, y, 19, y, pen);
+      } else if (kind.equals("timer")) {
+        pen.setStyle(Paint.Style.STROKE);
+        canvas.drawCircle(12, 13, 8, pen);
+        canvas.drawLine(9, 2, 15, 2, pen);
+        canvas.drawLine(12, 13, 12, 8, pen);
+      } else if (kind.equals("shuffle") || kind.equals("repeat")) {
+        pen.setStyle(Paint.Style.STROKE);
+        p.moveTo(3, 6);
+        p.cubicTo(11, 6, 13, 18, 21, 18);
+        p.moveTo(3, 18);
+        p.cubicTo(11, 18, 13, 6, 21, 6);
+        canvas.drawPath(p, pen);
+      } else if (kind.equals("↓")) {
+        pen.setStyle(Paint.Style.STROKE);
+        canvas.drawLine(12, 3, 12, 17, pen);
+        p.moveTo(7, 12);
+        p.lineTo(12, 17);
+        p.lineTo(17, 12);
+        canvas.drawPath(p, pen);
+        canvas.drawLine(5, 21, 19, 21, pen);
+      } else if (kind.equals("music")) {
         pen.setStyle(Paint.Style.STROKE);
         canvas.drawLine(10, 5, 10, 18, pen);
         canvas.drawLine(10, 5, 20, 3, pen);
