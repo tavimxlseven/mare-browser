@@ -128,6 +128,10 @@ final class MusicApi {
       String set = connection.getHeaderField("Set-Cookie");
       if (set != null && !set.isEmpty()) cookie = set.split(";", 2)[0];
       return response;
+    } catch (java.net.UnknownHostException error) {
+      throw new IOException("Sem conexão. Suas músicas baixadas continuam disponíveis.");
+    } catch (java.net.SocketTimeoutException error) {
+      throw new IOException("O servidor demorou para responder. Tente novamente.");
     } finally {
       connection.disconnect();
     }

@@ -82,7 +82,7 @@ public final class MainActivity extends Activity {
       }
       shell();
       command("configure", new JSONObject());
-      refresh(true);
+      refresh(false);
     }
   }
 
@@ -297,6 +297,7 @@ public final class MainActivity extends Activity {
       item.setTextColor(MUTED);
       item.setCompoundDrawablePadding(dp(5));
       item.setCompoundDrawablesWithIntrinsicBounds(null, new ControlIcon(label, MUTED), null, null);
+      item.setPadding(dp(4), dp(7), dp(4), dp(7));
       nav.addView(item, new LinearLayout.LayoutParams(0, dp(64), 1));
     }
     root.addView(nav);
@@ -448,6 +449,8 @@ public final class MainActivity extends Activity {
                 return true;
               });
         }
+        if (grid.getChildCount() == 1)
+          grid.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1));
         content.addView(grid);
       }
       gap(content, 8);
@@ -1076,11 +1079,11 @@ public final class MainActivity extends Activity {
 
   private ImageView cover(String url, int size) {
     ImageView v = new ImageView(this);
-    v.setScaleType(ImageView.ScaleType.CENTER_CROP);
+    v.setScaleType(ImageView.ScaleType.CENTER);
     v.setBackground(bg(PANEL, 14));
     v.setClipToOutline(true);
     v.setMinimumWidth(dp(size));
-    v.setImageResource(R.drawable.ic_music);
+    v.setImageDrawable(new ControlIcon("music", MUTED));
     loadImage(v, url);
     return v;
   }
@@ -1097,6 +1100,7 @@ public final class MainActivity extends Activity {
     view.setTag(url);
     Bitmap cached = covers.get(url);
     if (cached != null) {
+      view.setScaleType(ImageView.ScaleType.CENTER_CROP);
       view.setImageBitmap(cached);
       loadedImages.put(view, url);
       return;
@@ -1135,6 +1139,7 @@ public final class MainActivity extends Activity {
                 main.post(
                     () -> {
                       if (!isDestroyed() && url.equals(view.getTag())) {
+                        view.setScaleType(ImageView.ScaleType.CENTER_CROP);
                         view.setImageBitmap(bitmap);
                         loadedImages.put(view, url);
                       }
@@ -1224,7 +1229,14 @@ public final class MainActivity extends Activity {
       pen.setStrokeCap(Paint.Cap.ROUND);
       pen.setStyle(Paint.Style.FILL);
       Path p = new Path();
-      if (kind.equals("Biblioteca")) {
+      if (kind.equals("music")) {
+        pen.setStyle(Paint.Style.STROKE);
+        canvas.drawLine(10, 5, 10, 18, pen);
+        canvas.drawLine(10, 5, 20, 3, pen);
+        canvas.drawLine(20, 3, 20, 16, pen);
+        canvas.drawOval(4, 15, 10, 20, pen);
+        canvas.drawOval(14, 13, 20, 18, pen);
+      } else if (kind.equals("Biblioteca")) {
         pen.setStyle(Paint.Style.STROKE);
         canvas.drawLine(4, 4, 4, 20, pen);
         canvas.drawLine(10, 4, 10, 20, pen);
