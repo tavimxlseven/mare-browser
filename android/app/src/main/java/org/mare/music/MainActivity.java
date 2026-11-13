@@ -875,7 +875,7 @@ public final class MainActivity extends Activity {
     player = dialog;
     LinearLayout page = col();
     page.setPadding(dp(26), dp(16), dp(26), dp(24));
-    page.setFitsSystemWindows(true);
+    page.setFitsSystemWindows(false);
     page.setBackground(
         new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[] {0xff34252d, BG}));
     LinearLayout header = row();
@@ -979,6 +979,7 @@ public final class MainActivity extends Activity {
     page.addView(footer);
     ScrollView scroll = new ScrollView(this);
     scroll.setFillViewport(true);
+    scroll.setFitsSystemWindows(true);
     scroll.addView(page);
     scroll.setOnScrollChangeListener((v, x, y, ox, oy) -> visibleImages(page));
     dialog.setContentView(scroll);
@@ -1129,6 +1130,10 @@ public final class MainActivity extends Activity {
         new LinearLayout.LayoutParams(0, -2, 1));
     footer.addView(
         button("Timer", false, () -> timerMenu()), new LinearLayout.LayoutParams(0, -2, 1));
+    for (int i = 0; i < footer.getChildCount(); i++) {
+      View child = footer.getChildAt(i);
+      child.setBackground(bg(0xff2a2d34, 14));
+    }
     page.addView(footer);
     dialog.setContentView(page);
     dialog.show();
