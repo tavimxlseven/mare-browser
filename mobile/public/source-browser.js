@@ -6,7 +6,7 @@ async function request(action, body = {}) {
     method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(body), cache:"no-store",
   });
   const result = await response.json();
-  if (!response.ok) throw Error(result.error || "Não foi possível acessar a janela privada.");
+  if (!response.ok) { const error = Error(result.error || "Não foi possível acessar a janela privada."); error.code = result.code; throw error; }
   return result;
 }
 function error(error) { $("status").textContent = error.message; }
@@ -15,12 +15,20 @@ async function frame() {
   polling = true;
   try {
     const response = await fetch("/api/source/browser/frame", {cache:"no-store"});
-    if (!response.ok) throw Error("A conexão encerrou ou expirou. Abra uma nova janela para continuar.");
+    if (!response.ok) {
+      const result = await response.json();
+      const error = Error(result.error || "A conexão encerrou ou expirou. Abra uma nova janela para continuar.");
+      error.code = result.code; throw error;
+    }
     const next = URL.createObjectURL(await response.blob());
     $("screen").src = next;
     if (objectUrl) URL.revokeObjectURL(objectUrl);
     objectUrl = next;
-  } catch (e) { active = false; $("start").disabled = false; error(e); }
+  } catch (e) {
+    active = false; $("start").disabled = e.code === "login_blocked";
+    if (e.code === "login_blocked") { $("viewport").hidden = $("typing").hidden = true; $("finish").disabled = $("stop").disabled = true; }
+    error(e);
+  }
   finally { polling = false; }
 }
 function send(body) {
@@ -36,7 +44,7 @@ $("start").onclick = async () => {
     $("finish").disabled = $("stop").disabled = false;
     $("status").textContent = "Conecte a conta no Google. Depois clique em Concluir conexão.";
     await frame();
-  } catch (e) { $("start").disabled = false; error(e); }
+  } catch (e) { $("start").disabled = e.code === "login_blocked"; error(e); }
 };
 $("screen").onclick = event => {
   const rect = event.currentTarget.getBoundingClientRect();
@@ -68,5 +76,36 @@ $("stop").onclick = async () => {
     $("start").disabled = false; $("finish").disabled = $("stop").disabled = true;
     $("status").textContent = "Janela encerrada. A sessão do navegador permanece privada na VPS.";
   } catch (e) { error(e); }
+};
+$("blocked").onclick = async () => {
+  $("blocked").disabled = true;
+  try {
+    await request("blocked"); active = false;
+    $("viewport").hidden = $("typing").hidden = true;
+    $("finish").disabled = $("stop").disabled = true;
+    $("status").textContent = "Conexão remota encerrada. Importe abaixo uma sessão do navegador do seu PC.";
+  } catch (e) { error(e); }
+  finally { $("blocked").disabled = false; }
+};
+$("cookies").onchange = async event => {
+  const input = event.target, file = input.files?.[0];
+  if (!file) return;
+  input.disabled = true;
+  try {
+    if (file.size > 100000) throw Error("O arquivo deve ter até 100 KB.");
+    $("upload-status").textContent = "Validando arquivo de sessão…";
+    const response = await fetch("/api/source/session", {method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({cookies:await file.text()}),cache:"no-store"});
+    const result = await response.json();
+    if (!response.ok) throw Error(result.error || "Não foi possível importar a sessão.");
+    if (active) {
+      try { await request("stop"); } catch {}
+      active = false;
+      $("viewport").hidden = $("typing").hidden = true;
+      $("finish").disabled = $("stop").disabled = true;
+    }
+    $("upload-status").textContent = "Sessão importada. A faixa que pausou a fonte será tentada novamente. Novas renovações desse arquivo precisam ser importadas pelo painel.";
+  } catch (e) { $("upload-status").textContent = e.message; }
+  finally { input.value = ""; input.disabled = false; }
 };
 setInterval(frame, 900);

@@ -8,8 +8,9 @@ async function loadSourceSession() {
     $("source-session-state").textContent = state.message || (source.paused
       ? "A fonte pediu autenticação. A fila está preservada." : "Fonte aguardando verificação.");
     const pending = ["queued", "refreshing"].includes(state.state);
-    $("source-refresh").disabled = pending || !state.browser_available;
-    $("source-refresh").textContent = pending ? "Atualizando sessão…" : "Atualizar sessão";
+    const local = ["login_blocked", "needs_upload"].includes(state.state) || state.session_origin === "upload";
+    $("source-refresh").disabled = pending || !state.browser_available || local;
+    $("source-refresh").textContent = local ? "Atualize pelo arquivo cookies.txt" : pending ? "Atualizando sessão…" : "Atualizar sessão";
     $("source-connect").disabled = !state.browser_available;
     $("source-connect").textContent = state.state === "needs_login" ? "Reconectar Google" : "Conectar Google";
     $("source-session-settings").dataset.state = state.state || "idle";

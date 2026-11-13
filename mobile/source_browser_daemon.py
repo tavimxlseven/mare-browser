@@ -141,6 +141,16 @@ class Browser:
             if action == "extract":
                 return dict(ok=True, cookies=self.cookies())
             if action == "frame":
+                # Return only a boolean for the known Google refusal, never the
+                # page text, email address or contents of authentication fields.
+                blocked = self.command("Runtime.evaluate", {"expression":
+                    "location.hostname === 'accounts.google.com' && "
+                    "['this browser or app may not be secure','este navegador ou app pode não ser seguro','este navegador ou aplicativo pode não ser seguro']"
+                    ".some(message => (document.body?.innerText || '').toLowerCase().includes(message))",
+                    "returnByValue": True}).get("result", {}).get("value") is True
+                if blocked:
+                    self.stop()
+                    return dict(ok=False, error="login_blocked")
                 return dict(ok=True, image=self.command("Page.captureScreenshot", {
                     "format": "jpeg", "quality": 65, "captureBeyondViewport": False})["data"])
             if action == "click":

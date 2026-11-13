@@ -6,6 +6,14 @@
   <div class="actions"><button id="start">Abrir conexão Google</button><button id="finish" disabled>Concluir conexão</button><button id="stop" disabled>Encerrar janela</button></div>
   <p id="status" role="status">Entre no Noise com a conta de administrador para conectar a fonte.</p>
   <p><a href="/admin" target="_blank" rel="noopener">Entrar no painel de administrador</a></p>
+  <section class="fallback" aria-labelledby="fallback-title">
+    <h2 id="fallback-title">O Google bloqueou o login?</h2>
+    <p>A mensagem “This browser or app may not be secure” é uma recusa do Google ao navegador remoto. Use o Chrome ou Firefox normal do seu PC para entrar no YouTube e exportar os cookies no formato Netscape.</p>
+    <p><a href="https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies" target="_blank" rel="noopener noreferrer">Ver instruções de exportação do yt-dlp</a></p>
+    <button id="blocked">Google recusou · encerrar conexão remota</button>
+    <label class="upload">Importar cookies.txt<input id="cookies" type="file" accept=".txt,text/plain"></label>
+    <p id="upload-status" role="status">O arquivo é enviado de forma privada ao seu servidor. A importação não garante que o YouTube aceite a rede da VPS.</p>
+  </section>
   <div id="viewport" hidden><img id="screen" alt="Navegador privado da fonte na VPS. Clique na imagem para interagir." tabindex="0" draggable="false"></div>
   <form id="typing" hidden><label for="text">Digitar no campo selecionado no navegador</label><div class="actions"><input id="text" type="password" autocomplete="off" spellcheck="false" maxlength="1024" aria-describedby="typing-help"><button>Enviar texto</button><button id="enter" type="button">Enter</button><button id="tab" type="button">Tab</button><button id="backspace" type="button">Apagar</button><button id="page-up" type="button">Subir</button><button id="page-down" type="button">Descer</button></div><small id="typing-help">Selecione primeiro um campo na imagem. O texto é enviado à janela privada e apagado daqui imediatamente.</small></form>
   <p class="privacy">Use uma conta dedicada à fonte. O Noise não armazena sua senha; a sessão do navegador fica privada na VPS. Confirmações do Google são feitas por você.</p>

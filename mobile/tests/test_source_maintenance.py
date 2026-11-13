@@ -73,6 +73,35 @@ class MaintenanceTests(unittest.TestCase):
         self.assertEqual(server.maintenance.snapshot()['state'], 'needs_login')
         self.assertEqual(self.path.read_text(), COOKIES)
 
+    def test_reported_google_refusal_does_not_loop_and_uploaded_sessions_stay_manual(self):
+        with patch('source_browser.call',return_value={'ok':True}) as browser:
+            response=self.client.post('/api/source/browser/blocked',json={},headers=self.origin)
+            self.assertEqual(response.status_code,200)
+            self.assertEqual(server.maintenance.snapshot()['state'],'login_blocked')
+            browser.reset_mock()
+            with patch('pathlib.Path.is_socket',return_value=True):
+                for _ in range(3):
+                    self.assertEqual(server.maintenance.request(manual=True)['state'],'needs_upload')
+            browser.assert_not_called()
+            self.assertFalse(server.maintenance.event.is_set())
+
+    def test_google_refusal_from_browser_is_reported_without_frames_and_stops_retries(self):
+        with patch('source_browser.call',return_value={'ok':False,'error':'login_blocked'}):
+            frame=self.client.get('/api/source/browser/frame')
+        self.assertEqual(frame.status_code,409)
+        self.assertEqual(frame.json['code'],'login_blocked')
+        self.assertEqual(server.maintenance.snapshot()['state'],'login_blocked')
+        with patch('source_browser.call') as browser:
+            start=self.client.post('/api/source/browser/start',json={},headers=self.origin)
+            self.assertEqual(start.status_code,409)
+            browser.assert_not_called()
+            uploaded=self.client.post('/api/source/session',json={'cookies':COOKIES},headers=self.origin)
+            self.assertEqual(uploaded.status_code,200)
+            self.assertEqual(server.maintenance.snapshot()['session_origin'],'upload')
+            server.maintenance.failure()
+            self.assertEqual(server.maintenance.snapshot()['state'],'needs_upload')
+            self.assertFalse(server.maintenance.event.is_set())
+
     def test_manual_replacement_takes_precedence_over_an_older_automatic_attempt(self):
         def response(*args, **kwargs):
             server.maintenance.accept(COOKIES)

@@ -1,4 +1,4 @@
-const CACHE = "noise-music-shell-v21";
+const CACHE = "noise-music-shell-v22";
 const SHELL = [
   "/",
   "/launch.css",

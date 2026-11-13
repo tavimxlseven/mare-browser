@@ -46,6 +46,8 @@ class Maintenance:
             state = self.snapshot()
             if state["state"] in ("queued", "refreshing"):
                 return state
+            if state["state"] in ("login_blocked", "needs_upload") or state.get("session_origin") == "upload":
+                return self.record("needs_upload", "Use uma sessão do YouTube criada no navegador do seu PC e importe um novo cookies.txt pelo painel.")
             if not state["browser_available"]:
                 return self.record("unavailable", "O navegador da fonte ainda não está configurado.")
             now = time.time()
@@ -61,6 +63,9 @@ class Maintenance:
         if reason == "rate_limited":
             self.record("waiting", "A fonte pediu uma pausa. A fila continua salva.",
                         reason=reason, next_attempt=time.time() + COOLDOWN)
+            return
+        if state["state"] in ("login_blocked", "needs_upload") or state.get("session_origin") == "upload":
+            self.record("needs_upload", "A sessão importada foi recusada. Exporte um novo cookies.txt no navegador do seu PC e importe pelo painel.", reason=reason)
             return
         if time.time() - state["last_attempt"] < COOLDOWN:
             self.record("needs_login", "A fonte recusou a sessão atual. Reconecte a conta para verificar o acesso.", reason=reason)
@@ -93,11 +98,11 @@ class Maintenance:
         if self.snapshot()["state"] == "refreshed":
             self.record("ready", "Sessão confirmada por um download concluído.")
 
-    def accept(self, text):
+    def accept(self, text, origin="browser"):
         with self.lock:
             source_session.install(self.data, text)
             self.record("refreshed", "Sessão atualizada. Confirmando no próximo download.",
-                        last_attempt=time.time(), reason="", next_attempt=0)
+                        last_attempt=time.time(), reason="", next_attempt=0, session_origin=origin)
             source_session.resume(self.db, self.wake)
 
     def start(self):
@@ -138,6 +143,8 @@ def register(app, maintenance):
     @app.post("/api/source/browser/start", endpoint="source_browser_start")
     def start():
         admin()
+        if maintenance.snapshot()["state"] in ("login_blocked", "needs_upload"):
+            return jsonify(error="O Google recusou a conexão remota. Importe uma sessão do navegador do seu PC.", code="login_blocked"), 409
         try:
             response = source_browser.call("start", lease=lease())
         except Exception:
@@ -152,6 +159,9 @@ def register(app, maintenance):
         admin()
         try:
             response = source_browser.call("frame", lease=lease())
+            if response.get("error") == "login_blocked":
+                maintenance.record("login_blocked", "O Google recusou a conexão remota. Importe um cookies.txt criado no navegador do seu PC.")
+                return jsonify(error="O Google bloqueou esse navegador. A janela foi encerrada; use a importação de cookies.txt abaixo.", code="login_blocked"), 409
             if not response.get("ok"):
                 abort(409)
             image = base64.b64decode(response["image"], validate=True)
@@ -203,4 +213,14 @@ def register(app, maintenance):
             source_browser.call("stop", lease=lease())
         except OSError:
             pass
+        return jsonify(ok=True)
+
+    @app.post("/api/source/browser/blocked", endpoint="source_browser_blocked")
+    def blocked():
+        admin()
+        try:
+            source_browser.call("stop", lease=lease())
+        except OSError:
+            pass
+        maintenance.record("login_blocked", "O Google recusou a conexão remota. Entre no YouTube pelo navegador do seu PC e importe o cookies.txt aqui.")
         return jsonify(ok=True)

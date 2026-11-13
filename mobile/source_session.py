@@ -84,7 +84,7 @@ def register(app, db, data, wake, maintenance=None):
         text = payload.get("cookies") if isinstance(payload, dict) else None
         try:
             if maintenance:
-                maintenance.accept(text)
+                maintenance.accept(text, origin="upload")
             else:
                 install(data, text)
                 resume(db, wake)
