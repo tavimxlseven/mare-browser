@@ -12,8 +12,13 @@ $loader=Join-Path $BinaryDirectory 'WebView2Loader.dll'
 if(Test-Path -LiteralPath $loader){Copy-Item -LiteralPath $loader -Destination $app -Force}
 foreach($file in @('LICENSE','README.md','THIRD_PARTY_NOTICES.md','THIRD_PARTY_LICENSES.txt')){Copy-Item -LiteralPath (Join-Path $projectRoot $file) -Destination $app -Force}
 Copy-Item -LiteralPath (Join-Path $projectRoot 'scripts\import-profile.ps1') -Destination (Join-Path $app 'import-profile.ps1') -Force
-$icon=Get-ChildItem -Path (Join-Path $BinaryDirectory 'build\mare-browser-*\out\mare.ico') | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-if(-not $icon){throw 'Ícone compilado ausente.'};Copy-Item -LiteralPath $icon.FullName -Destination (Join-Path $payload 'mare.ico') -Force
+$iconExporter=Join-Path $env:TEMP ('mare-icon-export-' + [Guid]::NewGuid().ToString('N') + '.exe')
+try {
+    & rustc --edition=2021 (Join-Path $projectRoot 'scripts\export-icon.rs') -o $iconExporter
+    if($LASTEXITCODE -ne 0){throw 'Falha ao compilar o gerador do ícone.'}
+    & $iconExporter (Join-Path $payload 'mare.ico')
+    if($LASTEXITCODE -ne 0){throw 'Falha ao gerar o ícone do instalador.'}
+} finally { if(Test-Path -LiteralPath $iconExporter){Remove-Item -LiteralPath $iconExporter} }
 $sunnify=Join-Path $app 'components\sunnify';New-Item -ItemType Directory -Force -Path $sunnify | Out-Null
 & "$PSScriptRoot\music-components.ps1" -Destination (Join-Path $app 'components\music')
 $exe=Join-Path $sunnify 'Sunnify.exe';$hash='abb16d22cabebf99d82c3eaf8ca60a0b5511dd99eb86b17f16d53d7077fb57ba'
