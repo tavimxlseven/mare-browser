@@ -23,6 +23,47 @@ import org.junit.runner.RunWith;
 @UnstableApi
 @RunWith(AndroidJUnit4.class)
 public class BackgroundPlaybackTest {
+  @Test
+  public void downloadingDoesNotCrashTheApplication() throws Exception {
+    var instrumentation = InstrumentationRegistry.getInstrumentation();
+    Context context = instrumentation.getTargetContext();
+    instrumentation.startActivitySync(
+        new Intent(context, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+    instrumentation.runOnMainSync(
+        () -> {
+          String command =
+              MusicApi.json(
+                      "action",
+                      "download",
+                      "origin",
+                      "https://music.example",
+                      "account",
+                      "download-test",
+                      "cookie",
+                      "",
+                      "tracks",
+                      new org.json.JSONArray()
+                          .put(
+                              MusicApi.json(
+                                  "id", "fixture", "title", "Download fixture", "status", "ready")),
+                      "ids",
+                      new org.json.JSONArray().put("fixture"))
+                  .toString();
+          context.startService(
+              new Intent(context, PlaybackService.class)
+                  .setAction("org.mare.music.COMMAND")
+                  .putExtra("command", command));
+        });
+    SystemClock.sleep(6000);
+    instrumentation.runOnMainSync(
+        () -> {
+          assertNotNull(PlaybackService.snapshot(context));
+          AudioStore.manager(context)
+              .removeDownload(
+                  AudioStore.scope("https://music.example", "download-test") + "/fixture");
+        });
+  }
+
   private File wave(Context context, String name, int seconds) throws Exception {
     File file = new File(context.getCacheDir(), name);
     int size = 8000 * seconds * 2;
