@@ -54,7 +54,17 @@ jobs:
           arch: x86_64
           profile: pixel_6
           disable-animations: true
-          script: gradle -p android connectedDebugAndroidTest --console=plain
+          script: |
+            gradle -p android connectedDebugAndroidTest --console=plain
+            adb pull /sdcard/Android/data/org.mare.music/files/screenshots screenshots
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with:
+          name: android-test-evidence
+          path: |
+            screenshots/
+            android/app/build/reports/androidTests/
+            android/app/build/outputs/androidTest-results/
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: mare-music-android-debug

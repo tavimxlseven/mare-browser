@@ -24,6 +24,73 @@ import org.junit.runner.RunWith;
 @RunWith(AndroidJUnit4.class)
 public class BackgroundPlaybackTest {
   @Test
+  public void nativeLibraryRendersWithoutAWebView() throws Exception {
+    var instrumentation = InstrumentationRegistry.getInstrumentation();
+    Context context = instrumentation.getTargetContext();
+    MusicApi api = new MusicApi(context);
+    api.origin = "https://music.example";
+    api.account = "ui-fixture";
+    api.cookie = "fixture";
+    api.persist();
+    org.json.JSONArray tracks = new org.json.JSONArray();
+    for (String name : new String[] {"Midnight City", "After Hours", "Nights"})
+      tracks.put(
+          MusicApi.json(
+              "id",
+              name.replace(" ", ""),
+              "title",
+              name,
+              "artist",
+              "Music fixture",
+              "status",
+              "ready",
+              "art",
+              ""));
+    var playlists =
+        new org.json.JSONArray()
+            .put(
+                MusicApi.json(
+                    "id",
+                    "evening",
+                    "name",
+                    "Evening rotation",
+                    "tracks",
+                    new org.json.JSONArray().put("MidnightCity").put("Nights"),
+                    "art",
+                    ""));
+    context
+        .getSharedPreferences("library-" + AudioStore.scope(api.origin, api.account), 0)
+        .edit()
+        .putString("cache", MusicApi.json("tracks", tracks, "playlists", playlists).toString())
+        .commit();
+    android.app.Activity activity =
+        instrumentation.startActivitySync(
+            new Intent(context, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+    SystemClock.sleep(1000);
+    instrumentation.runOnMainSync(
+        () -> assertFalse(containsWebView(activity.getWindow().getDecorView())));
+    File folder = new File(context.getExternalFilesDir(null), "screenshots");
+    folder.mkdirs();
+    try (FileOutputStream output = new FileOutputStream(new File(folder, "native-library.png"))) {
+      instrumentation
+          .getUiAutomation()
+          .takeScreenshot()
+          .compress(android.graphics.Bitmap.CompressFormat.PNG, 100, output);
+    }
+    api.clear();
+  }
+
+  private boolean containsWebView(android.view.View view) {
+    if (view instanceof android.webkit.WebView) return true;
+    if (view instanceof android.view.ViewGroup) {
+      android.view.ViewGroup group = (android.view.ViewGroup) view;
+      for (int i = 0; i < group.getChildCount(); i++)
+        if (containsWebView(group.getChildAt(i))) return true;
+    }
+    return false;
+  }
+
+  @Test
   public void downloadingDoesNotCrashTheApplication() throws Exception {
     var instrumentation = InstrumentationRegistry.getInstrumentation();
     Context context = instrumentation.getTargetContext();

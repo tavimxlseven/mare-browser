@@ -11,7 +11,7 @@ public final class MusicDownloadService extends DownloadService {
   private DownloadNotificationHelper notifications;
 
   public MusicDownloadService() {
-    super(2, 1000, "mare-downloads", 0, 0);
+    super(2, 1000, "mare-downloads", R.string.download_channel_name, 0);
   }
 
   @Override
