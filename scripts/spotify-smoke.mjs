@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { mkdtemp, readFile, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join, resolve, dirname, toNamespacedPath } from "node:path";
+import { existsSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { once } from "node:events";
 const exe = resolve(
@@ -14,7 +15,8 @@ let child,
   sequence = 0,
   pending = new Map();
 function start() {
-  child = spawn(exe, ["--native-app", "spotify", "--data-dir", directory], {
+  const workerDirectory = toNamespacedPath(directory);
+  child = spawn(exe, ["--native-app", "spotify", "--data-dir", workerDirectory], {
     stdio: ["pipe", "pipe", "inherit"],
     windowsHide: true,
   });
@@ -177,7 +179,7 @@ try {
       "PASS native Windows audio: silent WAV decode, play/pause, seek, volume, resume and stop",
     );
   }
-  if (process.argv.includes("--components")) {
+  if (process.argv.includes("--components") || existsSync(join(dirname(exe), "components/music/yt-dlp.exe"))) {
     state = await call("download", { url });
     assert.equal(state.download.state, "running");
     const downloaderPid = state.downloader_pid;
@@ -192,6 +194,23 @@ try {
     console.log(
       "PASS bundled Sunnify starts without a window and explicit cancellation reaps its process (no audio downloaded)",
     );
+    // Exercise the real extractor bootloader without downloading audio or contacting YouTube.
+    const root = join(directory, "helper-startup");
+    const audio = join(root, "audio");
+    await mkdir(audio, { recursive: true });
+    const tracks = ["a".repeat(22), "b".repeat(22)].map((id) => ({ id, title: "Cached fixture", artists: "Fixture", duration_ms: 1000 }));
+    for (const track of tracks) await writeFile(join(audio, `${track.id}.m4a`), Buffer.from([0]));
+    const metadata = join(root, "metadata.json");
+    await writeFile(metadata, JSON.stringify({ type: "playlist", tracks }));
+    const helperPath = toNamespacedPath;
+    const helper = spawn(exe, ["--music-source-worker", `https://open.spotify.com/playlist/${"a".repeat(22)}`, helperPath(audio), helperPath(root), helperPath(metadata)], { windowsHide: true, stdio: ["ignore", "pipe", "inherit"] });
+    let output = "";
+    helper.stdout.on("data", (chunk) => { output += chunk; });
+    const [code] = await once(helper, "close");
+    assert.equal(code, 0, output);
+    const events = output.trim().split("\n").map((line) => JSON.parse(line));
+    assert.deepEqual(events.at(-1), { event: "run_summary", failed: 0, landed: 0, skipped: 2 });
+    console.log("PASS packaged extractor starts with canonical Windows paths and reuses cached fixtures without downloading audio");
   }
   if (process.argv.includes("--online")) {
     state = await call("import_link", { url });

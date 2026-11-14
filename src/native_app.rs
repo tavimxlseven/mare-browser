@@ -30,7 +30,7 @@ pub fn run_if_requested() -> Option<Result<(), String>> {
         if !matches!(app_id, "notes" | "calculator" | "spotify") {
             return Err("App nativo desconhecido.".into());
         }
-        let directory = PathBuf::from(&arguments[3]);
+        let directory = crate::components::process_path(Path::new(&arguments[3]));
         if !directory.is_absolute() {
             return Err("O diretório do app deve ser absoluto.".into());
         }

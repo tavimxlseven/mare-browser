@@ -181,6 +181,18 @@ fn emit(event: Value) {
 }
 
 fn run(url: &str, folder: &Path, runtime: &Path, cached: Option<&Path>) -> Result<(), String> {
+    let folder = crate::components::process_path(folder);
+    let runtime = crate::components::process_path(runtime);
+    let cached = cached.map(crate::components::process_path);
+    run_normalized(url, &folder, &runtime, cached.as_deref())
+}
+
+fn run_normalized(
+    url: &str,
+    folder: &Path,
+    runtime: &Path,
+    cached: Option<&Path>,
+) -> Result<(), String> {
     crate::spotify::normalize_link(url)?;
     fs::create_dir_all(folder).map_err(|e| e.to_string())?;
     use std::os::windows::process::CommandExt;
@@ -225,6 +237,24 @@ fn run(url: &str, folder: &Path, runtime: &Path, cached: Option<&Path>) -> Resul
         return Err("A playlist precisa ter entre 1 e 2000 faixas.".into());
     }
     emit(json!({"event":"run_started","total_tracks":tracks.len(),"policy":"audio-first"}));
+    // A broken local helper is a job failure, not hundreds of missing songs.
+    if tracks.len() > 1 {
+        let ready = crate::music_search::command(runtime)
+            .and_then(|mut command| {
+                command
+                    .arg("--version")
+                    .stdin(Stdio::null())
+                    .stderr(Stdio::null())
+                    .output()
+                    .map_err(|e| e.to_string())
+            })
+            .is_ok_and(|output| output.status.success());
+        if !ready {
+            let message = "Não foi possível iniciar o componente de download. Atualize ou repare a instalação do Compass e tente novamente.";
+            emit(json!({"event":"source_unavailable","message":message}));
+            return Err(message.into());
+        }
+    }
     let mut seen = std::collections::HashSet::new();
     let pending = std::sync::Mutex::new(std::collections::VecDeque::from(
         tracks

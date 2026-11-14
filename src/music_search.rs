@@ -17,7 +17,7 @@ pub fn video_id(uri: &str) -> Option<&str> {
 pub fn command(directory: &Path) -> Result<Command, String> {
     let executable = crate::components::executable("yt-dlp")
         .ok_or("O componente de busca não acompanha este pacote.")?;
-    let runtime = directory.join("runtime/search");
+    let runtime = crate::components::process_path(&directory.join("runtime/search"));
     fs::create_dir_all(&runtime).map_err(|e| e.to_string())?;
     let mut command = Command::new(executable);
     command

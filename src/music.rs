@@ -399,6 +399,9 @@ impl Music {
                 });
             self.last_download["state"] = json!(if confirmed { "completed" } else { "failed" });
             self.last_download["exit_code"] = json!(status.code());
+            if !status.success() && last["event"] == "source_unavailable" {
+                self.last_download["error"] = last["message"].clone();
+            }
             if last["event"] == "run_summary" {
                 if let (Some(landed), Some(skipped)) =
                     (last["landed"].as_u64(), last["skipped"].as_u64())
