@@ -1,6 +1,90 @@
 //! Public Spotify metadata via XWolf. No account tokens or token endpoint.
 use serde_json::{json, Value};
 use std::collections::HashSet;
+use std::{fs, path::Path};
+
+fn now() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
+
+fn cached_result(items: &[Value], query: &str) -> Result<Value, String> {
+    let raw: Vec<Value> = items
+        .iter()
+        .filter_map(|item| {
+            let id = item["uri"].as_str()?.strip_prefix("spotify:track:")?;
+            let mut entry = item.clone();
+            entry["id"] = json!(id);
+            Some(entry)
+        })
+        .collect();
+    normalize(&json!({"success":true,"results":raw}), query)
+}
+
+// Only public metadata is cached, inside the current user's profile. Never tokens or audio URLs.
+pub fn search_cached(query: &str, directory: &Path) -> Result<Value, String> {
+    with_cache(query, directory, search)
+}
+
+fn with_cache(
+    query: &str,
+    directory: &Path,
+    mut fetch: impl FnMut(&str) -> Result<Value, String>,
+) -> Result<Value, String> {
+    let path = directory.join("runtime/catalog-cache.json");
+    let mut cache: Vec<Value> = fs::metadata(&path)
+        .ok()
+        .filter(|m| m.len() <= 2_000_000)
+        .and_then(|_| fs::read(&path).ok())
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+        .unwrap_or_default();
+    let key = query.trim().to_lowercase();
+    cache.retain(|entry| now().saturating_sub(entry["saved"].as_u64().unwrap_or(0)) <= 7 * 86400);
+    cache.truncate(24);
+    let saved = cache
+        .iter()
+        .find(|entry| entry["key"] == key)
+        .and_then(|entry| entry["items"].as_array())
+        .and_then(|items| cached_result(items, query).ok());
+    let mut result = fetch(query);
+    // One bounded retry for transient upstream failures. Authentication/rate limits are not retried.
+    if saved.is_none()
+        && result.as_ref().is_err_and(|e| {
+            ["HTTP 500", "HTTP 502", "HTTP 503", "HTTP 504"]
+                .iter()
+                .any(|status| e.contains(status))
+        })
+    {
+        std::thread::sleep(std::time::Duration::from_millis(350));
+        result = fetch(query);
+    }
+    match result {
+        Ok(result) => {
+            cache.retain(|entry| entry["key"] != key);
+            cache.insert(0, json!({"key":key,"saved":now(),"items":result["items"]}));
+            cache.truncate(24);
+            if let (Some(parent), Ok(bytes)) = (path.parent(), serde_json::to_vec(&cache)) {
+                if bytes.len() <= 2_000_000 && fs::create_dir_all(parent).is_ok() {
+                    let temporary = path.with_extension("tmp");
+                    let _ =
+                        fs::write(&temporary, bytes).and_then(|()| fs::rename(temporary, &path));
+                }
+            }
+            Ok(result)
+        }
+        Err(error) => match saved {
+            Some(mut result) => {
+                result["via"] = json!("cache");
+                result["degraded"] = json!(true);
+                result["warning"] = json!("O catálogo está temporariamente indisponível. Mostrando resultados salvos desta busca.");
+                Ok(result)
+            }
+            None => Err(error),
+        },
+    }
+}
 
 fn normalize(data: &Value, query: &str) -> Result<Value, String> {
     if data["success"] != true {
@@ -18,6 +102,7 @@ fn normalize(data: &Value, query: &str) -> Result<Value, String> {
         if title.is_empty() { return None; }
         let mut artists = entry["artists"].as_array().into_iter().flatten().take(10).filter_map(|a|a.as_str().or(a["name"].as_str())).map(|a|a.chars().take(100).collect::<String>()).collect::<Vec<_>>().join(", ");
         if artists.is_empty() { artists=entry["artist"].as_str().unwrap_or("").chars().take(300).collect(); }
+        if artists.is_empty() { artists=entry["artists"].as_str().unwrap_or("").chars().take(300).collect(); }
         let thumbnail = entry["thumbnail"].as_str().filter(|url| crate::spotify::safe_artwork(url) && !url.contains("ytimg.com")).unwrap_or("");
         Some(json!({"uri":uri,"url":url,"kind":"track","title":title,"artists":artists,"thumbnail":thumbnail,"album":entry["album"].as_str().unwrap_or("").chars().take(300).collect::<String>(),"duration_ms":entry["duration_ms"].as_u64().unwrap_or(0).min(86_400_000)}))
     }).take(25).collect();
@@ -135,6 +220,65 @@ pub fn search(query: &str) -> Result<Value, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn fixture() -> Value {
+        normalize(&json!({"success":true,"results":[{"id":"4uLU6hMCjMI75M1A2tKUQC","title":"Song","artists":["Singer"],"thumbnail":"https://i.scdn.co/image/test"}]}), "song").unwrap()
+    }
+    #[test]
+    fn transient_failure_is_retried_once_and_rate_limit_is_not() {
+        let directory =
+            std::env::temp_dir().join(format!("noise-catalog-retry-{}", crate::model::now_ms()));
+        let mut calls = 0;
+        let result = with_cache("song", &directory, |_| {
+            calls += 1;
+            if calls == 1 {
+                Err("HTTP 500".into())
+            } else {
+                Ok(fixture())
+            }
+        })
+        .unwrap();
+        assert_eq!(calls, 2);
+        assert_eq!(result["via"], "XWolf");
+        let mut limited = 0;
+        assert!(with_cache("other", &directory, |_| {
+            limited += 1;
+            Err("HTTP 429".into())
+        })
+        .is_err());
+        assert_eq!(limited, 1);
+        let _ = fs::remove_dir_all(directory);
+    }
+    #[test]
+    fn cache_survives_restart_preserves_identity_and_expires() {
+        let directory =
+            std::env::temp_dir().join(format!("noise-catalog-cache-{}", crate::model::now_ms()));
+        with_cache("song", &directory, |_| Ok(fixture())).unwrap();
+        let mut calls = 0;
+        let result = with_cache("SONG", &directory, |_| {
+            calls += 1;
+            Err("HTTP 500".into())
+        })
+        .unwrap();
+        assert_eq!(calls, 1);
+        assert_eq!(result["via"], "cache");
+        assert_eq!(result["degraded"], true);
+        assert_eq!(result["query"], "SONG");
+        assert_eq!(result["items"][0]["artists"], "Singer");
+        assert_eq!(result["items"][0]["uri"], fixture()["items"][0]["uri"]);
+        assert_eq!(
+            result["items"][0]["thumbnail"],
+            fixture()["items"][0]["thumbnail"]
+        );
+        assert!(with_cache("unrelated", &directory, |_| Err("offline".into())).is_err());
+        let path = directory.join("runtime/catalog-cache.json");
+        let mut cache: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        cache[0]["saved"] = json!(now() - 8 * 86400);
+        fs::write(&path, serde_json::to_vec(&cache).unwrap()).unwrap();
+        assert!(with_cache("song", &directory, |_| Err("offline".into())).is_err());
+        fs::write(&path, b"not json").unwrap();
+        assert!(with_cache("song", &directory, |_| Err("offline".into())).is_err());
+        let _ = fs::remove_dir_all(directory);
+    }
     #[test]
     fn metadata_has_canonical_spotify_identity_and_safe_artwork() {
         let id = "4uLU6hMCjMI75M1A2tKUQC";

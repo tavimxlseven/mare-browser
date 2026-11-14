@@ -87,6 +87,10 @@ window.attachMusicTools = function ({
     // tabs
     let html =
       '<div class="music-search-tabs"><button data-action="library">Sua biblioteca</button><button data-action="catalog_focus" aria-pressed="true">Buscar músicas</button></div>';
+    if (result.warning && result.query === term.trim()) {
+      html += '<div class="music-search-warning" role="status"><p>' + esc(result.warning) +
+        '</p><button data-action="retry_search">Atualizar busca</button></div>';
+    }
 
     // states: loading, error, results, empty
     if (result.query !== term.trim() || result.state === "loading") {
@@ -115,9 +119,9 @@ window.attachMusicTools = function ({
               ready = local?.available,
               stored = data().entries.some((entry) => entry.uri === t.uri);
             return (
-              '<article class="music-search-row"><img src="' +
-              esc(t.thumbnail) +
-              '" alt="" loading="lazy"><div><strong>' +
+              '<article class="music-search-row"><span class="music-search-art">' +
+              (t.thumbnail ? '<img src="' + esc(t.thumbnail) + '" alt="" width="48" height="48" loading="lazy" decoding="async">' : icon("music")) +
+              '</span><div class="music-search-info"><strong title="' + esc(t.title) + '">' +
               esc(t.title) +
               "</strong><small>" +
               esc(t.artists) +
@@ -125,7 +129,8 @@ window.attachMusicTools = function ({
               Math.floor(t.duration_ms / 60000) +
               ":" +
               String(Math.floor(t.duration_ms / 1000) % 60).padStart(2, "0") +
-              "</small></div>" +
+              '</small></div><span class="music-search-status"><em data-state="' + (ready ? 'ready' : 'new') + '">' +
+              (ready ? 'Baixada' : stored ? 'Na biblioteca' : 'Música') + '</em></span><div class="music-search-actions">' +
               (ready
                 ? '<button data-action="play_local" data-id="' +
                   local.id +
@@ -156,7 +161,7 @@ window.attachMusicTools = function ({
               esc(t.title) +
               ' à biblioteca">' +
               icon(stored ? "check" : "plus") +
-              "</button></article>"
+              "</button></div></article>"
             );
           })
           .join("") +
@@ -164,7 +169,9 @@ window.attachMusicTools = function ({
     }
 
     html +=
-      '<p class="music-search-source">Metadados Spotify fornecidos pelo XWolf. Busca sem conectar uma conta; os downloads continuam pelo componente interno.</p>';
+      '<p class="music-search-source">' +
+      (result.via === "library" ? 'Resultados da sua biblioteca.' : result.via === "cache" ? 'Resultados salvos de uma busca anterior no Spotify.' : 'Metadados Spotify fornecidos pelo XWolf.') +
+      ' Busca sem conectar uma conta; os downloads continuam neste PC.</p>';
     $(".spotify-library").innerHTML = html;
   }
 

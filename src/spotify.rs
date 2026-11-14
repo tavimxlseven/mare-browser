@@ -190,6 +190,14 @@ impl Spotify {
             return;
         }
         self.metadata_dirty = false;
+        self.search.set_library(
+            self.library
+                .entries
+                .iter()
+                .filter(|entry| entry.kind == "track")
+                .filter_map(|entry| serde_json::to_value(entry).ok())
+                .collect(),
+        );
         self.music
             .retain_catalog(self.library.entries.iter().map(|entry| entry.uri.as_str()));
         for entry in &self.library.entries {

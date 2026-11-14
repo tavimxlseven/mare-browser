@@ -233,8 +233,10 @@ fn run(url: &str, folder: &Path, runtime: &Path, cached: Option<&Path>) -> Resul
             .collect::<Vec<_>>(),
     ));
     let stats = std::sync::Mutex::new((0u64, 0u64, 0u64));
+    // Keep desktop batches bounded; independent tracks overlap lookup and transfer.
+    let workers = std::thread::available_parallelism().map_or(2, |n| n.get().min(3));
     std::thread::scope(|scope| {
-        for _ in 0..2 {
+        for _ in 0..workers {
             scope.spawn(|| loop {
                 let track = pending
                     .lock()
@@ -275,7 +277,10 @@ fn download_one(track: Value, folder: &Path, runtime: &Path) -> (u64, u64, u64) 
             );
             continue;
         }
-        emit(json!({"event":"matching","title":title,"artists":artists,"policy":"audio-first"}));
+        let started = std::time::Instant::now();
+        emit(
+            json!({"event":"matching","title":title,"artists":artists,"spotify_id":identifier,"policy":"audio-first"}),
+        );
         let result = (|| -> Result<(), String> {
             let mut selected = None;
             let mut candidates = Vec::new();
@@ -285,9 +290,9 @@ fn download_one(track: Value, folder: &Path, runtime: &Path) -> (u64, u64, u64) 
                 .chain(artists.chars())
                 .any(|c| ('\u{3040}'..='\u{9fff}').contains(&c));
             let hints: &[&str] = if native {
-                &["歌詞 フル", "official audio", "lyrics"]
+                &["", "歌詞 フル", "lyrics"]
             } else {
-                &["lyrics", "official audio"]
+                &["", "lyrics"]
             };
             for hint in hints {
                 let primary = artists.split([',', '&']).next().unwrap_or(artists).trim();
@@ -314,6 +319,13 @@ fn download_one(track: Value, folder: &Path, runtime: &Path) -> (u64, u64, u64) 
                     selected = item["id"].as_str().map(String::from);
                     break;
                 }
+            }
+            // A plain search already contains official audio, Topic and lyric uploads.
+            // Reuse compatible results before launching another extractor process.
+            if selected.is_none() {
+                selected = choose(&candidates, title, artists, duration, true, false)
+                    .and_then(|entry| entry["id"].as_str())
+                    .map(String::from);
             }
             if selected.is_none() {
                 let query = format!("ytsearch12:{}", search_title(title));
@@ -344,16 +356,21 @@ fn download_one(track: Value, folder: &Path, runtime: &Path) -> (u64, u64, u64) 
             }
             let video =
                 selected.ok_or("Nenhuma versão de áudio ou lyrics compatível foi encontrada.")?;
+            emit(
+                json!({"event":"source_ready","spotify_id":identifier,"matching_ms":started.elapsed().as_millis()}),
+            );
             let mut command = crate::music_search::command(runtime)?;
-            command.args(["--no-playlist","--no-simulate","--no-mtime","--newline","--progress","--progress-delta","1","--output-na-placeholder","null",
+            command.args(["--no-playlist","--no-simulate","--no-mtime","--concurrent-fragments","4","--newline","--progress","--progress-delta","1","--output-na-placeholder","null",
                 "--progress-template",r#"download:{"event":"transfer","received":%(progress.downloaded_bytes)j,"total":%(progress.total_bytes)j}"#,
                 "--format","bestaudio[ext=m4a]/bestaudio[ext=mp4]","--output"]).arg(&path)
                 .arg(format!("https://www.youtube.com/watch?v={video}")).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null());
             let mut child = command.spawn().map_err(|e| e.to_string())?;
             if let Some(out) = child.stdout.take() {
                 for line in BufReader::new(out).lines().map_while(Result::ok) {
-                    if let Ok(event) = serde_json::from_str::<Value>(&line) {
+                    if let Ok(mut event) = serde_json::from_str::<Value>(&line) {
                         if event["event"] == "transfer" {
+                            event["spotify_id"] = json!(identifier);
+                            event["title"] = json!(title);
                             emit(event);
                         }
                     }
@@ -373,7 +390,7 @@ fn download_one(track: Value, folder: &Path, runtime: &Path) -> (u64, u64, u64) 
         } else {
             landed += 1;
             emit(
-                json!({"event":"track_done","file":path,"title":title,"artists":artists,"spotify_id":identifier}),
+                json!({"event":"track_done","file":path,"title":title,"artists":artists,"spotify_id":identifier,"elapsed_ms":started.elapsed().as_millis()}),
             );
         }
     }

@@ -59,6 +59,7 @@ jobs:
           node --check ui/music-queue.js
           node --check ui/music-layout.js
           node scripts/music-queue-smoke.cjs
+          node scripts/music-search-check.cjs
           node scripts/music-output-check.cjs
           node --check mobile/public/launch.js
           node --check src/youtube.js
