@@ -89,6 +89,15 @@ class ListeningTests(unittest.TestCase):
         with server.db() as con:
             self.assertEqual(con.execute("SELECT count(*) FROM jobs").fetchone()[0],1)
 
+    def test_failed_preparation_is_not_restarted_by_stream_polling(self):
+        with server.db() as con:
+            con.execute("UPDATE tracks SET status='error',error='Fixture source failure'")
+        for _ in range(3):
+            response = self.post("admin","/api/devices/stream",dict(track_id="a"*22))
+            self.assertEqual(response.json["state"],"failed")
+        with server.db() as con:
+            self.assertEqual(con.execute("SELECT count(*) FROM jobs").fetchone()[0],0)
+
     def test_host_offline_and_closed_rooms_stop_guest_playback(self):
         room = self.create()
         self.post("friend","/api/listening/join",dict(code=room["code"]))

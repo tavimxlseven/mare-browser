@@ -90,7 +90,7 @@ def register(app, db, media, enqueue_tracks, wake):
             if track["status"] == "ready" and (media/(identifier+".m4a")).is_file():
                 ticket = signer.dumps(dict(owner=g.user["id"],device=device,track=identifier))
                 return jsonify(state="ready",path="/stream/"+ticket+"/"+identifier,expires_in=3600)
-            if track["status"] == "failed":
+            if track["status"] in ("error", "failed"):
                 return jsonify(state="failed",error="Esta faixa não pôde ser preparada. Verifique a fonte de áudio nos ajustes e tente prepará-la novamente.")
             if track["status"] == "ready":
                 con.execute("UPDATE tracks SET status='new' WHERE id=?", (identifier,))
