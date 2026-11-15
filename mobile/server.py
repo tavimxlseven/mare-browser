@@ -27,6 +27,7 @@ from flask import (
 import provider
 import accounts
 import devices
+import listening
 import playlist_metadata
 import playlist_sync
 import source_session
@@ -98,6 +99,7 @@ with db() as con:
     con.execute("UPDATE tracks SET status='queued' WHERE status='preparing'")
     con.execute("UPDATE jobs SET status='queued' WHERE status='importing'")
     devices.initialize(con)
+    listening.initialize(con)
     playlist_sync.initialize(con)
 
 maintenance = source_maintenance.Maintenance(db, DATA, wake)
@@ -157,7 +159,7 @@ def headers(response):
             "Content-Security-Policy": "default-src 'self'; img-src 'self' https://i.scdn.co https://mosaic.scdn.co https://i.ytimg.com https://image-cdn-ak.spotifycdn.com https://image-cdn-fa.spotifycdn.com data: blob:; media-src 'self' blob:; style-src 'self'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'",
         }
     )
-    if request.path.startswith(("/api/", "/media/", "/artwork/")):
+    if request.path.startswith(("/api/", "/media/", "/artwork/", "/stream/")):
         response.headers["Cache-Control"] = "no-store"
     return response
 
@@ -941,6 +943,7 @@ def worker():
 
 
 devices.register(app, db, save_tracks, create_job, wake, enqueue_tracks)
+listening.register(app, db, MEDIA, enqueue_tracks, wake)
 playlist_sync.register(app, db, create_job, wake)
 source_session.register(app, db, DATA, wake, maintenance)
 source_maintenance.register(app, maintenance)

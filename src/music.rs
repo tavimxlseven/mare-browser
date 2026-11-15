@@ -56,6 +56,9 @@ pub struct Music {
     revision: u64,
     completed: BTreeSet<String>,
     pub presence: crate::presence::Presence,
+    stream_catalog: BTreeMap<u64, Value>,
+    guest_track: Option<Value>,
+    external: Option<Value>,
 }
 impl Drop for Download {
     fn drop(&mut self) {
@@ -89,7 +92,51 @@ fn source(input: &str) -> Result<(String, String, String), String> {
     }
     crate::spotify::normalize_link(input)
 }
+fn stream_track(entry: &Value) -> Option<Value> {
+    use sha2::{Digest, Sha256};
+    let uri = entry["uri"].as_str()?;
+    let (_, _, kind) = crate::spotify::normalize_link(uri).ok()?;
+    if kind != "track" {
+        return None;
+    }
+    let digest = Sha256::digest(uri.as_bytes());
+    let id = digest[..6]
+        .iter()
+        .fold(0u64, |n, b| (n << 8) | u64::from(*b))
+        + (1u64 << 48);
+    let art = entry["thumbnail"]
+        .as_str()
+        .filter(|s| crate::spotify::safe_artwork(s))
+        .unwrap_or("");
+    Some(
+        json!({"id":id,"title":entry["title"].as_str()?.chars().take(300).collect::<String>(),"artists":entry["artists"].as_str().unwrap_or("").chars().take(300).collect::<String>(),"artwork":art,"track_uri":uri,"source_uri":uri,"available":false,"streamable":true,"duration_ms":entry["duration_ms"].as_u64().unwrap_or(0).min(86_400_000)}),
+    )
+}
 impl Music {
+    pub fn set_stream_catalog(&mut self, entries: Vec<Value>) {
+        let mut catalog: BTreeMap<u64, Value> = entries
+            .iter()
+            .filter_map(stream_track)
+            .map(|t| (t["id"].as_u64().unwrap(), t))
+            .collect();
+        if let Some(track) = &self.guest_track {
+            catalog.insert(track["id"].as_u64().unwrap(), track.clone());
+        }
+        if self.stream_catalog != catalog {
+            self.stream_catalog = catalog;
+            self.revision = self.revision.saturating_add(1);
+        }
+        if self.external.is_none()
+            && self
+                .current
+                .is_some_and(|id| id >= (1u64 << 48) && !self.stream_catalog.contains_key(&id))
+        {
+            self.current = None;
+            self.session.track_id = None;
+            self.session.position_ms = 0;
+            self.session.duration_ms = 0;
+        }
+    }
     pub fn retain_catalog<'a>(&mut self, entries: impl Iterator<Item = &'a str>) {
         let mut keys = entries.collect::<BTreeSet<_>>();
         for track in &self.tracks {
@@ -181,9 +228,9 @@ impl Music {
         };
         let mut session = crate::music_session::Session::load(directory);
         let tracks: Vec<Track> = tracks;
-        session.track_id = session
-            .track_id
-            .filter(|id| tracks.iter().any(|t| t.id == *id && t.path.is_file()));
+        session.track_id = session.track_id.filter(|id| {
+            *id >= (1u64 << 48) || tracks.iter().any(|t| t.id == *id && t.path.is_file())
+        });
         let mut music = Self {
             directory: directory.into(),
             tracks,
@@ -203,6 +250,9 @@ impl Music {
                 _ => return Err("Não foi possível ler o registro de downloads.".into()),
             },
             presence: crate::presence::Presence::new(directory),
+            stream_catalog: BTreeMap::new(),
+            guest_track: None,
+            external: None,
         };
         if music.index_playlist_ids() {
             // These IDs can be recovered again from the original manifests.
@@ -437,39 +487,116 @@ impl Music {
     pub fn snapshot_since(&mut self, known_revision: Option<u64>) -> Value {
         self.poll_download();
         self.apply_catalog();
-        let (mode, position, duration) =
-            self.audio
-                .as_ref()
-                .map(|p| p.snapshot())
-                .unwrap_or(if self.current.is_some() {
-                    ("paused", self.session.position_ms, self.session.duration_ms)
-                } else {
-                    ("stopped", 0, 0)
-                });
-        if self.audio.is_some() && self.checkpoint_at.elapsed().as_secs() >= 10 {
+        let (mut mode, mut position, mut duration) = self
+            .audio
+            .as_ref()
+            .map(|p| p.snapshot())
+            .unwrap_or(if self.current.is_some() {
+                ("paused", self.session.position_ms, self.session.duration_ms)
+            } else {
+                ("stopped", 0, 0)
+            });
+        if let Some(player) = &self.external {
+            mode = match player["state"].as_str() {
+                Some("playing") => "playing",
+                Some("stopped") => "stopped",
+                _ => "paused",
+            };
+            position = player["position_ms"].as_u64().unwrap_or(0);
+            duration = player["duration_ms"].as_u64().unwrap_or(0);
+        }
+        if (self.audio.is_some() || self.external.is_some())
+            && self.checkpoint_at.elapsed().as_secs() >= 10
+        {
             let _ = self.checkpoint();
         }
         let track = self
             .current
             .and_then(|id| self.tracks.iter().find(|t| t.id == id));
+        let remote_track = self.current.and_then(|id| self.stream_catalog.get(&id));
         self.presence.update(
-            track.map(|t| (t.title.as_str(), t.artists.as_str())),
+            track
+                .map(|t| (t.title.as_str(), t.artists.as_str()))
+                .or_else(|| {
+                    remote_track.map(|t| {
+                        (
+                            t["title"].as_str().unwrap_or(""),
+                            t["artists"].as_str().unwrap_or(""),
+                        )
+                    })
+                }),
             mode == "playing",
             position,
             duration,
-            track.map(|t| t.artwork.as_str()).unwrap_or(""),
+            track
+                .map(|t| t.artwork.as_str())
+                .or_else(|| remote_track.and_then(|t| t["artwork"].as_str()))
+                .unwrap_or(""),
         );
         let mut snapshot = json!({"library_revision":self.revision,"player":{"track_id":self.current,"state":mode,"position_ms":position,"duration_ms":duration,"volume":self.volume},"download":self.last_download,"sunnify_available":crate::components::executable("sunnify").is_some(),"downloader_pid":self.download.as_ref().map(|d|d.child.id()),"presence":self.presence.snapshot()});
         snapshot["session"] = self.session.ui.clone();
         if known_revision != Some(self.revision) {
             snapshot["completed_sources"] = json!(self.completed);
             snapshot["local_tracks"]=json!(self.tracks.iter().map(|t|json!({"id":t.id,"title":t.title,"artists":t.artists,"source_uri":t.source_uri,"track_uri":t.track_uri,"artwork":t.artwork,"available":t.path.is_file()})).collect::<Vec<_>>());
+            let tracks = snapshot["local_tracks"].as_array_mut().unwrap();
+            let available: BTreeSet<String> = tracks
+                .iter()
+                .filter(|t| t["available"] == true)
+                .filter_map(|t| t["track_uri"].as_str().map(String::from))
+                .collect();
+            tracks.extend(
+                self.stream_catalog
+                    .values()
+                    .filter(|t| {
+                        self.current == t["id"].as_u64()
+                            || !available.contains(t["track_uri"].as_str().unwrap_or(""))
+                    })
+                    .cloned(),
+            );
         }
         snapshot
     }
     pub fn handle(&mut self, method: &str, params: &Value) -> Result<(), String> {
         self.poll_download();
         match method {
+            "stream_register" => {
+                if let Some(track) = &self.guest_track {
+                    self.stream_catalog.remove(&track["id"].as_u64().unwrap());
+                }
+                self.guest_track = if params["track"].is_null() {
+                    None
+                } else {
+                    Some(stream_track(&params["track"]).ok_or("Faixa de streaming inválida.")?)
+                };
+                if let Some(track) = &self.guest_track {
+                    self.stream_catalog
+                        .insert(track["id"].as_u64().unwrap(), track.clone());
+                }
+                self.revision = self.revision.saturating_add(1);
+            }
+            "stream_report" => {
+                let id = params["track_id"].as_u64().ok_or("Faixa inválida.")?;
+                if !self.stream_catalog.contains_key(&id) {
+                    return Err("Faixa não está na biblioteca online.".into());
+                }
+                let state = params["state"]
+                    .as_str()
+                    .filter(|s| matches!(*s, "playing" | "paused" | "stopped"))
+                    .ok_or("Estado inválido.")?;
+                let position = params["position_ms"]
+                    .as_u64()
+                    .filter(|v| *v <= 86_400_000)
+                    .ok_or("Posição inválida.")?;
+                let duration = params["duration_ms"]
+                    .as_u64()
+                    .filter(|v| *v <= 86_400_000)
+                    .ok_or("Duração inválida.")?;
+                self.audio = None;
+                self.current = Some(id);
+                self.external = Some(
+                    json!({"state":state,"position_ms":position.min(duration),"duration_ms":duration}),
+                );
+            }
             "save_session" => {
                 self.session.ui = crate::music_session::validate_ui(params)?;
                 self.checkpoint()?;
@@ -684,6 +811,7 @@ impl Music {
                 self.save()?;
             }
             "play_local" => {
+                self.external = None;
                 let id = params["id"].as_u64().ok_or("Selecione um áudio local.")?;
                 let track = self
                     .tracks
@@ -743,6 +871,7 @@ impl Music {
                 self.audio.as_ref().ok_or("Selecione uma faixa.")?.resume();
             }
             "stop" => {
+                self.external = None;
                 self.audio = None;
                 self.current = None;
             }
@@ -777,7 +906,10 @@ impl Music {
         Ok(())
     }
     fn checkpoint(&mut self) -> Result<(), String> {
-        if let Some(audio) = &self.audio {
+        if let Some(player) = &self.external {
+            self.session.position_ms = player["position_ms"].as_u64().unwrap_or(0);
+            self.session.duration_ms = player["duration_ms"].as_u64().unwrap_or(0);
+        } else if let Some(audio) = &self.audio {
             let (_, position, duration) = audio.snapshot();
             self.session.position_ms = position;
             self.session.duration_ms = duration;
@@ -806,6 +938,39 @@ impl Drop for Music {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn streaming_catalog_never_claims_a_local_download_and_restores_paused_position() {
+        let dir = std::env::temp_dir().join(format!("noise-stream-{}", crate::model::now_ms()));
+        let entry = json!({"uri":"spotify:track:4uLU6hMCjMI75M1A2tKUQC","title":"Fixture song","artists":"Artist","thumbnail":"https://i.scdn.co/image/test","duration_ms":200000});
+        let id;
+        {
+            let mut music = Music::new(&dir).unwrap();
+            music.set_stream_catalog(vec![entry.clone()]);
+            let state = music.snapshot();
+            id = state["local_tracks"][0]["id"].as_u64().unwrap();
+            assert!(id < (1u64 << 53));
+            assert_eq!(state["local_tracks"][0]["available"], false);
+            assert_eq!(state["local_tracks"][0]["streamable"], true);
+            assert!(music.handle("play_local", &json!({"id":id})).is_err());
+            music.handle("stream_report", &json!({"track_id":id,"state":"playing","position_ms":32000,"duration_ms":200000})).unwrap();
+            assert_eq!(music.snapshot()["player"]["position_ms"], 32000);
+            assert!(music
+                .handle(
+                    "stream_report",
+                    &json!({"track_id":id+1,"state":"playing","position_ms":0,"duration_ms":200000})
+                )
+                .is_err());
+        }
+        let mut music = Music::new(&dir).unwrap();
+        music.set_stream_catalog(vec![entry]);
+        let state = music.snapshot();
+        assert_eq!(state["player"]["track_id"], id);
+        assert_eq!(state["player"]["position_ms"], 32000);
+        assert_eq!(state["player"]["state"], "paused");
+        assert_eq!(fs::read_dir(dir.join("audio")).unwrap().count(), 0);
+        drop(music);
+        fs::remove_dir_all(dir).unwrap();
+    }
     #[test]
     fn reused_audio_finishes_a_new_playlist_without_rewriting_its_source() {
         let dir = std::env::temp_dir().join(format!(

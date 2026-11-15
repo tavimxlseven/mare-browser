@@ -53,6 +53,7 @@ pub struct Spotify {
     covers: crate::covers::Covers,
     search: crate::music_search::Search,
     metadata_dirty: bool,
+    stream_connected: bool,
 }
 
 pub fn normalize_link(input: &str) -> Result<(String, String, String), String> {
@@ -134,6 +135,7 @@ impl Spotify {
             covers: crate::covers::Covers::new(directory),
             search: crate::music_search::Search::new(directory),
             metadata_dirty: true,
+            stream_connected: false,
         })
     }
     fn merge_account(&mut self, items: Vec<Value>) -> Result<(), String> {
@@ -186,6 +188,20 @@ impl Spotify {
         Ok(())
     }
     fn sync_music_metadata(&mut self) {
+        let connected = self.cloud.connected();
+        if self.metadata_dirty || self.stream_connected != connected {
+            self.music.set_stream_catalog(if self.cloud.connected() {
+                self.library
+                    .entries
+                    .iter()
+                    .filter(|entry| entry.kind == "track")
+                    .filter_map(|entry| serde_json::to_value(entry).ok())
+                    .collect()
+            } else {
+                Vec::new()
+            });
+            self.stream_connected = connected;
+        }
         if !self.metadata_dirty {
             return;
         }
@@ -574,6 +590,14 @@ impl Spotify {
         Ok(())
     }
     pub fn handle(&mut self, method: &str, params: &Value) -> Result<Value, String> {
+        if method == "cloud_stream" {
+            return self.cloud.streaming_request("stream", params);
+        }
+        if method == "listening" {
+            return self
+                .cloud
+                .streaming_request(params["operation"].as_str().unwrap_or(""), params);
+        }
         if method == "cloud_login" {
             let seed = self.library_events(&Library::default());
             self.cloud.login(
@@ -751,6 +775,8 @@ impl Spotify {
                 | "scan_local"
                 | "delete_local"
                 | "play_local"
+                | "stream_report"
+                | "stream_register"
                 | "pause"
                 | "resume"
                 | "stop"
@@ -776,8 +802,11 @@ impl Spotify {
                     }
                 }
             }
+            if method == "stream_register" {
+                self.metadata_dirty = true;
+            }
             self.music.handle(method, &arguments)?;
-            if matches!(method, "volume" | "save_session") {
+            if matches!(method, "volume" | "save_session" | "stream_report") {
                 return Ok(self.music.snapshot_since(params["revision"].as_u64()));
             }
             return Ok(self.snapshot());

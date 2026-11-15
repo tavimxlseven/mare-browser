@@ -173,18 +173,20 @@ fn embedded_ui() -> String {
         &mut html,
         "SCRIPTS",
         &format!(
-            "<script>{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}</script>",
+            "<script>{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}</script>",
             include_str!("../mobile/public/sortable.js"),
             include_str!("../mobile/public/devices-ui.js"),
             include_str!("../ui/music-queue.js"),
             include_str!("../ui/music-layout.js"),
             include_str!("../ui/music-tools.js"),
+            include_str!("../ui/music-streaming.js"),
+            include_str!("../ui/music-listening.js"),
             include_str!("../ui/spotify.js"),
             include_str!("../ui/browser-tools.js"),
             include_str!("../ui/app.js")
         ),
     );
-    html.replace("<head>", "<head><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: https: http:; connect-src 'none'; base-uri 'none'; form-action 'none'\">")
+    html.replace("<head>", "<head><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: https: http:; connect-src 'none'; media-src https:; base-uri 'none'; form-action 'none'\">")
 }
 
 fn data_directory() -> PathBuf {

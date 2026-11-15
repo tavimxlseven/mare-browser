@@ -37,7 +37,7 @@ def bearer(con):
     header = request.headers.get("Authorization", "")
     if not header.startswith("Bearer "):
         return False
-    if request.path not in ("/api/devices/sync", "/api/devices/commands", "/api/devices/disconnect", "/api/library"):
+    if request.path not in ("/api/devices/sync", "/api/devices/commands", "/api/devices/disconnect", "/api/devices/stream", "/api/library") and request.path not in tuple("/api/listening/"+op for op in ("create","join","state","leave","close")):
         abort(403)
     token = header[7:]
     if not re.fullmatch(r"[A-Za-z0-9_-]{43}", token):
@@ -280,6 +280,8 @@ def register(app, db, save_tracks, create_job, wake, enqueue_tracks):
             if isinstance(raw.get("player"),dict):
                 player=player_state(raw["player"])
                 select_playback(con,owner,identifier,player,json.loads(row["player"]))
+                import listening
+                listening.publish(con,owner,identifier,player)
                 con.execute("UPDATE music_devices SET player=?,last_seen=? WHERE id=?",(json.dumps(player),time.time(),identifier))
             else: con.execute("UPDATE music_devices SET last_seen=? WHERE id=?",(time.time(),identifier))
             ack=raw.get("ack",0)

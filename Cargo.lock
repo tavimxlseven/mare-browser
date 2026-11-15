@@ -1390,7 +1390,7 @@ dependencies = [
 
 [[package]]
 name = "mare-browser"
-version = "0.5.8"
+version = "0.6.0"
 dependencies = [
  "adblock",
  "base64 0.22.1",

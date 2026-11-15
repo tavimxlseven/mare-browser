@@ -65,6 +65,8 @@ For a complete local music build, run `scripts/components.ps1` to prepare the or
 
 See [extensions](docs/EXTENSIONS.md), [profile persistence](docs/PROFILE.md), [integration IDs](docs/INTEGRATIONS.md), [architecture](docs/ARCHITECTURE.md), [native apps](docs/APPS.md), [protection](docs/PROTECTION.md) and the [roadmap](docs/ROADMAP.md).
 
+Noise Music supports [server streaming and private shared listening](docs/SHARED-LISTENING.md) on Windows. Offline downloads remain optional when connected to your music server.
+
 ## Project status
 
 Windows x64 is the supported development target. macOS and Linux have not been validated. The app catalog currently contains bundled apps; third-party package distribution is planned. The [music app](docs/SPOTIFY.md) plays local audio and integrates a headless Sunnify component. Spotify account login is deferred and hidden in this release; public playlist links remain available. The Compass Browser Discord IPC handshake is validated; profile rendering still requires manual verification. Spicetify continues to customize the installed official client. External components have [separate terms and packaging limits](docs/COMPONENTS.md). No performance comparison with Spotify or other browsers is claimed.

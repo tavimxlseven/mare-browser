@@ -111,6 +111,42 @@ impl Cloud {
             .config
             .is_some()
     }
+    pub fn streaming_request(&self, operation: &str, body: &Value) -> Result<Value, String> {
+        let path = match operation {
+            "stream" => "/api/devices/stream".to_owned(),
+            "create" | "join" | "state" | "leave" | "close" => {
+                format!("/api/listening/{operation}")
+            }
+            _ => return Err("Operação de conexão inválida.".into()),
+        };
+        let config = self
+            .shared
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .config
+            .clone()
+            .ok_or("Entre na mesma conta do Noise Music que você usa no celular.")?;
+        let mut result = http(&config.origin, &path, Some(&config.token), body)?;
+        if operation == "stream" && result["state"] == "ready" {
+            let path = result["path"]
+                .as_str()
+                .ok_or("Resposta de streaming inválida.")?;
+            let track = body["track_id"].as_str().unwrap_or("");
+            if track.len() != 22
+                || path.len() > 850
+                || !path.starts_with("/stream/")
+                || !path.ends_with(&format!("/{track}"))
+                || path
+                    .chars()
+                    .any(|c| !(c.is_ascii_alphanumeric() || "-_/.".contains(c)))
+                || path.contains("..")
+            {
+                return Err("Endereço de streaming inválido.".into());
+            }
+            result["url"] = json!(format!("{}{}", config.origin, path));
+        }
+        Ok(result)
+    }
     pub fn device_id(&self) -> String {
         self.shared
             .lock()

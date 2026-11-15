@@ -991,6 +991,39 @@
 }
 
 /* ───────────── Search ───────────── */
+.spotify-app .music-listen-button { flex:none; gap:7px; min-height:36px; padding:0 12px; border:1px solid var(--music-line-strong); border-radius:999px; font-size:12px; }
+.spotify-app .music-listen-button svg { width:18px; height:18px; }
+.spotify-app .music-listen-button.is-active { color:var(--music-accent); background:var(--music-accent-soft); }
+.spotify-app .music-listen-button i { display:none; width:6px; height:6px; border-radius:50%; background:currentColor; }
+.spotify-app .music-listen-button.is-active i { display:block; animation:music-listen-pulse 2s ease-in-out infinite; }
+.spotify-app .music-listen-dialog { width:min(440px,calc(100vw - 32px)); }
+.spotify-app .music-listen-hero { display:flex; flex-direction:column; align-items:center; padding:20px 8px 10px; text-align:center; }
+.spotify-app .music-listen-hero > svg { width:44px; height:44px; color:var(--music-accent); }
+.spotify-app .music-dialog.music-listen-dialog .music-listen-hero h4 { margin:12px 0 8px; font-size:26px; line-height:1.15; letter-spacing:-.6px; color:var(--music-text); }
+.spotify-app .music-listen-hero p,.spotify-app .music-listen-status { color:var(--music-muted); line-height:1.6; font-size:13px; }
+.spotify-app .music-listen-status { min-height:42px; }
+.spotify-app [data-listening-create],.spotify-app [data-listening-leave] { width:100%; min-height:44px; }
+.spotify-app .music-listen-join { margin-top:22px; padding-top:20px; border-top:1px solid var(--music-line); }
+.spotify-app .music-listen-join label { display:block; margin-bottom:9px; color:var(--music-text); font-size:13px; }
+.spotify-app .music-listen-join > div { display:flex; gap:8px; }
+.spotify-app .music-listen-join input { flex:1; min-width:0; min-height:44px; padding:0 12px; border:1px solid var(--music-line-strong); border-radius:12px; background:var(--music-raised); color:var(--music-text); }
+.spotify-app .music-listen-join button { min-height:44px; padding:0 16px; }
+.spotify-app .music-listen-invite { display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-radius:16px; background:var(--music-raised); }
+.spotify-app .music-listen-invite strong { font-size:20px; letter-spacing:2px; color:var(--music-text); }
+.spotify-app .music-listen-invite button { width:44px; height:44px; }
+.spotify-app .music-listen-members { padding:0; list-style:none; margin:16px 0 24px; }
+.spotify-app .music-listen-members li { display:flex; align-items:center; gap:12px; padding:12px 0; animation:music-listen-enter 220ms var(--music-ease); }
+.spotify-app .music-listen-members li > span:nth-child(2) { display:grid; gap:3px; flex:1; min-width:0; }
+.spotify-app .music-listen-members strong { color:var(--music-text); overflow:hidden; text-overflow:ellipsis; }
+.spotify-app .music-listen-members small { color:var(--music-muted); font-size:12px; }
+.spotify-app .music-listen-avatar { display:grid; place-items:center; width:42px; height:42px; border-radius:50%; background:var(--music-accent-soft); color:var(--music-accent); font-size:17px; }
+.spotify-app .music-listen-members i { width:7px; height:7px; border-radius:50%; background:var(--music-faint); }
+.spotify-app .music-listen-members i[data-online="true"] { background:var(--music-accent); }
+.spotify-app .music-dialog.music-listen-dialog > section { background:transparent; border:0; padding:0; margin:12px 0 0; }
+@keyframes music-listen-enter { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:none; } }
+@keyframes music-listen-pulse { 50% { opacity:.35; } }
+.spotify-app.music-tight .music-listen-button span { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+.spotify-app.music-tight .music-listen-button { width:36px; padding:0; }
 .spotify-app .music-search-tabs {
   display: inline-flex;
   gap: 4px;

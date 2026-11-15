@@ -131,6 +131,7 @@ window.attachMusicTools = function ({
               String(Math.floor(t.duration_ms / 1000) % 60).padStart(2, "0") +
               '</small></div><span class="music-search-status"><em data-state="' + (ready ? 'ready' : 'new') + '">' +
               (ready ? 'Baixada' : stored ? 'Na biblioteca' : 'Música') + '</em></span><div class="music-search-actions">' +
+              (!ready && data().cloud?.connected ? '<button class="music-play-result" data-action="search_listen" data-uri="' + esc(t.uri) + '" aria-label="Ouvir ' + esc(t.title) + '" ' + (busy ? 'disabled' : '') + '>' + icon("play") + '</button>' : '') +
               (ready
                 ? '<button data-action="play_local" data-id="' +
                   local.id +
@@ -311,7 +312,7 @@ window.attachMusicTools = function ({
     menu.className = "music-context";
     menu.setAttribute("role", "menu");
     const playable =
-      !!row.local?.available ||
+      !!(row.local?.available || row.local?.streamable) ||
       (!!output()?.remote() && row.uri?.startsWith("spotify:track:"));
     const menuGlyph = {
       play: "play",
@@ -552,7 +553,7 @@ window.attachMusicTools = function ({
         if (row) songMenu(row, rect.right, rect.bottom);
         return true;
       }
-      if (action === "search_add" || action === "search_download") {
+      if (["search_add", "search_download", "search_listen"].includes(action)) {
         busy = true;
         redraw();
         try {
@@ -560,6 +561,15 @@ window.attachMusicTools = function ({
             uri: button.dataset.uri,
             download: action === "search_download",
           });
+          if (action === "search_listen") {
+            const entry = data().entries.find(t => t.uri === button.dataset.uri);
+            const local = entry && localFor(entry);
+            if (local) {
+              queue.start([local.id], local.id);
+              queueChanged({...entry,local});
+              await invoke("play_local", {id:local.id,track_uri:entry.uri,artwork:entry.thumbnail});
+            }
+          }
         } finally {
           busy = false;
           redraw();

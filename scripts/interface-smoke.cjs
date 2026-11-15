@@ -20,6 +20,8 @@ for (const name of [
   "music-queue.js",
   "music-layout.js",
   "music-tools.js",
+  "music-streaming.js",
+  "music-listening.js",
   "spotify.js",
   "app.js",
   "browser-tools.js",
@@ -45,5 +47,5 @@ const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
 assert.equal(scripts.length, 1);
 new Script(scripts[0][1], { filename: "packaged-interface.js" });
 console.log(
-  "PASS packaged executable contains all four stylesheets and eight valid inline scripts; no external UI files required",
+  "PASS packaged executable contains all four stylesheets and all valid UI modules; no external UI files required",
 );
