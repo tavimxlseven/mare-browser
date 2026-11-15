@@ -4,7 +4,10 @@
     const audio = makeAudio();
     audio.preload = "auto";
     audio.hidden = true;
-    element.append(audio);
+    // App panes are detached into the tab cache. Keep audio in the persistent chrome document.
+    const host = element.ownerDocument?.body || element;
+    audio.dataset.noiseStream = "true";
+    host.append(audio);
     let current = null, generation = 0, loading = false, desired = false, disposed = false;
     let reporting = false, dirty = false, lastReport = 0;
     const waiters = new Set();

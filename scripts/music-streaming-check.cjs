@@ -2,7 +2,7 @@ const assert = require("node:assert/strict"), fs = require("node:fs"), vm = requ
 const root = {};
 vm.runInNewContext(fs.readFileSync("ui/music-streaming.js", "utf8"), {window:root,performance,setTimeout,clearTimeout,console});
 class AudioFixture extends EventTarget {
-  constructor() { super(); this.paused=true; this.currentTime=0; this.duration=180; this.readyState=1; this.ended=false; this.src=""; }
+  constructor() { super(); this.dataset={}; this.paused=true; this.currentTime=0; this.duration=180; this.readyState=1; this.ended=false; this.src=""; }
   play() { this.paused=false; this.dispatchEvent(new Event("playing")); return Promise.resolve(); }
   pause() { this.paused=true; this.dispatchEvent(new Event("pause")); }
   load() { this.currentTime=0; }
@@ -13,8 +13,9 @@ class AudioFixture extends EventTarget {
 const track = id => ({id,track_uri:"spotify:track:"+String(id).padStart(22,"0"),duration_ms:180000});
 (async()=>{
  const audio=new AudioFixture(), calls=[], notices=[];
+ let persistentHost = false;
  let releaseFirst;
- const engine=root.createNoiseStreaming({element:{append(){}},getState:()=>({player:{volume:25}}),makeAudio:()=>audio,changed(){},notify:s=>notices.push(s),request:async(method,params)=>{
+ const engine=root.createNoiseStreaming({element:{append(){throw Error("Audio must not live in a detachable app pane");},ownerDocument:{body:{append(){persistentHost=true;}}}},getState:()=>({player:{volume:25}}),makeAudio:()=>audio,changed(){},notify:s=>notices.push(s),request:async(method,params)=>{
    calls.push({method,params});
    if(method==="cloud_stream") {
      if(params.track_id.endsWith("1")) return await new Promise(resolve=>releaseFirst=resolve);
@@ -23,6 +24,7 @@ const track = id => ({id,track_uri:"spotify:track:"+String(id).padStart(22,"0"),
    return {};
  }});
  const first=engine.start(track(1));
+ assert.equal(persistentHost,true);
  await new Promise(resolve=>setImmediate(resolve));
  const second=engine.start(track(2)); await second;
  releaseFirst({state:"ready",url:"https://music.example/stream/obsolete"}); await first;
