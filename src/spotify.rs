@@ -727,6 +727,20 @@ impl Spotify {
             return Ok(self.snapshot());
         }
         if method == "open_playlist" {
+            let input = params["uri"].as_str().unwrap_or("");
+            if let Some(entry) = self.library.entries.iter().find(|e| {
+                e.uri == input && e.cloud_owned && self.library.playlist_orders.contains_key(&e.uri)
+            }) {
+                let tracks = self.library.playlist_orders[&entry.uri].iter().filter_map(|uri| self.library.entries.iter().find(|track| &track.uri == uri && track.kind == "track"))
+                    .map(|track| json!({"uri":track.uri,"title":track.title,"artists":track.artists,"thumbnail":track.thumbnail,"duration_ms":track.duration_ms})).collect();
+                self.playlists
+                    .use_account(&entry.uri, &entry.title, tracks)?;
+                if params["refresh"] == true {
+                    self.cloud
+                        .enqueue("source", json!({"url":entry.url,"name":entry.title}));
+                }
+                return Ok(self.snapshot());
+            }
             self.playlists.open(
                 params["uri"].as_str().unwrap_or(""),
                 params["refresh"].as_bool().unwrap_or(false),
@@ -1285,6 +1299,32 @@ fn fetch_metadata(_: &str) -> Result<Value, String> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn phone_playlist_opens_from_account_without_external_metadata_components() {
+        let dir =
+            std::env::temp_dir().join(format!("noise-phone-playlist-{}", crate::model::now_ms()));
+        let playlist = "spotify:playlist:4uLU6hMCjMI75M1A2tKUQC";
+        let track = "0000000000000000000001";
+        {
+            let mut app = Spotify::new(&dir).unwrap();
+            app.merge_cloud(&json!({"tracks":[{"id":track,"title":"Synced song","artist":"Artist","art":"https://i.scdn.co/image/test","duration_ms":123000}],"playlists":[{"id":"4uLU6hMCjMI75M1A2tKUQC","source":playlist,"name":"Phone playlist","tracks":[track]}]})).unwrap();
+            let state = app
+                .handle("open_playlist", &json!({"uri":playlist}))
+                .unwrap();
+            assert_eq!(state["playlist"]["state"], "ready");
+            assert_eq!(state["playlist"]["tracks"][0]["title"], "Synced song");
+        }
+        let mut app = Spotify::new(&dir).unwrap();
+        let state = app
+            .handle("open_playlist", &json!({"uri":playlist}))
+            .unwrap();
+        assert_eq!(
+            state["playlist"]["tracks"][0]["uri"],
+            format!("spotify:track:{track}")
+        );
+        drop(app);
+        fs::remove_dir_all(dir).unwrap();
+    }
     #[test]
     fn playlist_edits_survive_restart_and_cloud_covers_are_merged() {
         let dir = std::env::temp_dir().join(format!(

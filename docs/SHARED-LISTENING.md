@@ -6,7 +6,7 @@ An existing local download takes precedence. If a requested online track is not 
 
 ## Listen with a friend
 
-Both participants need Compass Browser 0.6.0 or later, separate Noise accounts on the same updated server, and an internet connection.
+Both participants need Compass Browser 0.6.1 or later, separate Noise accounts on the same updated server, and an internet connection.
 
 1. Open **Listen together** in the music toolbar and choose **Create a room**.
 2. Copy the invitation code and send it to your friend yourself.

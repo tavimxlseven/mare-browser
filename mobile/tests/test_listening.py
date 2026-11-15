@@ -62,6 +62,7 @@ class ListeningTests(unittest.TestCase):
         joined = self.post("friend","/api/listening/join",dict(code=room["code"]))
         self.assertEqual(joined.status_code,200)
         self.assertFalse(joined.json["host"])
+        self.assertEqual(self.post("friend","/api/listening/join",dict(code=room["code"][:5]+"–"+room["code"][5:])).status_code,200)
         self.assertEqual(joined.json["track"]["id"],"a"*22)
         self.assertNotIn("library",joined.json)
         result = self.post("friend","/api/devices/stream",dict(track_id="a"*22))

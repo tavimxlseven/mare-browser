@@ -144,6 +144,17 @@ impl Catalog {
         });
         Ok(())
     }
+    pub fn use_account(&mut self, uri: &str, name: &str, tracks: Vec<Value>) -> Result<(), String> {
+        let (uri, _, kind) = crate::spotify::normalize_link(uri)?;
+        if !matches!(kind.as_str(), "playlist" | "album") || tracks.len() > 2000 {
+            return Err("Playlist sincronizada inválida.".into());
+        }
+        // Account metadata is already persisted with the library. No extra Spotify process is needed.
+        self.job = None;
+        self.active =
+            json!({"uri":uri,"state":"ready","name":name,"owner":"Sua biblioteca","tracks":tracks});
+        Ok(())
+    }
     pub fn snapshot(&mut self) -> Value {
         if let Some(result) = self.job.as_ref().and_then(|rx| rx.try_recv().ok()) {
             self.job = None;

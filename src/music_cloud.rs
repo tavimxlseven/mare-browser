@@ -554,6 +554,19 @@ fn http(origin: &str, path: &str, token: Option<&str>, body: &Value) -> Result<V
         )
         .map_err(|_| "Resposta inválida.")?;
         if status != 200 {
+            if path == "/api/listening/join" {
+                return Err(match status {
+                    400 => "Use os dez caracteres do convite para entrar na sala.",
+                    404 => {
+                        "Convite não encontrado ou expirado. Peça um novo código para seu amigo."
+                    }
+                    409 => "Esta sala está cheia. Peça para seu amigo criar outra sala.",
+                    _ => {
+                        "Não foi possível entrar na sala. Verifique sua conexão e tente novamente."
+                    }
+                }
+                .into());
+            }
             return Err(if status == 401 {
                 match path {
                     "/api/devices/login" => "Usuário ou senha não conferem. Use a mesma conta do Noise Music do celular.",

@@ -139,7 +139,7 @@ def register(app, db, media, enqueue_tracks, wake):
                 accounts.throttle()
                 old = membership(con, owner)
                 if operation == "join":
-                    code = str(raw.get("code", "")).strip().replace("-", "").replace(" ", "").upper()
+                    code = str(raw.get("code", "")).strip().replace("-", "").replace("–", "").replace("—", "").replace(" ", "").upper()
                     if len(code) != 10:
                         abort(400)
                     room = con.execute("SELECT * FROM listening_rooms WHERE invite_hash=? AND closed=0 AND created>?", (hashlib.sha256(code.encode()).hexdigest(), time.time()-86400)).fetchone()
