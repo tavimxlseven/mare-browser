@@ -9,6 +9,7 @@ mod context_menu;
 mod covers;
 mod downloads;
 mod extensions;
+mod external_protocol;
 mod icon;
 mod icon_pixels;
 mod model;
@@ -120,6 +121,7 @@ struct Browser {
     pending_extension: Option<extensions::Prepared>,
     extension_busy: bool,
     permissions: permissions::Manager,
+    external_protocols: external_protocol::Manager,
     context_menu: context_menu::Manager,
     updater: updater::Manager,
     music_remote: music_remote::Manager,
@@ -287,6 +289,7 @@ impl Browser {
         self.view_generations.get(&id) == Some(&generation) && self.views.contains_key(&id)
     }
     fn remove_view(&mut self, id: u64) {
+        self.external_protocols.close_tab(id);
         self.permissions.close_tab(id);
         self.context_menu.close_tab(id);
         self.media_tabs.remove(&id);
@@ -401,6 +404,8 @@ impl Browser {
         let nonce = random_nonce()?;
         let shortcuts = PAGE_SHORTCUTS.replace("__MARE_NONCE__", &json!(nonce).to_string());
         let downloads = self.data_dir.join("Downloads");
+        let external_ready = std::rc::Rc::new(std::cell::Cell::new(false));
+        let navigation_external = external_ready.clone();
         std::fs::create_dir_all(&downloads).map_err(|e| e.to_string())?;
         let mut builder = WebViewBuilder::new_with_web_context(&mut self.context)
             .with_bounds(self.viewport.rect())
@@ -466,6 +471,7 @@ impl Browser {
                 if url == "about:blank" {
                     return true;
                 }
+                if external_protocol::riot_scheme(&url) { return navigation_external.get(); }
                 let allowed = allowed_navigation(&url);
                 if allowed {
                     navigation_protection.begin_navigation(id, &url);
@@ -566,6 +572,16 @@ impl Browser {
             }
         }
         let blocked_proxy = self.proxy.clone();
+        {
+            let proxy = self.proxy.clone();
+            external_ready.set(
+                self.external_protocols
+                    .attach(&view, id, move |value| {
+                        let _ = proxy.send_event(BrowserEvent::Permission(value));
+                    })
+                    .unwrap_or(false),
+            );
+        }
         {
             let proxy = self.proxy.clone();
             self.permissions.attach(&view, id, move |value| {
@@ -797,6 +813,7 @@ impl Browser {
         }
     }
     fn maintain_background_tabs(&mut self) {
+        self.external_protocols.expire();
         for (&id, view) in &self.views {
             self.resources.set_background(
                 id,
@@ -863,6 +880,15 @@ impl Browser {
             self.apps.deactivate();
         }
         match cmd {
+            "external_protocol_answer" => {
+                if let Err(error) = self.external_protocols.answer(
+                    value["id"].as_u64().unwrap_or(0),
+                    value["allow"].as_bool().unwrap_or(false),
+                ) {
+                    self.notify(&error);
+                }
+                return;
+            }
             "permission_answer" => {
                 self.permissions.answer(
                     value["id"].as_u64().unwrap_or(0),
@@ -1633,10 +1659,13 @@ impl Browser {
         }
         match event {
             BrowserEvent::Permission(value) => {
-                if !value["id"]
-                    .as_u64()
-                    .is_some_and(|id| self.permissions.contains(id))
-                {
+                if !value["id"].as_u64().is_some_and(|id| {
+                    if value["kind"] == "external_app" {
+                        self.external_protocols.contains(id)
+                    } else {
+                        self.permissions.contains(id)
+                    }
+                }) {
                     return;
                 }
                 let _ = self
@@ -1894,12 +1923,16 @@ impl Browser {
                 if !self.current_view(id, generation) {
                     return;
                 }
+                self.external_protocols.close_tab(id);
                 if let Some(tab) = self.state.tabs.iter_mut().find(|t| t.id == id) {
                     tab.url = url;
                     tab.loading = true;
                 }
             }
             BrowserEvent::Loaded(id, generation, finished, url) => {
+                if !allowed_navigation(&url) {
+                    return;
+                }
                 if !self.current_view(id, generation) {
                     return;
                 }
@@ -2188,6 +2221,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         pending_extension: None,
         extension_busy: false,
         permissions: permissions::Manager::default(),
+        external_protocols: external_protocol::Manager::default(),
         context_menu: context_menu::Manager::default(),
         updater: updater::Manager::default(),
         music_remote: music_remote::Manager::default(),

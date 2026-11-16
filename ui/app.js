@@ -972,7 +972,7 @@
     }
     if (ui.overlay === "permission" && activePermission) {
       send({
-        cmd: "permission_answer",
+        cmd: activePermission.kind === "external_app" ? "external_protocol_answer" : "permission_answer",
         id: activePermission.id,
         allow: false,
         remember: false,
@@ -2013,10 +2013,11 @@
     activePermission = pendingPermissions.shift();
     if (!activePermission) return;
     const p = activePermission;
+    const external = p.kind === "external_app";
     showOverlay(
       "permission",
-      "Permitir acesso ao " + p.permission + "?",
-      "<p><strong>" +
+      external ? "Abrir Riot Client?" : "Permitir acesso ao " + p.permission + "?",
+      external ? '<p><strong>' + esc(p.origin) + '</strong> quer abrir o Riot Client para concluir seu login.</p><div class="dialog-actions"><button class="button" data-permission-deny>Cancelar</button><button class="button primary" data-permission-allow>Abrir Riot Client</button></div>' : "<p><strong>" +
         esc(p.origin) +
         "</strong> está solicitando acesso ao " +
         esc(p.permission) +
@@ -2024,7 +2025,7 @@
     );
     const answer = (allow) => {
       send({
-        cmd: "permission_answer",
+        cmd: external ? "external_protocol_answer" : "permission_answer",
         id: p.id,
         allow,
         remember: !!$("#permission-remember")?.checked,

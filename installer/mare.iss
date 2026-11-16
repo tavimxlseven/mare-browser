@@ -1,5 +1,5 @@
 #ifndef MareVersion
-#define MareVersion "0.6.3"
+#define MareVersion "0.6.4"
 #endif
 #ifndef Payload
 #define Payload "..\dist\InstallerPayload"
@@ -45,6 +45,9 @@ Name: "{autodesktop}\Compass Browser"; Filename: "{app}\Mare.exe"; WorkingDir: "
 Root: HKCU; Subkey: "Software\Classes\CompassBrowser.Url"; ValueType: string; ValueData: "Compass Browser URL"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\CompassBrowser.Url"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""
 Root: HKCU; Subkey: "Software\Classes\CompassBrowser.Url\DefaultIcon"; ValueType: string; ValueData: """{app}\Mare.exe"",0"
+Root: HKCU; Subkey: "Software\Classes\CompassBrowser.Url\Application"; ValueType: string; ValueName: "ApplicationName"; ValueData: "Compass Browser"
+Root: HKCU; Subkey: "Software\Classes\CompassBrowser.Url\Application"; ValueType: string; ValueName: "ApplicationIcon"; ValueData: """{app}\Mare.exe"",0"
+Root: HKCU; Subkey: "Software\Classes\CompassBrowser.Url\Application"; ValueType: string; ValueName: "AppUserModelID"; ValueData: "Mare.Browser"
 Root: HKCU; Subkey: "Software\Classes\CompassBrowser.Url\shell\open\command"; ValueType: string; ValueData: """{app}\Mare.exe"" --open-url ""%1"""
 Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\CompassBrowser"; ValueType: string; ValueData: "Compass Browser"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\CompassBrowser\DefaultIcon"; ValueType: string; ValueData: """{app}\Mare.exe"",0"
