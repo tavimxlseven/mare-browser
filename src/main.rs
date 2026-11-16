@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod apps;
 mod audio;
+mod browser_launch;
 mod catalog_search;
 mod components;
 mod composition;
@@ -51,6 +52,7 @@ use wry::{WebViewBuilderExtWindows, WebViewExtWindows};
 
 #[derive(Debug)]
 enum BrowserEvent {
+    ExternalLinks(Vec<String>),
     Command(Value),
     MusicRemote(Value),
     Navigation(u64, u64, String),
@@ -1682,6 +1684,18 @@ impl Browser {
                 return;
             }
             BrowserEvent::StorageError(_) => unreachable!(),
+            BrowserEvent::ExternalLinks(urls) => {
+                if !urls.is_empty() {
+                    self.apps.deactivate();
+                }
+                for url in urls {
+                    self.new_tab(&url, false);
+                }
+                self.window.set_visible(true);
+                self.window.set_minimized(false);
+                self.window.set_focus();
+                self.save();
+            }
             BrowserEvent::Media(id, generation, playing) => {
                 if self.current_view(id, generation) {
                     let changed = if playing {
@@ -2053,7 +2067,21 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     }
     let data_dir = data_directory();
     std::fs::create_dir_all(&data_dir)?;
-    let (state, startup_error) = match storage::load(&data_dir) {
+    let incoming = browser_launch::urls(std::env::args().skip(1)).map_err(std::io::Error::other)?;
+    let event_loop = EventLoopBuilder::<BrowserEvent>::with_user_event().build();
+    let proxy = event_loop.create_proxy();
+    let launch_proxy = proxy.clone();
+    let instance = match browser_launch::Instance::acquire(&data_dir, &incoming, move |urls| {
+        launch_proxy
+            .send_event(BrowserEvent::ExternalLinks(urls))
+            .is_ok()
+    })
+    .map_err(std::io::Error::other)?
+    {
+        browser_launch::Launch::Primary(instance) => instance,
+        browser_launch::Launch::Forwarded => return Ok(()),
+    };
+    let (mut state, startup_error) = match storage::load(&data_dir) {
         Ok(state) => (state, None),
         Err(error) => {
             if data_dir.join("state.json").exists() {
@@ -2062,8 +2090,9 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             (BrowserState::new(), Some(error))
         }
     };
-    let event_loop = EventLoopBuilder::<BrowserEvent>::with_user_event().build();
-    let proxy = event_loop.create_proxy();
+    for url in incoming {
+        state.new_tab(url, false);
+    }
     let app_proxy = proxy.clone();
     let protection = protection::Protection::new();
     protection.configure(
@@ -2175,6 +2204,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     };
     let mut background_tick = std::time::Instant::now() + std::time::Duration::from_secs(5);
     event_loop.run(move |event, _, control_flow| {
+        let _ = &instance;
         let _ = &ui_context; // Keep the UI context alive until its webview closes.
         if std::time::Instant::now() >= background_tick {
             browser.maintain_background_tabs();

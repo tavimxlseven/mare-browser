@@ -1,5 +1,5 @@
 #ifndef MareVersion
-#define MareVersion "0.6.2"
+#define MareVersion "0.6.3"
 #endif
 #ifndef Payload
 #define Payload "..\dist\InstallerPayload"
@@ -27,6 +27,7 @@ WizardStyle=modern
 DisableProgramGroupPage=yes
 CloseApplications=yes
 RestartApplications=no
+ChangesAssociations=yes
 LicenseFile=..\LICENSE
 [Languages]
 Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortuguese.isl"
@@ -40,6 +41,20 @@ Source: "{#Payload}\MicrosoftEdgeWebview2Setup.exe"; Flags: dontcopy
 [Icons]
 Name: "{group}\Compass Browser"; Filename: "{app}\Mare.exe"; WorkingDir: "{app}"; AppUserModelID: "Mare.Browser"
 Name: "{autodesktop}\Compass Browser"; Filename: "{app}\Mare.exe"; WorkingDir: "{app}"; AppUserModelID: "Mare.Browser"; Tasks: desktopicon
+[Registry]
+Root: HKCU; Subkey: "Software\Classes\CompassBrowser.Url"; ValueType: string; ValueData: "Compass Browser URL"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\CompassBrowser.Url"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\CompassBrowser.Url\DefaultIcon"; ValueType: string; ValueData: """{app}\Mare.exe"",0"
+Root: HKCU; Subkey: "Software\Classes\CompassBrowser.Url\shell\open\command"; ValueType: string; ValueData: """{app}\Mare.exe"" --open-url ""%1"""
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\CompassBrowser"; ValueType: string; ValueData: "Compass Browser"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\CompassBrowser\DefaultIcon"; ValueType: string; ValueData: """{app}\Mare.exe"",0"
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\CompassBrowser\shell\open\command"; ValueType: string; ValueData: """{app}\Mare.exe"""
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\CompassBrowser\Capabilities"; ValueType: string; ValueName: "ApplicationName"; ValueData: "Compass Browser"
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\CompassBrowser\Capabilities"; ValueType: string; ValueName: "ApplicationDescription"; ValueData: "Navegue na web com o Compass Browser."
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\CompassBrowser\Capabilities"; ValueType: string; ValueName: "ApplicationIcon"; ValueData: """{app}\Mare.exe"",0"
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\CompassBrowser\Capabilities\URLAssociations"; ValueType: string; ValueName: "http"; ValueData: "CompassBrowser.Url"
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\CompassBrowser\Capabilities\URLAssociations"; ValueType: string; ValueName: "https"; ValueData: "CompassBrowser.Url"
+Root: HKCU; Subkey: "Software\RegisteredApplications"; ValueType: string; ValueName: "Compass Browser"; ValueData: "Software\Clients\StartMenuInternet\CompassBrowser\Capabilities"; Flags: uninsdeletevalue
 [Run]
 Filename: "{app}\Mare.exe"; Description: "Abrir Compass Browser"; Flags: nowait postinstall skipifsilent
 Filename: "{app}\Mare.exe"; Flags: nowait; Check: IsMareUpdate
