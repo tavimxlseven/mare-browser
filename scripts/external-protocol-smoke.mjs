@@ -27,10 +27,10 @@ try{
  ws.addEventListener('message',e=>{const message=JSON.parse(String(e.data));if(message.method==='Fetch.requestPaused')p.call('Fetch.fulfillRequest',{requestId:message.params.requestId,responseCode:200,responseHeaders:[{name:'Content-Type',value:'text/html'}],body:Buffer.from(html).toString('base64')}).catch(()=>{})});
  await p.call('Fetch.enable',{patterns:[{urlPattern:'https://authenticate.riotgames.com/__compass_fixture*'}]});
  await c.eval('window.__protocolQA={state:null};var previousProtocolQA=window.mare.receive;window.mare.receive=s=>{window.__protocolQA.state=typeof s==="string"?JSON.parse(s):s;previousProtocolQA(s)};true');
- for(const button of ['redirect','popup']){
+ for(const button of ['redirect','popup','auto']){
   await p.call('Page.navigate',{url:`https://authenticate.riotgames.com/__compass_fixture?mode=${button}`});
   await until('mock trusted origin',()=>p.eval(`location.href===${JSON.stringify(`https://authenticate.riotgames.com/__compass_fixture?mode=${button}`)}&&document.readyState==="complete"&&Boolean(document.querySelector("#redirect"))`));
-  await p.call('Runtime.evaluate',{expression:`document.querySelector('#${button}').click();true`,userGesture:true});
+  await p.call('Runtime.evaluate',{expression:`document.querySelector('#${button==='auto'?'redirect':button}').click();true`,userGesture:button!=='auto'});
   await until(`${button} confirmation`,()=>c.eval('!document.querySelector("#overlay").hidden&&document.querySelector("#overlay").textContent.includes("Abrir Riot Client?")'));
   assert.equal(await c.eval('document.querySelector("#overlay").textContent.includes("NOT_A_REAL_CODE")'),false);
   await c.click('[data-permission-deny]');
@@ -42,7 +42,7 @@ try{
  await p.call('Page.navigate',{url:base+'/untrusted'});await until('untrusted fixture',()=>p.eval(`location.origin===${JSON.stringify(base)}`));
  await p.call('Runtime.evaluate',{expression:'document.querySelector("#redirect").click();true',userGesture:true});await delay(500);
  assert.equal(await c.eval('document.querySelector("#overlay").hidden'),true);
- console.log('PASS redirect and popup callbacks request one-shot confirmation; callback secrets are absent from chrome/history; untrusted origins are blocked (no app launched)');
+ console.log('PASS gesture, automatic and popup callbacks request one-shot confirmation; callback secrets are absent from chrome/history; untrusted origins are blocked (no app launched)');
  const closed=once(child,'close');await c.ipc({cmd:'window',action:'close'});await closed;
 }catch(error){
  console.error('Private QA diagnostics',JSON.stringify({exit:child.exitCode,targets:await fetch(`http://127.0.0.1:${port}/json/list`).then(r=>r.json()).then(list=>list.map(t=>({type:t.type,url:t.url}))).catch(()=>[]),ui:await c?.eval('document.body.innerText.slice(-2000)').catch(()=>null)}));
