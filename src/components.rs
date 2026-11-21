@@ -28,11 +28,19 @@ pub fn process_path(path: &Path) -> PathBuf {
 }
 
 pub fn executable(component: &str) -> Option<PathBuf> {
+    #[cfg(windows)]
     let relative = match component {
         "sunnify" => "sunnify/Sunnify.exe",
         "yt-dlp" => "music/yt-dlp.exe",
         "deno" => "music/deno.exe",
         "larpercord" => "larpercord/larperCord/larpercord.exe",
+        _ => return None,
+    };
+    #[cfg(target_os = "linux")]
+    let relative = match component {
+        "sunnify" => "sunnify/Sunnify",
+        "yt-dlp" => "music/yt-dlp",
+        "deno" => "music/deno",
         _ => return None,
     };
     let root = std::env::current_exe().ok()?.parent()?.join("components");
@@ -113,4 +121,20 @@ mod tests {
             assert_eq!(process_path(Path::new(path)), PathBuf::from(path));
         }
     }
+}
+
+#[cfg(target_os = "linux")]
+pub struct ProcessTree(i32);
+#[cfg(target_os = "linux")]
+impl ProcessTree {
+    pub fn new(child: &std::process::Child) -> Result<Self, String> {
+        let pid = i32::try_from(child.id()).map_err(|_| "Processo inválido.")?;
+        // Only kill a group created specifically for this owned child, never our parent group.
+        if unsafe { libc::getpgid(pid) } != pid { return Err("Grupo do downloader indisponível.".into()); }
+        Ok(Self(pid))
+    }
+}
+#[cfg(target_os = "linux")]
+impl Drop for ProcessTree {
+    fn drop(&mut self) { unsafe { libc::kill(-self.0, libc::SIGKILL); } }
 }

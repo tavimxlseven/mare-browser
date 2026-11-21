@@ -1293,8 +1293,10 @@ pub(crate) fn fetch_metadata(item_url: &str) -> Result<Value, String> {
     }
 }
 #[cfg(not(windows))]
-fn fetch_metadata(_: &str) -> Result<Value, String> {
-    Err("Importação online disponível no Windows.".into())
+pub(crate) fn fetch_metadata(item_url: &str) -> Result<Value, String> {
+    let mut endpoint = url::Url::parse("https://open.spotify.com/oembed").unwrap();
+    endpoint.query_pairs_mut().append_pair("url", item_url);
+    crate::portable::json(endpoint.as_str(), None, None, "application/json", None)
 }
 
 #[cfg(test)]

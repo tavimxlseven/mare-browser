@@ -308,6 +308,7 @@ fn import(token: &str, cancel: &AtomicBool) -> Result<(Vec<Value>, bool), String
     }
     Ok((items, truncated))
 }
+#[cfg(windows)]
 fn http(host: &str, path: &str, body: Option<&str>, token: Option<&str>) -> Result<Value, String> {
     use windows::{
         core::{w, HSTRING, PCWSTR},
@@ -433,4 +434,12 @@ mod tests {
             "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
         );
     }
+}
+
+#[cfg(target_os = "linux")]
+fn http(host: &str, path: &str, body: Option<&str>, token: Option<&str>) -> Result<Value, String> {
+    if !matches!(host, "accounts.spotify.com" | "api.spotify.com") || !path.starts_with('/') {
+        return Err("Destino Spotify inválido.".into());
+    }
+    crate::portable::json(&format!("https://{host}{path}"), body.map(str::as_bytes), token, "application/x-www-form-urlencoded", None)
 }

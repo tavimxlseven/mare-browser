@@ -67,8 +67,12 @@ impl Catalog {
         self.active = json!({"uri":uri,"state":"loading","tracks":[]});
         std::thread::spawn(move || {
             let result = (|| -> Result<Value, String> {
+                #[cfg(windows)]
                 use std::os::windows::process::CommandExt;
-                let mut child = Command::new(executable)
+                #[cfg(target_os = "linux")]
+                use crate::portable::CommandExt;
+                let mut command = Command::new(executable);
+                command
                     .args(["info", &url, "--json"])
                     .env("APPDATA", &runtime)
                     .env("LOCALAPPDATA", &runtime)
@@ -77,8 +81,10 @@ impl Catalog {
                     .stdin(Stdio::null())
                     .stdout(Stdio::piped())
                     .stderr(Stdio::null())
-                    .creation_flags(0x08004000)
-                    .spawn()
+                    .creation_flags(0x08004000);
+                #[cfg(target_os = "linux")]
+                crate::portable::prepare_job(&mut command);
+                let mut child = command.spawn()
                     .map_err(|e| e.to_string())?;
                 let _tree = crate::components::ProcessTree::new(&child)?;
                 let mut stdout = child

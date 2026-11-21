@@ -195,7 +195,10 @@ fn run_normalized(
 ) -> Result<(), String> {
     crate::spotify::normalize_link(url)?;
     fs::create_dir_all(folder).map_err(|e| e.to_string())?;
-    use std::os::windows::process::CommandExt;
+    #[cfg(windows)]
+                use std::os::windows::process::CommandExt;
+                #[cfg(target_os = "linux")]
+                use crate::portable::CommandExt;
     let metadata: Value = if let Some(path) = cached {
         if fs::metadata(path).map_err(|e| e.to_string())?.len() > 2_000_000 {
             return Err("Metadados excedem o limite.".into());

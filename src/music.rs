@@ -712,8 +712,13 @@ impl Music {
                     .stdin(Stdio::null())
                     .stdout(Stdio::piped())
                     .stderr(Stdio::null());
+                #[cfg(windows)]
                 use std::os::windows::process::CommandExt;
+                #[cfg(target_os = "linux")]
+                use crate::portable::CommandExt;
                 command.creation_flags(0x0800_0000 | 0x0000_4000);
+                #[cfg(target_os = "linux")]
+                crate::portable::prepare_job(&mut command);
                 let mut child = command.spawn().map_err(|e| e.to_string())?;
                 let tree = match crate::components::ProcessTree::new(&child) {
                     Ok(tree) => tree,
@@ -971,6 +976,7 @@ mod tests {
         drop(music);
         fs::remove_dir_all(dir).unwrap();
     }
+    #[cfg(windows)]
     #[test]
     fn reused_audio_finishes_a_new_playlist_without_rewriting_its_source() {
         let dir = std::env::temp_dir().join(format!(
@@ -984,7 +990,10 @@ mod tests {
         assert!(music.add_file(&file, "Song", "Artist"));
         let track_uri = "spotify:track:0000000000000000000001";
         music.tracks[0].source_uri = track_uri.into();
-        use std::os::windows::process::CommandExt;
+        #[cfg(windows)]
+                use std::os::windows::process::CommandExt;
+                #[cfg(target_os = "linux")]
+                use crate::portable::CommandExt;
         let mut child = Command::new("cmd")
             .args(["/C", "exit", "0"])
             .creation_flags(0x08000000)

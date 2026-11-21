@@ -6,11 +6,15 @@ use std::{
     path::{Path, PathBuf},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
+#[cfg(windows)]
+type IpcPipe = fs::File;
+#[cfg(target_os = "linux")]
+type IpcPipe = std::os::unix::net::UnixStream;
 pub struct Presence {
     path: PathBuf,
     client_id: String,
     enabled: bool,
-    pipe: Option<fs::File>,
+    pipe: Option<IpcPipe>,
     buffer: Vec<u8>,
     state: String,
     last: String,
@@ -82,6 +86,7 @@ impl Presence {
         pipe.write_all(&(data.len() as u32).to_le_bytes())?;
         pipe.write_all(&data)
     }
+    #[cfg(windows)]
     fn connect(&mut self) {
         use std::os::windows::io::AsRawHandle;
         use windows::Win32::{
@@ -121,12 +126,31 @@ impl Presence {
         }
         self.state = "discord_closed".into();
     }
+    #[cfg(target_os = "linux")]
+    fn connect(&mut self) {
+        let Some(root) = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from) else {
+            self.state = "discord_closed".into(); return;
+        };
+        for index in 0..10 {
+            for dir in [&root, &root.join("app/com.discordapp.Discord")] {
+                if let Ok(pipe) = IpcPipe::connect(dir.join(format!("discord-ipc-{index}"))) {
+                    if pipe.set_nonblocking(true).is_err() { continue; }
+                    self.pipe = Some(pipe); self.buffer.clear(); self.state = "connecting".into();
+                    if self.send(0, &json!({"v":1,"client_id":self.client_id})).is_err() { self.pipe = None; }
+                    return;
+                }
+            }
+        }
+        self.state = "discord_closed".into();
+    }
     fn pump(&mut self) {
         let Some(pipe) = self.pipe.as_mut() else {
             return;
         };
         let mut bytes = [0u8; 4096];
         loop {
+            #[cfg(windows)]
+            let available = {
             use std::os::windows::io::AsRawHandle;
             use windows::Win32::{Foundation::HANDLE, System::Pipes::PeekNamedPipe};
             let mut available = 0;
@@ -146,6 +170,10 @@ impl Presence {
                 self.state = "disconnected".into();
                 return;
             }
+                available
+            };
+            #[cfg(target_os = "linux")]
+            let available = 4096;
             if available == 0 {
                 break;
             }
