@@ -26,6 +26,9 @@ jobs:
       - run: cargo fmt --all --check
       - run: node --test linux/model.test.cjs
       - run: cargo test --locked
+      - name: Test protected account storage
+        run: |
+          dbus-run-session -- sh -c 'printf "disposable-ci-keyring" | gnome-keyring-daemon --unlock --components=secrets; timeout 30s cargo test --locked linux_os_keyring_roundtrip -- --ignored'
       - run: cargo build --release --locked
       - name: Build Ubuntu package
         run: python3 linux/package.py

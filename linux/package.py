@@ -64,6 +64,8 @@ def main():
     for name in ["compass-browser", "chrome_crashpad_handler", "chrome-sandbox"]:
         (LIB / name).chmod(0o755)
     (LIB / "chrome-sandbox").chmod(0o4755)
+    for executable, args in [("components/sunnify/Sunnify", ["--help"]), ("components/music/yt-dlp", ["--version"]), ("components/music/deno", ["--version"])]:
+        subprocess.run([str(LIB / executable), *args], check=True, timeout=30, stdout=subprocess.DEVNULL)
     rust = ROOT / "target/release/mare-browser"
     shutil.copyfile(rust, LIB / "noise-worker")
     (LIB / "noise-worker").chmod(0o755)

@@ -164,6 +164,15 @@ fn crypt(bytes: &[u8], encrypt: bool, key: &[u8; 32]) -> Result<Vec<u8>, String>
 #[cfg(test)]
 mod tests {
     #[test]
+    #[ignore = "requires an unlocked Secret Service keyring"]
+    fn linux_os_keyring_roundtrip() {
+        let raw = b"disposable account session fixture";
+        let encrypted = super::protect(raw, true).unwrap();
+        assert_ne!(encrypted, raw);
+        // Each invocation reloads the same key from the OS; no plaintext key file.
+        assert_eq!(super::protect(&encrypted, false).unwrap(), raw);
+    }
+    #[test]
     fn session_cipher_authenticates_the_key_and_payload() {
         let raw = b"private session fixture";
         let mut sealed = super::crypt(raw, true, &[1; 32]).unwrap();

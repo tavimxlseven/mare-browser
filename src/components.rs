@@ -144,3 +144,48 @@ impl Drop for ProcessTree {
         }
     }
 }
+
+#[cfg(all(test, target_os = "linux"))]
+mod linux_tests {
+    use super::*;
+    use std::{
+        io::{BufRead, BufReader},
+        process::{Command, Stdio},
+    };
+    #[test]
+    fn jobs_cannot_adopt_the_browser_process_group() {
+        let mut child = Command::new("sleep").arg("30").spawn().unwrap();
+        assert!(ProcessTree::new(&child).is_err());
+        child.kill().unwrap();
+        child.wait().unwrap();
+    }
+    #[test]
+    fn cancelling_owned_job_terminates_its_descendants() {
+        let mut command = Command::new("sh");
+        command
+            .args(["-c", "sleep 30 & echo $!; wait"])
+            .stdout(Stdio::piped());
+        crate::portable::prepare_job(&mut command);
+        let mut child = command.spawn().unwrap();
+        let tree = ProcessTree::new(&child).unwrap();
+        let mut pid = String::new();
+        BufReader::new(child.stdout.take().unwrap())
+            .read_line(&mut pid)
+            .unwrap();
+        let descendant: u32 = pid.trim().parse().unwrap();
+        drop(tree);
+        assert!(!child.wait().unwrap().success());
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        loop {
+            let stat = std::fs::read_to_string(format!("/proc/{descendant}/stat"));
+            if stat.is_err() || stat.unwrap().split(") ").nth(1).unwrap().starts_with('Z') {
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "descendant survived job cancellation"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+    }
+}
