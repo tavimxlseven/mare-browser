@@ -11,6 +11,10 @@
 
 Compass Browser is a Windows browser built with Rust, Tao and Wry. Web content runs in Microsoft WebView2; the browser interface and app workspace share a local UI. The project is in active development.
 
+An **Ubuntu 24.04+ amd64 preview** is also available, using sandboxed Chromium and
+the same Noise Music UI and Rust workers. See the [Ubuntu installation guide](linux/README.md)
+and [Ubuntu releases](https://github.com/tavimxlseven/mare-browser/releases?q=ubuntu&expanded=true).
+
 ![Compass Browser on Windows](docs/screenshots/start-light.png)
 
 ## Features

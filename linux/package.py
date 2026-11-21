@@ -77,6 +77,7 @@ def main():
         (application / name).symlink_to(Path("../..") / name)
     html = subprocess.check_output([rust, "--dump-interface"], text=True)
     html = html.replace("</head>", "<style>#titlebar{-webkit-app-region:drag}#titlebar button,#titlebar input,#titlebar form{-webkit-app-region:no-drag}</style></head>")
+    html = html.replace("Detalhes WebView2", "Detalhes do Chromium")
     (application / "index.html").write_text(html)
     shutil.copyfile(ROOT / "src/reader.js", application / "reader.js")
     protection = (ROOT / "src/protection.rs").read_text()
@@ -131,7 +132,7 @@ Icon=compass-browser
 Categories=Network;WebBrowser;
 MimeType=text/html;x-scheme-handler/http;x-scheme-handler/https;
 StartupNotify=true
-StartupWMClass=Compass Browser
+StartupWMClass=compass-browser
 """)
     # Ubuntu restricts unprivileged user namespaces. Allow the packaged sandbox,
     # rather than disabling Chromium sandboxing or changing global kernel settings.

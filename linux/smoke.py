@@ -14,6 +14,8 @@ with tempfile.TemporaryDirectory(prefix="compass-smoke-", dir="/tmp") as tempora
     config.write_text('pcm.!default { type null }\nctl.!default { type hw card 0 }\n')
     environment = {**os.environ, "COMPASS_SMOKE_DIR": temporary, "ALSA_CONFIG_PATH": str(config)}
     result = subprocess.run(["/usr/bin/compass-browser", "--smoke-test", "--disable-gpu"], env=environment, timeout=110, capture_output=True, text=True)
+    if result.returncode == 0:
+        result = subprocess.run(["/usr/bin/compass-browser", "--smoke-test", "--smoke-restore", "--disable-gpu"], env=environment, timeout=50, capture_output=True, text=True)
     destination = ROOT / "dist"
     destination.mkdir(exist_ok=True)
     for name, output in [("result.json", "ubuntu-smoke.json"), ("screenshot.png", "ubuntu-smoke.png")]:
