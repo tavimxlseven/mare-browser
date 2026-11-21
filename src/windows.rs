@@ -152,7 +152,9 @@ struct Browser {
     startup_error: Option<String>,
 }
 
-fn embedded_ui() -> String { crate::interface::html() }
+fn embedded_ui() -> String {
+    crate::interface::html()
+}
 
 fn data_directory() -> PathBuf {
     profile::directory(

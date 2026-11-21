@@ -649,6 +649,14 @@ fn protect(bytes: &[u8], encrypt: bool) -> Result<Vec<u8>, String> {
 #[cfg(target_os = "linux")]
 fn http(origin: &str, path: &str, token: Option<&str>, body: &Value) -> Result<Value, String> {
     let bytes = serde_json::to_vec(body).map_err(|e| e.to_string())?;
-    if bytes.len() > 1_900_000 { return Err("Sincronização excede o limite por pedido.".into()); }
-    crate::portable::json(&format!("{origin}{path}"), Some(&bytes), token, "application/json", Some(origin))
+    if bytes.len() > 1_900_000 {
+        return Err("Sincronização excede o limite por pedido.".into());
+    }
+    crate::portable::json(
+        &format!("{origin}{path}"),
+        Some(&bytes),
+        token,
+        "application/json",
+        Some(origin),
+    )
 }

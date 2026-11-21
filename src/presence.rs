@@ -129,14 +129,24 @@ impl Presence {
     #[cfg(target_os = "linux")]
     fn connect(&mut self) {
         let Some(root) = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from) else {
-            self.state = "discord_closed".into(); return;
+            self.state = "discord_closed".into();
+            return;
         };
         for index in 0..10 {
             for dir in [&root, &root.join("app/com.discordapp.Discord")] {
                 if let Ok(pipe) = IpcPipe::connect(dir.join(format!("discord-ipc-{index}"))) {
-                    if pipe.set_nonblocking(true).is_err() { continue; }
-                    self.pipe = Some(pipe); self.buffer.clear(); self.state = "connecting".into();
-                    if self.send(0, &json!({"v":1,"client_id":self.client_id})).is_err() { self.pipe = None; }
+                    if pipe.set_nonblocking(true).is_err() {
+                        continue;
+                    }
+                    self.pipe = Some(pipe);
+                    self.buffer.clear();
+                    self.state = "connecting".into();
+                    if self
+                        .send(0, &json!({"v":1,"client_id":self.client_id}))
+                        .is_err()
+                    {
+                        self.pipe = None;
+                    }
                     return;
                 }
             }
@@ -151,25 +161,25 @@ impl Presence {
         loop {
             #[cfg(windows)]
             let available = {
-            use std::os::windows::io::AsRawHandle;
-            use windows::Win32::{Foundation::HANDLE, System::Pipes::PeekNamedPipe};
-            let mut available = 0;
-            if unsafe {
-                PeekNamedPipe(
-                    HANDLE(pipe.as_raw_handle()),
-                    None,
-                    0,
-                    None,
-                    Some(&mut available),
-                    None,
-                )
-            }
-            .is_err()
-            {
-                self.pipe = None;
-                self.state = "disconnected".into();
-                return;
-            }
+                use std::os::windows::io::AsRawHandle;
+                use windows::Win32::{Foundation::HANDLE, System::Pipes::PeekNamedPipe};
+                let mut available = 0;
+                if unsafe {
+                    PeekNamedPipe(
+                        HANDLE(pipe.as_raw_handle()),
+                        None,
+                        0,
+                        None,
+                        Some(&mut available),
+                        None,
+                    )
+                }
+                .is_err()
+                {
+                    self.pipe = None;
+                    self.state = "disconnected".into();
+                    return;
+                }
                 available
             };
             #[cfg(target_os = "linux")]

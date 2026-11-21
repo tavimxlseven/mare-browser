@@ -356,7 +356,7 @@ impl Protection {
         Ok(())
     }
 
-    #[cfg(not(windows))]
+    #[cfg(not(any(windows, target_os = "linux")))]
     pub fn attach(
         &self,
         _view: &wry::WebView,
@@ -364,6 +364,27 @@ impl Protection {
         _on_block: impl Fn(u64) + 'static,
     ) -> Result<(), String> {
         Err("O filtro de rede nativo está disponível no Windows nesta versão.".into())
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl Protection {
+    pub fn attach_linux(&self, tab_id: u64) {
+        self.inner().tabs.entry(tab_id).or_default().attached = true;
+    }
+    pub fn check_linux(
+        &self,
+        tab_id: u64,
+        url: &str,
+        kind: &str,
+        method: &str,
+        referer: &str,
+    ) -> bool {
+        let blocked = self.should_block(tab_id, url, kind, method, referer);
+        if blocked {
+            self.record_block(tab_id);
+        }
+        blocked
     }
 }
 

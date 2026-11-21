@@ -130,11 +130,17 @@ impl ProcessTree {
     pub fn new(child: &std::process::Child) -> Result<Self, String> {
         let pid = i32::try_from(child.id()).map_err(|_| "Processo inválido.")?;
         // Only kill a group created specifically for this owned child, never our parent group.
-        if unsafe { libc::getpgid(pid) } != pid { return Err("Grupo do downloader indisponível.".into()); }
+        if unsafe { libc::getpgid(pid) } != pid {
+            return Err("Grupo do downloader indisponível.".into());
+        }
         Ok(Self(pid))
     }
 }
 #[cfg(target_os = "linux")]
 impl Drop for ProcessTree {
-    fn drop(&mut self) { unsafe { libc::kill(-self.0, libc::SIGKILL); } }
+    fn drop(&mut self) {
+        unsafe {
+            libc::kill(-self.0, libc::SIGKILL);
+        }
+    }
 }

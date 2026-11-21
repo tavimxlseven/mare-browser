@@ -441,5 +441,11 @@ fn http(host: &str, path: &str, body: Option<&str>, token: Option<&str>) -> Resu
     if !matches!(host, "accounts.spotify.com" | "api.spotify.com") || !path.starts_with('/') {
         return Err("Destino Spotify inválido.".into());
     }
-    crate::portable::json(&format!("https://{host}{path}"), body.map(str::as_bytes), token, "application/x-www-form-urlencoded", None)
+    crate::portable::json(
+        &format!("https://{host}{path}"),
+        body.map(str::as_bytes),
+        token,
+        "application/x-www-form-urlencoded",
+        None,
+    )
 }

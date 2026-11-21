@@ -315,6 +315,13 @@ mod tests {
 #[cfg(target_os = "linux")]
 pub fn search(query: &str) -> Result<Value, String> {
     let mut endpoint = url::Url::parse("https://spotify.xwolf.space/api/search").unwrap();
-    endpoint.query_pairs_mut().append_pair("q", query).append_pair("type", "track").append_pair("limit", "25");
-    normalize(&crate::portable::json(endpoint.as_str(), None, None, "application/json", None)?, query)
+    endpoint
+        .query_pairs_mut()
+        .append_pair("q", query)
+        .append_pair("type", "track")
+        .append_pair("limit", "25");
+    normalize(
+        &crate::portable::json(endpoint.as_str(), None, None, "application/json", None)?,
+        query,
+    )
 }
