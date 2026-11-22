@@ -4,6 +4,7 @@ mod audio;
 mod catalog_search;
 mod components;
 mod covers;
+mod extensions;
 mod model;
 mod music;
 mod music_cloud;
@@ -19,6 +20,23 @@ mod spotify;
 mod spotify_account;
 
 fn main() {
+    if std::env::args().nth(1).as_deref() == Some("--prepare-extension") {
+        let mut args = std::env::args_os().skip(2);
+        let result = match (args.next(), args.next()) {
+            (Some(directory), Some(input)) => extensions::store_id(&input.to_string_lossy())
+                .and_then(|id| extensions::prepare(std::path::Path::new(&directory), &id)),
+            _ => Err("O diretório e o link da extensão são obrigatórios.".into()),
+        };
+        match result {
+            Ok(package) => println!("{}", serde_json::json!({
+                "summary": package.summary,
+                "id": package.id,
+                    "folder": package.folder.file_name().and_then(std::ffi::OsStr::to_str),
+            })),
+            Err(error) => println!("{}", serde_json::json!({"error": error})),
+        }
+        return;
+    }
     if std::env::args().nth(1).as_deref() == Some("--linux-host") {
         if let Err(error) = host() {
             eprintln!("{error}");

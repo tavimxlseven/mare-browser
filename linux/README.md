@@ -1,11 +1,11 @@
 # Compass Browser for Ubuntu
 
-First Linux preview, for Ubuntu **24.04 or newer, amd64 (Intel/AMD 64-bit)**.
+Compass Browser for Ubuntu **24.04 or newer, amd64 (Intel/AMD 64-bit)**.
 
 Download the `.deb` from the Ubuntu release and install it with:
 
 ```sh
-sudo apt install ./compass-browser_0.6.4-1_amd64.deb
+sudo apt install ./compass-browser_0.6.5-1_amd64.deb
 ```
 
 Open **Compass Browser** from the application menu, or run `compass-browser`.
@@ -30,11 +30,18 @@ tokens use AES-GCM with a random key in the current user's Secret Service keyrin
 Unlock the Ubuntu keyring if prompted; there is no plaintext token fallback.
 Site passwords/cookies are managed separately by Chromium and the OS keyring.
 
-## Current preview limitations
+## Extensions and updates
 
-- Chrome Web Store extensions and Windows WebView2 integrations are not available.
-- Updates are installed by downloading a newer `.deb`; the Windows automatic
-  installer is never launched on Linux. Opening the update screen shows Ubuntu releases.
+Open **Extensões**, paste the Chrome Web Store link, and review the permissions
+before installing. Compass verifies the CRX3 signatures before loading the
+extension into the regular browsing profile. The private profile has no installed
+extensions. Compatibility depends on the Chromium APIs supported by Electron.
+
+Open **Buscar atualizações** in the browser menu to check for a newer Ubuntu
+package. You can also enable checks at startup. Download the `.deb`, close
+Compass and install it with Apt or the Ubuntu package installer.
+
+## Platform limitations
 - The optional LAN pairing server is unavailable; account-based Noise device
   control is retained.
 - Proprietary DRM/Widevine content is not bundled. This does not provide a Spotify
@@ -64,4 +71,4 @@ dbus-run-session -- xvfb-run -a python3 linux/smoke.py
 The packaging script downloads fixed, SHA-256-verified public releases of Electron,
 Sunnify, yt-dlp and Deno. It builds only from repository source, never a development
 profile. GitHub Actions tests the real installed package and publishes Ubuntu tags
-separately from Windows. Ubuntu prereleases do not replace the latest Windows release.
+separately from Windows. Ubuntu releases do not replace the latest Windows release.

@@ -12,12 +12,15 @@ const {
   clipboard,
   Menu,
   powerSaveBlocker,
+  net,
 } = require("electron");
 const fs = require("node:fs");
 const path = require("node:path");
 const os = require("node:os");
 const { Bridge } = require("./bridge.cjs");
+const { Extensions } = require("./extensions.cjs");
 const M = require("./model.cjs");
+const updates = require("./updates.cjs");
 const ROOT = __dirname;
 const UI = "compass-ui://app/";
 const smoke =
@@ -120,12 +123,15 @@ class Host {
     this.permissionRequests = new Map();
     this.rect = { x: 0, y: 100, width: 1100, height: 650 };
     this.overlay = false;
+    this.fullscreenTab = null;
     this.uiReady = false;
     this.savedTimer = null;
     this.appState = null;
     this.sequence = 0;
     this.quit = false;
     this.errors = [];
+    this.update = { status: "current" };
+    this.availableUpdate = null;
     this.bridge = new Bridge(path.join(ROOT, "noise-worker"), profile);
     this.bridge.on("closed", () =>
       this.notify("O serviço do Noise encerrou. Reabra o Compass."),
@@ -184,6 +190,8 @@ class Host {
       this.command(v).catch((error) => this.notify(error.message));
     });
     this.win.on("resize", () => this.arrange());
+    this.win.on("enter-full-screen", () => this.arrange());
+    this.win.on("leave-full-screen", () => this.arrange());
     this.win.on("close", (e) => {
       if (!this.quit) {
         e.preventDefault();
@@ -201,7 +209,11 @@ class Host {
       enabled: this.state.settings.shield_enabled,
       exceptions: this.state.settings.shield_exceptions,
     });
-    this.configureSession(session.fromPartition("persist:compass-sites"));
+    const sites = session.fromPartition("persist:compass-sites");
+    this.configureSession(sites);
+    this.extensions = new Extensions(sites, path.join(profile, "extensions"), path.join(ROOT, "noise-worker"));
+    await this.extensions.restore();
+    this.win.webContents.session.on("will-download", (_, item) => this.trackDownload(item));
     await this.win.loadURL(UI);
     this.win.show();
     for (const tab of this.state.tabs)
@@ -212,6 +224,7 @@ class Host {
       await this.newTab(url);
     this.updateTimer = setInterval(() => this.snapshotProtection(), 1500);
     this.playbackTimer = setInterval(() => this.checkPlayback(), 2000);
+    if (!smoke && this.state.settings.automatic_updates) void this.checkUpdates();
   }
   call(method, ...args) {
     if (!this.uiReady || this.win.isDestroyed()) return Promise.resolve();
@@ -235,12 +248,9 @@ class Host {
     this.call("receive", {
       ...this.state,
       apps: this.appState,
+      platform: "linux",
       music_remote: { enabled: false },
-      update: {
-        status: "current",
-        current_version: "0.6.4",
-        message: "Ubuntu preview — atualizações pelo pacote .deb",
-      },
+      update: this.update,
       protection: this.protection || {
         enabled: this.state.settings.shield_enabled,
         status: "unavailable",
@@ -296,12 +306,30 @@ class Host {
       height: Math.max(1, Math.min(Math.round(this.rect.height), height - y)),
     };
     for (const [id, view] of this.views) {
-      view.setBounds(bounds);
+      const fullscreen = id === this.fullscreenTab;
+      view.setBounds(fullscreen ? { x: 0, y: 0, width, height } : bounds);
       view.setVisible(
-        id === this.state.active_id &&
+        fullscreen || (id === this.state.active_id &&
           !this.overlay &&
-          !this.appState?.active_id,
+          !this.appState?.active_id),
       );
+    }
+  }
+  canFullscreen(tab) {
+    return tab?.id === this.state.active_id && !this.overlay && !this.appState?.active_id;
+  }
+  async exitPageFullscreen() {
+    const id = this.fullscreenTab;
+    if (id === null) return;
+    const contents = this.views.get(id)?.webContents;
+    await contents?.executeJavaScript(
+      "if (document.fullscreenElement) document.exitFullscreen()",
+    ).catch(() => {});
+    if (this.fullscreenTab === id) {
+      this.fullscreenTab = null;
+      // The renderer may already be gone when a tab closes or crashes.
+      if (this.win.isFullScreen()) this.win.setFullScreen(false);
+      this.arrange();
     }
   }
   configureSession(ses) {
@@ -309,6 +337,7 @@ class Host {
     ses.__compassConfigured = true;
     ses.setPermissionCheckHandler((contents, permission, origin) => {
       const tab = this.tabForContents(contents);
+      if (permission === "fullscreen") return this.canFullscreen(tab);
       return (
         !!tab &&
         permission === "media" &&
@@ -318,6 +347,10 @@ class Host {
     ses.setPermissionRequestHandler(
       (contents, permission, callback, details) => {
         const tab = this.tabForContents(contents);
+        if (permission === "fullscreen") {
+          callback(this.canFullscreen(tab));
+          return;
+        }
         if (
           !tab ||
           ![
@@ -325,7 +358,6 @@ class Host {
             "notifications",
             "clipboard-read",
             "geolocation",
-            "fullscreen",
           ].includes(permission)
         ) {
           callback(false);
@@ -363,7 +395,6 @@ class Host {
             notifications: "notificações",
             "clipboard-read": "área de transferência",
             geolocation: "localização",
-            fullscreen: "tela cheia",
           }[permission],
         });
       },
@@ -371,8 +402,10 @@ class Host {
     ses.webRequest.onBeforeRequest(
       { urls: ["http://*/*", "https://*/*"] },
       async (details, callback) => {
+        const contents = details.webContents ||
+          (Number.isInteger(details.webContentsId) ? webContents.fromId(details.webContentsId) : null);
         const tab = this.tabForContents(
-          details.webContents || webContents.fromId(details.webContentsId),
+          contents,
         );
         if (!tab) {
           callback({ cancel: false });
@@ -446,6 +479,16 @@ class Host {
     this.win.contentView.addChildView(view);
     this.arrange();
     const wc = view.webContents;
+    wc.on("enter-html-full-screen", () => {
+      this.fullscreenTab = tab.id;
+      if (this.canFullscreen(tab)) this.arrange();
+      else void this.exitPageFullscreen();
+    });
+    wc.on("leave-html-full-screen", () => {
+      if (this.fullscreenTab !== tab.id) return;
+      this.fullscreenTab = null;
+      this.arrange();
+    });
     const reject = (event, url) => {
       if (!M.pageURL(url) || url === M.START) {
         event.preventDefault();
@@ -531,6 +574,7 @@ class Host {
       }
     });
     wc.on("render-process-gone", () => {
+      if (this.fullscreenTab === tab.id) void this.exitPageFullscreen();
       tab.loading = false;
       this.notify("Esta aba encerrou. Recarregue para tentar novamente.");
       this.publish();
@@ -564,7 +608,9 @@ class Host {
         ].includes(input.key.toLowerCase())
       ) {
         event.preventDefault();
-        this.call("shortcut", input.key.toLowerCase(), input.shift);
+        this.exitPageFullscreen().then(() =>
+          this.call("shortcut", input.key.toLowerCase(), input.shift),
+        );
       }
       if (input.key === "F5") {
         event.preventDefault();
@@ -584,6 +630,7 @@ class Host {
   }
   async newTab(value = M.START, privateTab = false) {
     const url = M.normalize(value, this.state.settings.search_engine);
+    await this.exitPageFullscreen();
     const tab = M.newTab(this.state, url, privateTab);
     await this.background();
     await this.createView(tab);
@@ -599,6 +646,7 @@ class Host {
   async navigate(input) {
     const tab = this.active();
     if (!tab) return;
+    await this.exitPageFullscreen();
     await this.background();
     tab.url = M.normalize(input, this.state.settings.search_engine);
     tab.title =
@@ -616,6 +664,10 @@ class Host {
   destroyView(id) {
     const view = this.views.get(id);
     if (view) {
+      if (this.fullscreenTab === id) {
+        this.fullscreenTab = null;
+        if (this.win.isFullScreen()) this.win.setFullScreen(false);
+      }
       this.views.delete(id);
       this.win.contentView.removeChildView(view);
       view.webContents.close({ waitForBeforeUnload: false });
@@ -790,6 +842,10 @@ class Host {
           width: Math.max(1, Number(v.width) || 1),
           height: Math.max(1, Number(v.height) || 1),
         };
+        if (this.fullscreenTab !== null && !v.overlay) {
+          this.arrange();
+          return;
+        }
         const r = this.rect,
           panels =
             Array.isArray(v.panels) &&
@@ -804,6 +860,7 @@ class Host {
           previous = this.overlay;
         this.overlay = next;
         if (next && !previous && !this.appState?.active_id) {
+          await this.exitPageFullscreen();
           const page = this.activeView(),
             id = this.state.active_id;
           if (page)
@@ -842,6 +899,7 @@ class Host {
         break;
       case "activate":
         if (this.state.tabs.some((t) => t.id === id)) {
+          if (this.state.active_id !== id) await this.exitPageFullscreen();
           await this.background();
           this.state.active_id = id;
           this.arrange();
@@ -1017,6 +1075,7 @@ class Host {
       case "apps_open":
       case "apps_close":
       case "apps_background":
+        if (v.cmd === "apps_open") await this.exitPageFullscreen();
         if (v.id === "discord" && v.cmd === "apps_open") {
           await this.newTab("https://discord.com/app");
           break;
@@ -1115,27 +1174,20 @@ class Host {
         await this.resources();
         return;
       case "check_updates":
-        await this.newTab(
-          "https://github.com/tavimxlseven/mare-browser/releases?q=ubuntu&expanded=true",
-        );
-        this.notify(
-          "Na versão Ubuntu, instale o .deb mais recente para atualizar.",
-        );
-        break;
-      case "extensions_list":
-        this.call("extensionsEvent", {
-          status: "ready",
-          extensions: [],
-          error:
-            "Extensões da Chrome Web Store ainda não estão disponíveis no Ubuntu preview.",
-        });
+        await this.checkUpdates(true);
         return;
+      case "download_update":
+        if (this.availableUpdate)
+          this.win.webContents.downloadURL(this.availableUpdate.url);
+        return;
+      case "extensions_list":
       case "extensions_prepare":
       case "extensions_install":
+      case "extensions_cancel":
+      case "extensions_enable":
+      case "extensions_remove":
       case "extension_open":
-        this.notify(
-          "As extensões da Chrome Web Store ainda não estão disponíveis nesta versão Ubuntu.",
-        );
+        await this.extensionCommand(v);
         return;
       case "music_remote":
         this.notify(
@@ -1156,6 +1208,70 @@ class Host {
     }
     this.publish();
     this.save();
+  }
+  async checkUpdates(manual = false) {
+    if (this.update.status === "checking") {
+      if (manual) {
+        this.update.manual = true;
+        this.publish();
+      }
+      return;
+    }
+    this.update = { status: "checking", manual };
+    this.publish();
+    try {
+      this.availableUpdate = await updates.check(net.fetch, this.state.version);
+      const { manual } = this.update;
+      this.update = this.availableUpdate
+        ? { status: "available", version: this.availableUpdate.version, manual }
+        : { status: "current", manual };
+    } catch (error) {
+      this.update = {
+        status: "error",
+        manual: this.update.manual,
+        message: "Não foi possível verificar a versão Ubuntu. " + error.message,
+      };
+    }
+    this.publish();
+  }
+  async extensionCommand(v) {
+    const manager = this.extensions;
+    const publish = (state, extra = {}) =>
+      this.call("extensionsEvent", { state, items: manager.list(), ...extra });
+    if (manager.busy) return;
+    manager.busy = true;
+    try {
+      switch (v.cmd) {
+        case "extensions_prepare":
+          await publish("downloading");
+          await manager.prepare(v.url);
+          break;
+        case "extensions_install":
+          await manager.install();
+          break;
+        case "extensions_cancel":
+          await manager.cancel();
+          break;
+        case "extensions_enable":
+          await manager.setEnabled(v.id, v.enabled === true);
+          break;
+        case "extensions_remove":
+          await manager.remove(v.id);
+          break;
+        case "extension_open":
+          if (this.active()?.private) throw Error("Abra o painel em uma aba normal.");
+          await manager.open(v.id, this.win, (url) => {
+            if (M.pageURL(url) && url !== M.START) this.newTab(url).catch(() => {});
+          });
+          break;
+      }
+      await publish("ready", { prepared: manager.prepared?.summary || null });
+    } catch (error) {
+      if (v.cmd === "extension_open") this.notify(error.message);
+      await publish("error", { error: error.message, prepared: manager.prepared?.summary || null });
+    } finally {
+      manager.busy = false;
+    }
   }
   async configureShield() {
     await this.bridge.request({
@@ -1237,6 +1353,7 @@ class Host {
       this.permissionRequests.clear();
       for (const item of this.downloads.values()) item.cancel();
       for (const id of [...this.views.keys()]) this.destroyView(id);
+      await this.extensions?.cancel();
       await this.bridge.close();
       await session.fromPartition("persist:compass-sites").cookies.flushStore();
       if (this.powerId != null) powerSaveBlocker.stop(this.powerId);

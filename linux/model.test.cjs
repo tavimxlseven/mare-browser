@@ -45,3 +45,27 @@ test("restore disabled, malformed profile entries and interrupted downloads", ()
   assert.equal(s.downloads[0].status, "interrupted");
   assert(M.newTab(s).id > 22);
 });
+test("updates select the newest Ubuntu installer and reject unrelated assets", async () => {
+  const updates = require("./updates.cjs");
+  const release = (version, tag = "ubuntu-v" + version, host = "github.com") => {
+    const name = "compass-browser_" + version + "-1_amd64.deb";
+    return {
+      tag_name: tag,
+      assets: [{
+        name,
+        browser_download_url: "https://" + host + "/tavimxlseven/mare-browser/releases/download/" + tag + "/" + name,
+      }],
+    };
+  };
+  const entries = [
+    release("0.6.9"),
+    release("0.6.10"),
+    release("1.2.3", "v1.2.3"),
+    release("2.0.0", "ubuntu-v2.0.0", "example.org"),
+    { ...release("3.0.0"), draft: true },
+  ];
+  const respond = async () => ({ ok: true, json: async () => entries });
+  assert.equal((await updates.check(respond, "0.6.9")).version, "0.6.10");
+  assert.equal(await updates.check(respond, "0.6.10"), null);
+  assert.equal(await updates.check(respond, "0.7.0"), null);
+});

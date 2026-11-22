@@ -68,7 +68,7 @@ function settings(value = {}) {
 }
 function initial(saved = {}) {
   const state = {
-    version: "0.6.4",
+    version: require("./package.json").version,
     next_id: Math.max(10, Number(saved.next_id) || 10),
     site_icons: {},
     tabs: [],

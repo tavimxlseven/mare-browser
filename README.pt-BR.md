@@ -2,7 +2,7 @@
 
 Navegador para Windows e plataforma de apps Rust sob demanda.
 
-Também há uma **preview para Ubuntu 24.04 ou mais recente, Intel/AMD 64 bits**,
+Também há uma **versão para Ubuntu 24.04 ou mais recente, Intel/AMD 64 bits**,
 com Chromium e Noise Music integrado. Consulte [instalação e diferenças da versão Linux](linux/README.md)
 e baixe o `.deb` nas [releases Ubuntu](https://github.com/tavimxlseven/mare-browser/releases?q=ubuntu&expanded=true).
 

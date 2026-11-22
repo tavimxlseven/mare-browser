@@ -31,6 +31,10 @@ module.exports = async function (host, directory) {
           (c) => c.value === "retained",
         ),
       );
+      const extension = host.extensions.list().find((item) => item.name === "Compass extension fixture");
+      assert(extension?.enabled);
+      await host.command({ cmd: "extensions_remove", id: extension.id });
+      assert(!host.extensions.list().some((item) => item.id === extension.id));
       await host.command({ cmd: "apps_open", id: "spotify" });
       const state = await wait(
         () => host.appState?.responses?.spotify?.payload?.result,
@@ -44,6 +48,7 @@ module.exports = async function (host, directory) {
       );
       report.checks.push(
         "second launch restores browser history, site cookies and paused Noise track",
+        "enabled extension persists across launches and can be removed",
       );
       fs.writeFileSync(
         path.join(directory, "result.json"),
@@ -108,6 +113,23 @@ module.exports = async function (host, directory) {
     check(
       "remote pages have no Node, process or privileged IPC; sandbox enabled",
     );
+    const view = host.views.get(tab.id);
+    await wait(() => view.getBounds().y > 0, "normal toolbar bounds");
+    const normalBounds = view.getBounds();
+    wc.focus();
+    await wc.executeJavaScript("document.body.requestFullscreen()", true);
+    await wait(() => host.fullscreenTab === tab.id, "HTML fullscreen");
+    await wait(() => {
+      const [width, height] = host.win.getContentSize();
+      const bounds = view.getBounds();
+      return bounds.x === 0 && bounds.y === 0 &&
+        bounds.width === width && bounds.height === height;
+    }, "fullscreen fills the window");
+    wc.sendInputEvent({ type: "keyDown", keyCode: "Escape" });
+    wc.sendInputEvent({ type: "keyUp", keyCode: "Escape" });
+    await wait(() => host.fullscreenTab === null, "Escape leaves fullscreen");
+    await wait(() => view.getBounds().y === normalBounds.y, "normal toolbar restored");
+    check("HTML fullscreen covers browser chrome and Escape restores the tab");
     const before = host.state.tabs.length;
     await wc.executeJavaScript("document.querySelector('a').click()");
     await wait(
@@ -157,6 +179,85 @@ module.exports = async function (host, directory) {
     });
     assert.equal(filter.cancel, true);
     check("adblock-rust checks real filter lists");
+    const { createHash, generateKeyPairSync } = require("node:crypto");
+    const { publicKey } = generateKeyPairSync("rsa", {
+      modulusLength: 2048,
+      publicKeyEncoding: { type: "spki", format: "der" },
+      privateKeyEncoding: { type: "pkcs8", format: "der" },
+    });
+    const id = [...createHash("sha256").update(publicKey).digest().subarray(0, 16)]
+      .flatMap((byte) => [byte >> 4, byte & 15])
+      .map((nibble) => String.fromCharCode(97 + nibble)).join("");
+    const staging = fs.mkdtempSync(path.join(host.extensions.directory, ".review-"));
+    const payload = path.join(staging, "pending-" + id);
+    fs.mkdirSync(payload);
+    const extension = { id, name: "Compass extension fixture", version: "1.0", popup: "popup.html", permissions: [] };
+    fs.writeFileSync(path.join(payload, "manifest.json"), JSON.stringify({
+      name: extension.name,
+      version: extension.version,
+      manifest_version: 3,
+      key: publicKey.toString("base64"),
+      action: { default_popup: extension.popup },
+      content_scripts: [{ matches: ["http://127.0.0.1/*"], js: ["content.js"] }],
+    }));
+    fs.writeFileSync(path.join(payload, "content.js"), 'document.body.dataset.compassExtension = "loaded";');
+    fs.writeFileSync(path.join(payload, extension.popup), "<p>Compass extension popup</p>");
+    host.extensions.prepared = { directory: staging, summary: extension };
+    await host.command({ cmd: "extensions_install" });
+    assert(host.extensions.list().find((item) => item.id === id)?.enabled);
+    wc.reload();
+    await wait(() => wc.executeJavaScript('document.body?.dataset.compassExtension === "loaded"'), "extension content script");
+    await host.command({ cmd: "extension_open", id });
+    const popup = host.extensions.popups.get(id);
+    assert(popup);
+    assert.equal(await popup.webContents.executeJavaScript("typeof window.ipc"), "undefined");
+    await host.command({ cmd: "extensions_enable", id, enabled: false });
+    assert(!host.extensions.list().find((item) => item.id === id).enabled);
+    await host.command({ cmd: "extensions_enable", id, enabled: true });
+    assert(host.extensions.list().find((item) => item.id === id).enabled);
+    const separate = await host.newTab(url + "/extension-private", true);
+    const separateWC = host.views.get(separate.id).webContents;
+    await wait(() => separateWC.getTitle() === "Compass Ubuntu fixture", "extension private tab");
+    assert.equal(await separateWC.executeJavaScript("document.body.dataset.compassExtension"), undefined);
+    host.closeTab(separate.id);
+    await host.command({ cmd: "activate", id: tab.id });
+    check("Chromium installs, runs, opens and toggles extensions only in the regular profile");
+    // Keep streaming tests independent of an account, a live catalog and hardware audio.
+    const music = await host.win.webContents.executeJavaScript(`(async () => {
+      const tracks = [{ id: 1, title: "Local fixture", available: true },
+        { id: 2, title: "Streaming fixture", streamable: true, track_uri: "spotify:track:fixture" }];
+      const snapshot = { local_tracks: tracks, entries: [], collections: [],
+        session: { order: [1, 2], original: [1, 2], position: 0 },
+        player: { volume: 80 } };
+      let persistedVolume;
+      const view = createSpotifyView({
+        request: async (method, params) => {
+          if (method === "volume") persistedVolume = params.value;
+          if (method === "cloud_stream") return { state: "preparing" };
+          return snapshot;
+        },
+        send() {}, notify() {}, icon: () => "", isOpen: () => true,
+      });
+      document.body.append(view.element);
+      try {
+        await view.load();
+        const row = view.element.querySelector(".music-next [data-action=queue_play]");
+        row?.click();
+        const slider = view.element.querySelector(".music-volume-slider");
+        slider.value = "30";
+        slider.dispatchEvent(new Event("change"));
+        await new Promise(resolve => setTimeout(resolve, 150));
+        const audio = document.querySelector("audio[data-noise-stream]");
+        return { title: row?.querySelector("strong").textContent, persistedVolume, gain: audio.volume };
+      } finally {
+        view.dispose();
+        view.element.remove();
+      }
+    })()`);
+    assert.equal(music.title, "Streaming fixture");
+    assert.equal(music.persistedVolume, 30);
+    assert(Math.abs(music.gain - 0.09) < 0.0001);
+    check("streaming tracks render in the queue and the volume slider changes streaming gain");
     // Seed one local WAV in the same account-free library path the native scanner uses.
     const audio = path.join(directory, "profile/apps/spotify/audio");
     fs.mkdirSync(audio, { recursive: true });

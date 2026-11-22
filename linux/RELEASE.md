@@ -1,25 +1,15 @@
-Primeira versão **preview do Compass Browser para Ubuntu 24.04 ou mais recente,
-Intel/AMD 64 bits**, com Noise Music integrado.
+Compass Browser 0.6.5 para Ubuntu 24.04 ou mais recente, Intel/AMD 64 bits.
 
-Baixe `compass-browser_0.6.4-1_amd64.deb` e instale:
+- Instale extensões Manifest V3 compatíveis pelo link da Chrome Web Store. O Compass verifica a assinatura e apresenta as permissões antes de instalar. As extensões são carregadas no perfil normal.
+- A fila do Noise Music exibe faixas baixadas e faixas disponíveis por streaming. O volume controla a reprodução local e o streaming.
+- A tela cheia do YouTube ocupa toda a janela, incluindo a área das barras do navegador. Pressione Esc para voltar.
+- O Compass verifica se existe uma versão Ubuntu mais nova e oferece o download do pacote pelo menu de atualização.
+
+Feche o Compass e instale o pacote com:
 
 ```sh
-sudo apt install ./compass-browser_0.6.4-1_amd64.deb
+sudo apt install ./compass-browser_0.6.5-1_amd64.deb
 ```
 
-Abra Compass Browser pelo menu de aplicativos. O pacote inclui Chromium e os
-componentes nativos do Noise; não é necessário instalar Rust ou WebView2.
-Histórico, cookies, logins e biblioteca ficam separados por usuário do Linux.
-Entre com a mesma conta do Noise usada no celular para acessar sua biblioteca.
-
-Inclui abas normais e privadas, favoritos, histórico, lista de leitura, downloads
-com progresso, proteção de rede, Notas, Calculadora e a interface atual do Noise.
-
-**Limitações desta preview:** sem extensões da Chrome Web Store, sem Widevine
-incluído e sem o servidor opcional de pareamento LAN. Atualização pelo novo `.deb`;
-não há instalação automática nesta versão Linux. Controle do Noise pela conta é
-preservado. Testado em Ubuntu 24.04/Xvfb; Wayland e áudio em hardware real ainda
-precisam de validação. As fontes online de música dependem da disponibilidade dos
-serviços e da sessão configurada no servidor.
-
-O arquivo `SHA256SUMS` permite conferir a integridade do instalador.
+A atualização mantém o perfil do navegador e os dados do Noise. O arquivo
+`SHA256SUMS` permite conferir a integridade do pacote.

@@ -6,13 +6,12 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
-import tomllib
 import urllib.request
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "dist"
-VERSION = tomllib.loads((ROOT / "Cargo.toml").read_text())["package"]["version"]
+VERSION = json.loads((ROOT / "linux/package.json").read_text())["version"]
 STAGE = DIST / "ubuntu-package"
 LIB = STAGE / "usr/lib/compass-browser"
 ASSETS = [
@@ -72,7 +71,7 @@ def main():
     # Electron auto-loads resources/app/package.json. Native helpers live beside the app.
     application = LIB / "resources/app"
     application.mkdir(parents=True, exist_ok=True)
-    for name in ["host.cjs", "model.cjs", "bridge.cjs", "preload.cjs", "smoke-harness.cjs", "package.json"]:
+    for name in ["host.cjs", "extensions.cjs", "updates.cjs", "model.cjs", "bridge.cjs", "preload.cjs", "smoke-harness.cjs", "package.json"]:
         shutil.copyfile(ROOT / "linux" / name, application / name)
     # Fixed root is the installation directory, not a runtime or source directory.
     for name in ["noise-worker", "components"]:
@@ -118,7 +117,7 @@ Recommends: gnome-keyring
 Section: web
 Priority: optional
 Homepage: https://github.com/tavimxlseven/mare-browser
-Description: Compass Browser with Noise Music (Ubuntu preview)
+Description: Compass Browser with Noise Music for Ubuntu
  Chromium browser with isolated per-user profiles and native Rust music apps.
  For Ubuntu 24.04 or newer on Intel/AMD 64-bit PCs.
 """)

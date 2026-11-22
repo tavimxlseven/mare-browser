@@ -153,6 +153,7 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
     try {
       if (!cloudApplying && (await cloudOutput.command("volume", { value })))
         return;
+      if (streaming.active()) await streaming.command("volume", { value });
       const result = await request("volume", {
         value,
         revision: data.library_revision,
@@ -1540,7 +1541,7 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
     $(".music-now strong").textContent = track?.title || "Nada tocando";
     $(".music-now small").textContent =
       track?.artists ||
-      (track ? "Arquivo local" : "Escolha uma faixa baixada.");
+      (track?.streamable ? "Streaming pelo servidor" : track ? "Arquivo local" : "Escolha uma música.");
 
     const entry = data.entries.find(
       (e) =>
@@ -1682,18 +1683,20 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
       player.track_id,
       data.artwork,
       queueIds,
+      playback.position,
     ]);
     if (
       !queueSort.dragging &&
       $(".music-next").dataset.signature !== queueSignature
     ) {
       $(".music-next").dataset.signature = queueSignature;
+      const tracks = new Map(data.local_tracks.map((track) => [track.id, track]));
       const upcoming = playback.upcoming();
       $(".music-next").innerHTML =
         upcoming
           .map((id, index) => {
-            const t = data.local_tracks.find((t) => t.id === id);
-            if (!t?.available) return "";
+            const t = tracks.get(id);
+            if (!canPlay(t)) return "";
             const at = playback.position + index + 1;
             const art =
               data.artwork?.[
@@ -1717,7 +1720,7 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
               "</span><div><strong>" +
               esc(t.title) +
               "</strong><small>" +
-              esc(t.artists || "Música baixada") +
+              esc(t.artists || (t.available ? "Música baixada" : "Streaming")) +
               '</small></div></button><div class="music-queue-actions"><button class="sort-handle" data-sort-handle aria-label="Reordenar ' +
               esc(t.title) +
               '">' +

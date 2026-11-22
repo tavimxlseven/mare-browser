@@ -8,7 +8,7 @@
     const host = element.ownerDocument?.body || element;
     audio.dataset.noiseStream = "true";
     host.append(audio);
-    let current = null, generation = 0, loading = false, desired = false, disposed = false;
+    let current = null, generation = 0, loading = false, desired = false, disposed = false, volume = 80;
     let reporting = false, dirty = false, lastReport = 0;
     const waiters = new Set();
     function snapshot() {
@@ -16,7 +16,7 @@
       const duration = Number.isFinite(audio.duration) ? Math.round(audio.duration * 1000) : current.duration_ms || 0;
       return { track_id: current.id, state: audio.ended ? "stopped" : !audio.paused && !loading ? "playing" : "paused",
         position_ms: Math.round((audio.currentTime || 0) * 1000), duration_ms: duration,
-        volume: getState().player?.volume ?? 80, streaming: true, buffering: loading };
+        volume, streaming: true, buffering: loading };
     }
     async function report(force = false) {
       changed();
@@ -45,10 +45,11 @@
       audio.pause(); audio.removeAttribute("src"); audio.load(); changed();
     }
     async function start(track, { position_ms = 0, paused = false } = {}) {
+      volume = getState().player?.volume ?? 80;
       stop();
       const ticketGeneration = generation;
       desired = !paused; current = track; loading = true;
-      audio.volume = Math.pow((getState().player?.volume ?? 80) / 100, 2);
+      audio.volume = Math.pow(volume / 100, 2);
       changed();
       try {
         await request("stop");
@@ -113,7 +114,11 @@
         if (method === "pause") { desired = false; audio.pause(); }
         else if (method === "resume") { desired = true; if (!audio.getAttribute("src")) await start(current, {position_ms:snapshot().position_ms}); else await audio.play(); }
         else if (method === "seek") { if (!audio.readyState) return true; audio.currentTime = Math.max(0, Math.min(params.position_ms / 1000, Number.isFinite(audio.duration) ? audio.duration : 86400)); }
-        else if (method === "volume") audio.volume = Math.pow(Math.max(0, Math.min(100, params.value)) / 100, 2);
+        else if (method === "volume") {
+          volume = Math.max(0, Math.min(100, params.value));
+          audio.volume = Math.pow(volume / 100, 2);
+          return true;
+        }
         else return false;
         await report(true); return true;
       },

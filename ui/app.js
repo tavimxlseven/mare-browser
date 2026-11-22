@@ -1200,6 +1200,7 @@
       force ||
       ((value.status === "downloading" ||
         value.status === "ready" ||
+        value.status === "available" ||
         value.manual) &&
         key !== updateDismissed);
     if (!visible || !value.status) {
@@ -1211,8 +1212,8 @@
     card.dataset.value = signature;
     const entering = card.hidden;
     card.hidden = false;
-    const ready = value.status === "ready";
-    const title = ready
+    const ready = value.status === "ready", available = value.status === "available";
+    const title = available ? "Nova versão do Compass para Ubuntu" : ready
       ? "Seu Compass está pronto para atualizar"
       : value.status === "downloading"
         ? "Uma nova versão está chegando"
@@ -1221,14 +1222,16 @@
           : value.status === "error"
             ? "Não foi possível atualizar"
             : "Buscando atualizações";
-    const text = ready
+    const text = available
+      ? `Baixe o pacote .deb da versão ${value.version}, feche o Compass e instale o pacote no Ubuntu.`
+      : ready
       ? `A versão ${value.version} será instalada ao fechar o Compass. Suas abas e dados serão preservados.`
       : value.status === "downloading"
         ? `Baixando a versão ${value.version} · ${((value.received || 0) / 1048576).toFixed(1)} MB`
         : value.status === "error"
           ? value.message
           : "Compass " + state.version;
-    card.innerHTML = `<button class="icon-button update-dismiss" aria-label="Fechar aviso">${icon("close")}</button><span class="update-emblem">${icon(ready ? "check" : "download")}</span><strong>${esc(title)}</strong><p>${esc(text)}</p>${value.status === "downloading" ? '<div class="update-transfer" role="status">Você pode continuar navegando.</div>' : ""}${ready ? '<button class="button primary update-install">Reiniciar e atualizar</button>' : value.status === "error" ? '<button class="button update-retry">Tentar novamente</button>' : ""}`;
+    card.innerHTML = `<button class="icon-button update-dismiss" aria-label="Fechar aviso">${icon("close")}</button><span class="update-emblem">${icon(ready ? "check" : "download")}</span><strong>${esc(title)}</strong><p>${esc(text)}</p>${value.status === "downloading" ? '<div class="update-transfer" role="status">Você pode continuar navegando.</div>' : ""}${available ? '<button class="button primary update-download">Baixar pacote .deb</button>' : ready ? '<button class="button primary update-install">Reiniciar e atualizar</button>' : value.status === "error" ? '<button class="button update-retry">Tentar novamente</button>' : ""}`;
     $(".update-dismiss", card).onclick = () => {
       updateDismissed = key;
       animate(
@@ -1244,6 +1247,7 @@
       });
     };
     if (ready) $(".update-install", card).onclick = () => requestClose();
+    if (available) $(".update-download", card).onclick = () => send({ cmd: "download_update" });
     const retry = $(".update-retry", card);
     if (retry)
       retry.onclick = () => {
@@ -1325,7 +1329,7 @@
     showOverlay(
       "extensions",
       "Extensões",
-      '<p class="extensions-intro">Instale extensões Manifest V3 pelo link da Chrome Web Store. Algumas APIs do Chrome não estão disponíveis no WebView2.</p><form id="extension-add"><label for="extension-url">Link da Chrome Web Store</label><div><input id="extension-url" type="url" required placeholder="https://chromewebstore.google.com/detail/…"><button class="button primary">Verificar extensão</button></div></form><div id="extension-review" aria-live="polite"></div><div id="extension-items"></div><div class="resource-actions"><button class="button" id="extension-store">Abrir Chrome Web Store</button><button class="button" id="extension-refresh">Atualizar lista</button></div>',
+      '<p class="extensions-intro">Instale extensões Manifest V3 pelo link da Chrome Web Store. Algumas APIs do Chrome não estão disponíveis neste navegador.</p><form id="extension-add"><label for="extension-url">Link da Chrome Web Store</label><div><input id="extension-url" type="url" required placeholder="https://chromewebstore.google.com/detail/…"><button class="button primary">Verificar extensão</button></div></form><div id="extension-review" aria-live="polite"></div><div id="extension-items"></div><div class="resource-actions"><button class="button" id="extension-store">Abrir Chrome Web Store</button><button class="button" id="extension-refresh">Atualizar lista</button></div>',
       "extensions-panel",
     );
     if (
@@ -1351,7 +1355,7 @@
       extensionState.state = result.state;
       extensionState.error = result.error;
     }
-    if (result.prepared) extensionState.prepared = result.prepared;
+    if ("prepared" in result) extensionState.prepared = result.prepared;
     if (result.items && extensionState.state === "installing") {
       extensionState.state = "ready";
       extensionState.prepared = null;
@@ -2512,7 +2516,7 @@
         )
         .join(
           "",
-        )}</div></section><section class="settings-section"><h3>Navegação</h3><div class="setting-row"><span class="setting-label" id="search-engine-label">Mecanismo de pesquisa</span>${selectMarkup("search-engine", "search-engine-label", s.search_engine, searchEngines)}</div><div class="setting-row"><label for="restore-session">Continuar de onde parei<small>Reabrir as abas comuns ao iniciar o Compass.</small></label><label class="switch"><input id="restore-session" type="checkbox" ${s.restore_session ? "checked" : ""}><span></span></label></div></section><section class="settings-section"><h3>Página inicial</h3><div class="wallpaper-picker">${wallpapers.map(([value, label]) => `<button class="wallpaper-choice wallpaper ${value}" data-wallpaper="${value}" aria-pressed="${s.home_background === value}"><span class="landscape" aria-hidden="true"><i></i><i></i><i></i><i></i></span>${label}</button>`).join("")}</div></section><section class="settings-section"><h3>Proteção</h3><div class="setting-row"><label for="settings-shield">Bloquear anúncios e rastreadores<small>Use o botão de proteção para configurar cada site.</small></label><label class="switch"><input id="settings-shield" type="checkbox" ${(state.protection?.enabled ?? s.shield_enabled) !== false ? "checked" : ""}><span></span></label></div></section><section class="settings-section"><h3>Atualizações</h3><div class="setting-row"><label for="automatic-updates">Atualizar automaticamente<small>Buscar e baixar novas versões ao iniciar. Instalar ao fechar o Compass.</small></label><label class="switch"><input id="automatic-updates" type="checkbox" ${s.automatic_updates !== false ? "checked" : ""}><span></span></label></div></section><section class="settings-section"><h3>Dados de navegação</h3><div class="setting-row"><div class="setting-label">Histórico<small>${state.history.length} ${state.history.length === 1 ? "página registrada" : "páginas registradas"}</small></div><button class="button" id="clear-history">Limpar histórico…</button></div><div class="setting-row"><div class="setting-label">Cookies e dados dos sites<small>Limpar pode encerrar sessões nos sites.</small></div><button class="button danger" id="clear-data">Limpar dados…</button></div></section><p class="about-footer">Compass ${esc(state.version)} · Código aberto</p>`,
+        )}</div></section><section class="settings-section"><h3>Navegação</h3><div class="setting-row"><span class="setting-label" id="search-engine-label">Mecanismo de pesquisa</span>${selectMarkup("search-engine", "search-engine-label", s.search_engine, searchEngines)}</div><div class="setting-row"><label for="restore-session">Continuar de onde parei<small>Reabrir as abas comuns ao iniciar o Compass.</small></label><label class="switch"><input id="restore-session" type="checkbox" ${s.restore_session ? "checked" : ""}><span></span></label></div></section><section class="settings-section"><h3>Página inicial</h3><div class="wallpaper-picker">${wallpapers.map(([value, label]) => `<button class="wallpaper-choice wallpaper ${value}" data-wallpaper="${value}" aria-pressed="${s.home_background === value}"><span class="landscape" aria-hidden="true"><i></i><i></i><i></i><i></i></span>${label}</button>`).join("")}</div></section><section class="settings-section"><h3>Proteção</h3><div class="setting-row"><label for="settings-shield">Bloquear anúncios e rastreadores<small>Use o botão de proteção para configurar cada site.</small></label><label class="switch"><input id="settings-shield" type="checkbox" ${(state.protection?.enabled ?? s.shield_enabled) !== false ? "checked" : ""}><span></span></label></div></section><section class="settings-section"><h3>Atualizações</h3><div class="setting-row"><label for="automatic-updates">${state.platform === "linux" ? "Buscar atualizações ao iniciar<small>Receba um aviso quando houver um pacote .deb para baixar.</small>" : "Atualizar automaticamente<small>Buscar e baixar novas versões ao iniciar. Instalar ao fechar o Compass.</small>"}</label><label class="switch"><input id="automatic-updates" type="checkbox" ${s.automatic_updates !== false ? "checked" : ""}><span></span></label></div></section><section class="settings-section"><h3>Dados de navegação</h3><div class="setting-row"><div class="setting-label">Histórico<small>${state.history.length} ${state.history.length === 1 ? "página registrada" : "páginas registradas"}</small></div><button class="button" id="clear-history">Limpar histórico…</button></div><div class="setting-row"><div class="setting-label">Cookies e dados dos sites<small>Limpar pode encerrar sessões nos sites.</small></div><button class="button danger" id="clear-data">Limpar dados…</button></div></section><p class="about-footer">Compass ${esc(state.version)} · Código aberto</p>`,
     );
     bindSelect("search-engine", (value) =>
       changeSettings({ search_engine: value }),

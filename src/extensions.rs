@@ -7,12 +7,15 @@ use std::{
     io::{Cursor, Read},
     path::{Path, PathBuf},
 };
+#[cfg(windows)]
 use webview2_com::{
     take_pwstr, BrowserExtensionEnableCompletedHandler, BrowserExtensionRemoveCompletedHandler,
     Microsoft::Web::WebView2::Win32::*, ProfileAddBrowserExtensionCompletedHandler,
     ProfileGetBrowserExtensionsCompletedHandler,
 };
+#[cfg(windows)]
 use windows::core::{Interface, HSTRING, PWSTR};
+#[cfg(windows)]
 use wry::{WebView, WebViewExtWindows};
 
 #[derive(Debug, Clone)]
@@ -309,7 +312,7 @@ fn unpack(data: &[u8], folder: &Path, key: &[u8], id: &str) -> Result<Value, Str
     let mut manifest: Value =
         serde_json::from_slice(&bytes).map_err(|_| "Manifesto de extensão inválido.")?;
     if !manifest.is_object() || manifest["manifest_version"] != 3 {
-        return Err("Esta versão aceita extensões Manifest V3. A loja pode oferecer extensões incompatíveis com o WebView2.".into());
+        return Err("Esta versão aceita apenas extensões Manifest V3.".into());
     }
     manifest["key"] = json!(STANDARD.encode(key));
     fs::write(manifest_path, serde_json::to_vec_pretty(&manifest).unwrap())
@@ -330,7 +333,7 @@ fn unpack(data: &[u8], folder: &Path, key: &[u8], id: &str) -> Result<Value, Str
             }
         }
     }
-    let permissions: Vec<Value> = ["permissions", "host_permissions"]
+    let mut permissions: Vec<Value> = ["permissions", "host_permissions"]
         .iter()
         .flat_map(|key| {
             manifest[*key]
@@ -340,8 +343,22 @@ fn unpack(data: &[u8], folder: &Path, key: &[u8], id: &str) -> Result<Value, Str
                 .filter(|v| v.is_string())
                 .cloned()
         })
-        .take(100)
         .collect();
+    if let Some(scripts) = manifest["content_scripts"].as_array() {
+        permissions.extend(scripts.iter().flat_map(|script| {
+            script["matches"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter(|v| v.is_string())
+                .cloned()
+        }));
+    }
+    permissions.sort_by(|a, b| a.as_str().cmp(&b.as_str()));
+    permissions.dedup();
+    if permissions.len() > 100 || permissions.iter().any(|p| p.as_str().unwrap().len() > 2048) {
+        return Err("A extensão solicita permissões demais para revisão.".into());
+    }
     Ok(
         json!({"id":id,"name":name.chars().take(160).collect::<String>(),"version":manifest["version"],"permissions":permissions,"popup":popup(&manifest)}),
     )
@@ -354,6 +371,7 @@ pub fn popup(manifest: &Value) -> Option<&str> {
             && !p.split('/').any(|s| s == "..")
     })
 }
+#[cfg(windows)]
 fn profile(view: &WebView) -> Result<ICoreWebView2Profile7, String> {
     unsafe {
         view.webview()
@@ -363,6 +381,7 @@ fn profile(view: &WebView) -> Result<ICoreWebView2Profile7, String> {
             .map_err(|_| "Atualize o WebView2 Runtime para gerenciar extensões.".into())
     }
 }
+#[cfg(windows)]
 pub fn install(
     view: &WebView,
     folder: &Path,
@@ -391,6 +410,7 @@ pub fn install(
             .map_err(|e| e.to_string())
     }
 }
+#[cfg(windows)]
 pub fn list(
     view: &WebView,
     root: PathBuf,
@@ -442,6 +462,7 @@ pub fn list(
             .map_err(|e| e.to_string())
     }
 }
+#[cfg(windows)]
 pub fn change(
     view: &WebView,
     id: String,
@@ -509,6 +530,7 @@ pub fn change(
     }
 }
 
+#[cfg(windows)]
 fn fetch(input: &str) -> Result<Vec<u8>, String> {
     use windows::{
         core::{w, PCWSTR},
@@ -629,6 +651,45 @@ fn fetch(input: &str) -> Result<Vec<u8>, String> {
         }
     }
     Err("A loja excedeu o limite de redirecionamentos.".into())
+}
+
+#[cfg(target_os = "linux")]
+fn fetch(input: &str) -> Result<Vec<u8>, String> {
+    use reqwest::{blocking::Client, redirect::Policy};
+    use std::time::Duration;
+    const LIMIT: u64 = 64 * 1024 * 1024;
+    let mut response = Client::builder()
+        .user_agent("CompassExtensions")
+        .timeout(Duration::from_secs(90))
+        .redirect(Policy::custom(|attempt| {
+            let url = attempt.url();
+            let host = url.host_str().unwrap_or("");
+            if attempt.previous().len() > 5
+                || url.scheme() != "https"
+                || !url.username().is_empty()
+                || url.password().is_some()
+                || url.port().is_some()
+                || !(host == "clients2.google.com"
+                    || host.ends_with(".googleusercontent.com")
+                    || host.ends_with(".gvt1.com"))
+            {
+                attempt.error("Redirecionamento da loja não reconhecido.")
+            } else {
+                attempt.follow()
+            }
+        }))
+        .build()
+        .and_then(|client| client.get(input).send())
+        .map_err(|_| "Não foi possível conectar à Chrome Web Store.")?;
+    if !response.status().is_success() {
+        return Err(format!("A Chrome Web Store retornou HTTP {}.", response.status().as_u16()));
+    }
+    let mut bytes = Vec::new();
+    response.by_ref().take(LIMIT + 1).read_to_end(&mut bytes).map_err(|_| "Não foi possível baixar a extensão.")?;
+    if bytes.len() as u64 > LIMIT {
+        return Err("O pacote excedeu o limite de tamanho.".into());
+    }
+    Ok(bytes)
 }
 
 #[cfg(test)]

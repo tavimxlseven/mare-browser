@@ -11,7 +11,7 @@
 
 Compass Browser is a Windows browser built with Rust, Tao and Wry. Web content runs in Microsoft WebView2; the browser interface and app workspace share a local UI. The project is in active development.
 
-An **Ubuntu 24.04+ amd64 preview** is also available, using sandboxed Chromium and
+An **Ubuntu 24.04+ amd64 edition** is also available, using sandboxed Chromium and
 the same Noise Music UI and Rust workers. See the [Ubuntu installation guide](linux/README.md)
 and [Ubuntu releases](https://github.com/tavimxlseven/mare-browser/releases?q=ubuntu&expanded=true).
 
@@ -73,7 +73,7 @@ Noise Music supports [server streaming and private shared listening](docs/SHARED
 
 ## Project status
 
-Windows x64 is the supported development target. macOS and Linux have not been validated. The app catalog currently contains bundled apps; third-party package distribution is planned. The [music app](docs/SPOTIFY.md) plays local audio and integrates a headless Sunnify component. Spotify account login is deferred and hidden in this release; public playlist links remain available. The Compass Browser Discord IPC handshake is validated; profile rendering still requires manual verification. Spicetify continues to customize the installed official client. External components have [separate terms and packaging limits](docs/COMPONENTS.md). No performance comparison with Spotify or other browsers is claimed.
+Windows x64 and Ubuntu 24.04+ amd64 have separate release workflows. The app catalog currently contains bundled apps; third-party package distribution is planned. The [music app](docs/SPOTIFY.md) plays local audio and integrates a headless Sunnify component. Spotify account login is deferred and hidden in this release; public playlist links remain available. The Compass Browser Discord IPC handshake is validated; profile rendering still requires manual verification. Spicetify continues to customize the installed official client. External components have [separate terms and packaging limits](docs/COMPONENTS.md). No performance comparison with Spotify or other browsers is claimed.
 
 Shield implements a subset of browser privacy features. It does not provide all Brave Shields features, and filter lists can miss ads or break pages. Its controls and data sources are documented in [PROTECTION.md](docs/PROTECTION.md).
 
