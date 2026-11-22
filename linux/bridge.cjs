@@ -3,12 +3,12 @@ const { spawn } = require("node:child_process");
 const { EventEmitter } = require("node:events");
 // The renderer never receives this object, executable paths or a generic spawn API.
 class Bridge extends EventEmitter {
-  constructor(exe, profile) {
+  constructor(exe, profile, mode = "--linux-host") {
     super();
     this.seq = 0;
     this.pending = new Map();
     this.buffer = "";
-    this.child = spawn(exe, ["--linux-host", profile], {
+    this.child = spawn(exe, [mode, profile], {
       stdio: ["pipe", "pipe", "pipe"],
     });
     this.ready = new Promise((resolve, reject) => {
@@ -34,6 +34,8 @@ class Bridge extends EventEmitter {
         }
         if (v.kind === "ready") this.resolveReady(v.apps);
         else if (v.kind === "app") this.emit("app", v);
+        else if (v.kind === "remote_status" || v.kind === "remote_action")
+          this.emit(v.kind, v);
         else {
           const pending = this.pending.get(v.seq);
           if (pending) {

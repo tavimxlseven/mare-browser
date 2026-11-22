@@ -250,6 +250,8 @@ struct Request {
     body: Vec<u8>,
 }
 fn read_request(stream: &mut TcpStream) -> Result<Request, u16> {
+    // Accepted sockets can inherit the listener's nonblocking mode on macOS.
+    stream.set_nonblocking(false).map_err(|_| 400u16)?;
     stream
         .set_read_timeout(Some(Duration::from_millis(500)))
         .map_err(|_| 400u16)?;

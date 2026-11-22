@@ -22,7 +22,7 @@ pub fn html() -> String {
         &mut html,
         "SCRIPTS",
         &format!(
-            "<script>{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}</script>",
+            "<script>{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}</script>",
             include_str!("../mobile/public/sortable.js"),
             include_str!("../mobile/public/devices-ui.js"),
             include_str!("../ui/music-queue.js"),
@@ -32,6 +32,7 @@ pub fn html() -> String {
             include_str!("../ui/music-listening.js"),
             include_str!("../ui/spotify.js"),
             include_str!("../ui/browser-tools.js"),
+            include_str!("../ui/icons.js"),
             include_str!("../ui/app.js")
         ),
     );

@@ -4,6 +4,7 @@ const releases = "https://api.github.com/repos/tavimxlseven/mare-browser/release
 const downloadBase = "https://github.com/tavimxlseven/mare-browser/releases/download/";
 const versionPattern = "(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)";
 const ubuntuTag = new RegExp("^ubuntu-v" + versionPattern + "$");
+const macosTag = new RegExp("^macos-v" + versionPattern + "$");
 
 function compare(a, b) {
   const left = a.split(".").map(Number);
@@ -12,13 +13,19 @@ function compare(a, b) {
 }
 
 function latestUbuntuRelease(entries) {
+  return latestRelease(entries);
+}
+
+function latestRelease(entries, arch) {
   if (!Array.isArray(entries)) throw Error("Resposta inválida do GitHub.");
   let latest = null;
   for (const release of entries) {
-    const match = ubuntuTag.exec(release?.tag_name);
+    const match = (arch ? macosTag : ubuntuTag).exec(release?.tag_name);
     if (!match || release.draft || !Array.isArray(release.assets)) continue;
     const version = match.slice(1).join(".");
-    const name = "compass-browser_" + version + "-1_amd64.deb";
+    const name = arch
+      ? "Noise-Music-" + version + "-macos-" + arch + ".zip"
+      : "compass-browser_" + version + "-1_amd64.deb";
     const url = downloadBase + release.tag_name + "/" + name;
     if (!release.assets.some((asset) => asset?.name === name && asset.browser_download_url === url))
       continue;
@@ -27,9 +34,9 @@ function latestUbuntuRelease(entries) {
   return latest;
 }
 
-async function check(fetch, current) {
+async function check(fetch, current, arch) {
   const timeout = AbortSignal.timeout(12000);
-  // Follow paginated results until at least one Ubuntu release is found.
+  // Follow paginated results until at least one matching release is found.
   for (let page = 1; page <= 5; page++) {
     const response = await fetch(releases + "?per_page=100&page=" + page, {
       headers: { Accept: "application/vnd.github+json" },
@@ -38,7 +45,7 @@ async function check(fetch, current) {
     });
     if (!response.ok) throw Error("O GitHub retornou HTTP " + response.status + ".");
     const entries = await response.json();
-    const latest = latestUbuntuRelease(entries);
+    const latest = latestRelease(entries, arch);
     if (latest)
       return compare(latest.version, current) > 0 ? latest : null;
     if (entries.length < 100) break;

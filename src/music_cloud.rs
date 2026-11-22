@@ -642,11 +642,11 @@ mod tests {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 fn protect(bytes: &[u8], encrypt: bool) -> Result<Vec<u8>, String> {
     crate::portable::protect(bytes, encrypt)
 }
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 fn http(origin: &str, path: &str, token: Option<&str>, body: &Value) -> Result<Value, String> {
     let bytes = serde_json::to_vec(body).map_err(|e| e.to_string())?;
     if bytes.len() > 1_900_000 {

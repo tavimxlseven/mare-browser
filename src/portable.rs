@@ -1,4 +1,4 @@
-//! Linux implementations of the OS services used by the existing native apps.
+//! Unix implementations of the OS services used by the existing native apps.
 use serde_json::Value;
 use std::{io::Read, process::Command, time::Duration};
 
@@ -30,7 +30,7 @@ pub fn json(
         .connect_timeout(Duration::from_secs(4))
         .timeout(Duration::from_secs(20))
         .redirect(reqwest::redirect::Policy::none())
-        .user_agent("NoiseMusic/0.6.4 (Linux)")
+        .user_agent(format!("NoiseMusic/{} ({})", env!("CARGO_PKG_VERSION"), std::env::consts::OS))
         .build()
         .map_err(|_| "Conexão segura indisponível.")?;
     let mut request = if let Some(body) = body {
@@ -69,7 +69,8 @@ pub fn json(
     serde_json::from_slice(&bytes).map_err(|_| "O servidor retornou uma resposta inválida.".into())
 }
 
-fn key() -> Result<[u8; 32], String> {
+#[cfg(target_os = "linux")]
+fn key(_: bool) -> Result<[u8; 32], String> {
     use base64::{engine::general_purpose::STANDARD, Engine};
     use std::{io::Write, process::Stdio};
     let output = Command::new("secret-tool")
@@ -125,8 +126,33 @@ fn key() -> Result<[u8; 32], String> {
     }
     Ok(key)
 }
+#[cfg(target_os = "macos")]
+fn key(encrypt: bool) -> Result<[u8; 32], String> {
+    use security_framework::os::macos::keychain::SecKeychain;
+    use security_framework::passwords::get_generic_password;
+    const SERVICE: &str = "com.compassbrowser.noise-music";
+    const ACCOUNT: &str = "cloud-session-v1";
+    let failure = |_| "Não foi possível acessar o Chaves do macOS.".to_string();
+    match get_generic_password(SERVICE, ACCOUNT) {
+        Ok(key) => key.try_into().map_err(|_| "Chave protegida inválida.".into()),
+        Err(error) if error.code() == -25300 && encrypt => {
+            let mut key = [0; 32];
+            getrandom::fill(&mut key).map_err(|_| "Gerador seguro indisponível.")?;
+            let keychain = SecKeychain::default().map_err(failure)?;
+            match keychain.add_generic_password(SERVICE, ACCOUNT, &key) {
+                Ok(()) => Ok(key),
+                Err(error) if error.code() == -25299 => get_generic_password(SERVICE, ACCOUNT)
+                    .map_err(failure)?
+                    .try_into()
+                    .map_err(|_| "Chave protegida inválida.".into()),
+                Err(error) => Err(failure(error)),
+            }
+        }
+        Err(error) => Err(failure(error)),
+    }
+}
 pub fn protect(bytes: &[u8], encrypt: bool) -> Result<Vec<u8>, String> {
-    crypt(bytes, encrypt, &key()?)
+    crypt(bytes, encrypt, &key(encrypt)?)
 }
 fn crypt(bytes: &[u8], encrypt: bool, key: &[u8; 32]) -> Result<Vec<u8>, String> {
     use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
@@ -164,6 +190,7 @@ fn crypt(bytes: &[u8], encrypt: bool, key: &[u8; 32]) -> Result<Vec<u8>, String>
 #[cfg(test)]
 mod tests {
     #[test]
+    #[cfg(target_os = "linux")]
     #[ignore = "requires an unlocked Secret Service keyring"]
     fn linux_os_keyring_roundtrip() {
         let raw = b"disposable account session fixture";

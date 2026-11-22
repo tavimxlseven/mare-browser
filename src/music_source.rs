@@ -195,7 +195,7 @@ fn run_normalized(
 ) -> Result<(), String> {
     crate::spotify::normalize_link(url)?;
     fs::create_dir_all(folder).map_err(|e| e.to_string())?;
-    #[cfg(target_os = "linux")]
+    #[cfg(unix)]
     use crate::portable::CommandExt;
     #[cfg(windows)]
     use std::os::windows::process::CommandExt;

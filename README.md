@@ -15,6 +15,8 @@ An **Ubuntu 24.04+ amd64 edition** is also available, using sandboxed Chromium a
 the same Noise Music UI and Rust workers. See the [Ubuntu installation guide](linux/README.md)
 and [Ubuntu releases](https://github.com/tavimxlseven/mare-browser/releases?q=ubuntu&expanded=true).
 
+Noise Music is available on macOS as a standalone app. The build and release workflow produces separate ZIPs for Apple Silicon and Intel. See the [macOS release notes](macos/RELEASE.md).
+
 ![Compass Browser on Windows](docs/screenshots/start-light.png)
 
 ## Features

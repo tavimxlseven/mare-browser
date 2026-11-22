@@ -8,7 +8,7 @@ use std::{
 };
 #[cfg(windows)]
 type IpcPipe = fs::File;
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 type IpcPipe = std::os::unix::net::UnixStream;
 pub struct Presence {
     path: PathBuf,
@@ -126,14 +126,17 @@ impl Presence {
         }
         self.state = "discord_closed".into();
     }
-    #[cfg(target_os = "linux")]
+    #[cfg(unix)]
     fn connect(&mut self) {
-        let Some(root) = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from) else {
-            self.state = "discord_closed".into();
-            return;
-        };
+        #[cfg(target_os = "linux")]
+        let directories = std::env::var_os("XDG_RUNTIME_DIR")
+            .map(PathBuf::from)
+            .map(|root| vec![root.join("app/com.discordapp.Discord"), root])
+            .unwrap_or_default();
+        #[cfg(target_os = "macos")]
+        let directories = [std::env::temp_dir(), PathBuf::from("/tmp")];
         for index in 0..10 {
-            for dir in [&root, &root.join("app/com.discordapp.Discord")] {
+            for dir in &directories {
                 if let Ok(pipe) = IpcPipe::connect(dir.join(format!("discord-ipc-{index}"))) {
                     if pipe.set_nonblocking(true).is_err() {
                         continue;
@@ -182,7 +185,7 @@ impl Presence {
                 }
                 available
             };
-            #[cfg(target_os = "linux")]
+            #[cfg(unix)]
             let available = 4096;
             if available == 0 {
                 break;
