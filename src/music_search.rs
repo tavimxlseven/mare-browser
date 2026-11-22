@@ -41,7 +41,7 @@ pub fn command(directory: &Path) -> Result<Command, String> {
             .arg("--js-runtimes")
             .arg(format!("deno:{}", deno.display()));
     }
-    #[cfg(target_os = "linux")]
+    #[cfg(unix)]
     use crate::portable::CommandExt;
     #[cfg(windows)]
     use std::os::windows::process::CommandExt;

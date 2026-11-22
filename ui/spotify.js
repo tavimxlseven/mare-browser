@@ -845,11 +845,12 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
     const section = $(".music-remote-settings");
     if (!section) return;
     const remote = window.mare?.getMusicRemote?.() || { enabled: false };
+    const computer = window.mare?.standalone ? "Mac" : "PC";
     const signature = JSON.stringify(remote);
     if (section.dataset.signature === signature) return;
     section.dataset.signature = signature;
     section.innerHTML =
-      "<h4>Controlar pelo celular</h4><p>Mesma rede Wi-Fi, com pareamento. O áudio continua no PC.</p>" +
+      "<h4>Controlar pelo celular</h4><p>Mesma rede Wi-Fi, com pareamento. O áudio continua no " + computer + ".</p>" +
       (remote.enabled
         ? "<p>Abra este endereço no celular:</p>" +
           (remote.urls || [])
@@ -858,7 +859,7 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
           (!(remote.urls || []).length
             ? "<p>Não foi possível detectar o IP da Wi-Fi. Porta: " +
               remote.port +
-              ". Use o endereço IPv4 local do PC.</p>"
+              ". Use o endereço IPv4 local do " + computer + ".</p>"
             : "") +
           '<p>Código de pareamento</p><strong class="music-pair-code">' +
           esc(remote.code) +
@@ -886,7 +887,7 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
     if (data.account.state === "awaiting_authorization") {
       const waiting = dialog(
         "Autorizar no Spotify",
-        '<p>Conclua a autorização na aba privada do Spotify ou cancele esta tentativa.</p><button class="music-green" data-reopen>Abrir login</button><button data-cancel-account>Cancelar</button>',
+        '<p>Conclua a autorização no Spotify ou cancele esta tentativa.</p><button class="music-green" data-reopen>Abrir login</button><button data-cancel-account>Cancelar</button>',
       );
       waiting.querySelector("[data-reopen]").onclick = () =>
         send({
@@ -2496,6 +2497,7 @@ window.createSpotifyView = function ({ request, send, notify, icon, isOpen }) {
       }
     },
     load: () => invoke("list"),
+    refreshRemote: renderRemoteSettings,
     dispose: () => {
       flushSession();
       flushVolume();

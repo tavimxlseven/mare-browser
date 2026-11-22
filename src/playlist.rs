@@ -67,7 +67,7 @@ impl Catalog {
         self.active = json!({"uri":uri,"state":"loading","tracks":[]});
         std::thread::spawn(move || {
             let result = (|| -> Result<Value, String> {
-                #[cfg(target_os = "linux")]
+                #[cfg(unix)]
                 use crate::portable::CommandExt;
                 #[cfg(windows)]
                 use std::os::windows::process::CommandExt;
@@ -82,7 +82,7 @@ impl Catalog {
                     .stdout(Stdio::piped())
                     .stderr(Stdio::null())
                     .creation_flags(0x08004000);
-                #[cfg(target_os = "linux")]
+                #[cfg(unix)]
                 crate::portable::prepare_job(&mut command);
                 let mut child = command.spawn().map_err(|e| e.to_string())?;
                 let _tree = crate::components::ProcessTree::new(&child)?;

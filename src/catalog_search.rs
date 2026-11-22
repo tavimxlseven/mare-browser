@@ -312,7 +312,7 @@ mod tests {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 pub fn search(query: &str) -> Result<Value, String> {
     let mut endpoint = url::Url::parse("https://spotify.xwolf.space/api/search").unwrap();
     endpoint

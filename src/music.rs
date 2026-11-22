@@ -712,12 +712,12 @@ impl Music {
                     .stdin(Stdio::null())
                     .stdout(Stdio::piped())
                     .stderr(Stdio::null());
-                #[cfg(target_os = "linux")]
+                #[cfg(unix)]
                 use crate::portable::CommandExt;
                 #[cfg(windows)]
                 use std::os::windows::process::CommandExt;
                 command.creation_flags(0x0800_0000 | 0x0000_4000);
-                #[cfg(target_os = "linux")]
+                #[cfg(unix)]
                 crate::portable::prepare_job(&mut command);
                 let mut child = command.spawn().map_err(|e| e.to_string())?;
                 let tree = match crate::components::ProcessTree::new(&child) {
@@ -990,7 +990,7 @@ mod tests {
         assert!(music.add_file(&file, "Song", "Artist"));
         let track_uri = "spotify:track:0000000000000000000001";
         music.tracks[0].source_uri = track_uri.into();
-        #[cfg(target_os = "linux")]
+        #[cfg(unix)]
         use crate::portable::CommandExt;
         #[cfg(windows)]
         use std::os::windows::process::CommandExt;

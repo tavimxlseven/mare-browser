@@ -436,7 +436,7 @@ mod tests {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 fn http(host: &str, path: &str, body: Option<&str>, token: Option<&str>) -> Result<Value, String> {
     if !matches!(host, "accounts.spotify.com" | "api.spotify.com") || !path.starts_with('/') {
         return Err("Destino Spotify inválido.".into());

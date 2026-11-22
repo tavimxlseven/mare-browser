@@ -1,13 +1,16 @@
-// The Linux Chromium host launches these same native apps over bounded JSON lines.
+// The desktop hosts launch native apps over bounded JSON lines.
 mod apps;
 mod audio;
 mod catalog_search;
 mod components;
 mod covers;
+#[cfg(target_os = "linux")]
 mod extensions;
 mod model;
 mod music;
 mod music_cloud;
+#[cfg(target_os = "macos")]
+mod music_remote;
 mod music_search;
 mod music_session;
 mod music_source;
@@ -15,11 +18,13 @@ mod native_app;
 mod playlist;
 mod portable;
 mod presence;
+#[cfg(target_os = "linux")]
 mod protection;
 mod spotify;
 mod spotify_account;
 
 fn main() {
+    #[cfg(target_os = "linux")]
     if std::env::args().nth(1).as_deref() == Some("--prepare-extension") {
         let mut args = std::env::args_os().skip(2);
         let result = match (args.next(), args.next()) {
@@ -37,13 +42,18 @@ fn main() {
         }
         return;
     }
-    if std::env::args().nth(1).as_deref() == Some("--linux-host") {
+    #[cfg(target_os = "linux")]
+    let host_arg = "--linux-host";
+    #[cfg(target_os = "macos")]
+    let host_arg = "--noise-host";
+    if std::env::args().nth(1).as_deref() == Some(host_arg) {
         if let Err(error) = host() {
             eprintln!("{error}");
             std::process::exit(1);
         }
         return;
     }
+    #[cfg(target_os = "linux")]
     if std::env::args().any(|arg| arg == "--dump-interface") {
         print!("{}", interface::html());
         return;
@@ -56,6 +66,9 @@ fn main() {
             std::process::exit(1);
         }
         None => {
+            #[cfg(target_os = "macos")]
+            eprintln!("Abra o Noise Music pelo Finder.");
+            #[cfg(target_os = "linux")]
             eprintln!(
                 "Abra Compass Browser pelo menu de aplicativos ou pelo comando compass-browser."
             );
@@ -74,6 +87,8 @@ fn host() -> Result<(), String> {
     enum Message {
         Request(Value),
         App(apps::AppEvent),
+        #[cfg(target_os = "macos")]
+        Remote(Value),
         End,
     }
     let directory = std::env::args_os()
@@ -95,9 +110,14 @@ fn host() -> Result<(), String> {
         }
         let _ = input.send(Message::End);
     });
+    #[cfg(target_os = "macos")]
+    let remote_tx = tx.clone();
+    #[cfg(target_os = "macos")]
+    let mut remote = music_remote::Manager::default();
     let mut apps = apps::AppManager::new(&directory, move |event| {
         let _ = tx.send(Message::App(event));
     })?;
+    #[cfg(target_os = "linux")]
     let protection = protection::Protection::new();
     let mut output = std::io::stdout().lock();
     let mut send = |value: Value| -> Result<(), String> {
@@ -114,22 +134,77 @@ fn host() -> Result<(), String> {
             Ok(Message::End) | Err(mpsc::RecvTimeoutError::Disconnected) => break,
             Err(mpsc::RecvTimeoutError::Timeout) => (),
             Ok(Message::App(event)) => {
-                apps.handle_event(&event);
+                if !apps.handle_event(&event) {
+                    continue;
+                }
+                #[cfg(target_os = "macos")]
+                if event.app_id == "spotify" && remote.enabled() {
+                    if event.kind == "exited" {
+                        remote.stop();
+                    } else {
+                        remote.update(&event.payload["result"]);
+                    }
+                    send(json!({"kind":"remote_status","status":remote.status()}))?;
+                }
                 send(json!({"kind":"app","event":event,"apps":apps.snapshot()}))?;
+            }
+            #[cfg(target_os = "macos")]
+            Ok(Message::Remote(value)) => {
+                if remote.enabled() {
+                    if value["action"] == "refresh" {
+                        let _ = apps.request_with_id(
+                            "spotify", 0, "playback_status", json!({"revision":remote.revision()}),
+                        );
+                    } else {
+                        send(json!({"kind":"remote_action","value":value}))?;
+                    }
+                }
             }
             Ok(Message::Request(v)) => {
                 let cmd = v["cmd"].as_str().unwrap_or("");
                 let id = v["id"].as_str().unwrap_or("");
+                #[cfg(target_os = "macos")]
+                if cmd.starts_with("apps_") && id != "spotify" {
+                    send(json!({"seq":v["seq"],"error":"App indisponível."}))?;
+                    continue;
+                }
+                #[cfg(target_os = "linux")]
                 let tab = v["tab"].as_u64().unwrap_or(0);
+                #[cfg(target_os = "linux")]
                 let url = v["url"].as_str().unwrap_or("");
                 let result: Result<Value, String> = match cmd {
                     "apps_install" => apps.install(id).map(|()| apps.snapshot()),
+                    #[cfg(target_os = "linux")]
                     "apps_uninstall" => apps.uninstall(id).map(|()| apps.snapshot()),
                     "apps_open" => apps.start(id).map(|()| apps.snapshot()),
+                    #[cfg(target_os = "macos")]
+                    "music_remote" => {
+                        if v["enabled"] != true {
+                            remote.stop();
+                            Ok(remote.status())
+                        } else if apps.snapshot()["open_ids"].as_array()
+                            .is_some_and(|ids| ids.iter().any(|id| id == "spotify")) {
+                            let tx = remote_tx.clone();
+                            remote.start(move |value| {
+                                let _ = tx.try_send(Message::Remote(value));
+                            }).map(|()| {
+                                let _ = apps.request_with_id("spotify", 0, "list", json!({}));
+                                remote.status()
+                            })
+                        } else {
+                            Err("Abra o Noise Music antes de ativar o controle.".into())
+                        }
+                    }
                     "apps_close" => {
+                        #[cfg(target_os = "macos")]
+                        if id == "spotify" {
+                            remote.stop();
+                            send(json!({"kind":"remote_status","status":remote.status()}))?;
+                        }
                         apps.close(id);
                         Ok(apps.snapshot())
                     }
+                    #[cfg(target_os = "linux")]
                     "apps_background" => {
                         apps.deactivate();
                         Ok(apps.snapshot())
@@ -142,25 +217,31 @@ fn host() -> Result<(), String> {
                             v["params"].clone(),
                         )
                         .map(|()| Value::Null),
+                    #[cfg(target_os = "linux")]
                     "filter_configure" => {
                         let exceptions: Vec<String> =
                             serde_json::from_value(v["exceptions"].clone()).unwrap_or_default();
                         protection.configure(v["enabled"] == true, &exceptions);
                         Ok(Value::Null)
                     }
+                    #[cfg(target_os = "linux")]
                     "filter_begin" => {
                         protection.begin_navigation(tab, url);
                         protection.attach_linux(tab);
                         Ok(Value::Null)
                     }
+                    #[cfg(target_os = "linux")]
                     "filter_close" => {
                         protection.remove_tab(tab);
                         Ok(Value::Null)
                     }
+                    #[cfg(target_os = "linux")]
                     "filter" => Ok(
                         json!({"cancel":protection.check_linux(tab,url,v["type"].as_str().unwrap_or("other"),v["method"].as_str().unwrap_or("GET"),v["referer"].as_str().unwrap_or(""))}),
                     ),
+                    #[cfg(target_os = "linux")]
                     "filter_snapshot" => Ok(json!(protection.snapshot(tab, url))),
+                    #[cfg(target_os = "linux")]
                     "filter_cosmetics" => {
                         let classes: Vec<String> =
                             serde_json::from_value(v["classes"].clone()).unwrap_or_default();

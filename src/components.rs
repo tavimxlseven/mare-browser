@@ -43,6 +43,13 @@ pub fn executable(component: &str) -> Option<PathBuf> {
         "deno" => "music/deno",
         _ => return None,
     };
+    #[cfg(target_os = "macos")]
+    let relative = match component {
+        "sunnify" => "sunnify/Sunnify.app/Contents/MacOS/Sunnify",
+        "yt-dlp" => "music/yt-dlp",
+        "deno" => "music/deno",
+        _ => return None,
+    };
     let root = std::env::current_exe().ok()?.parent()?.join("components");
     let path = root.join(relative);
     if path.is_file() {
@@ -123,9 +130,9 @@ mod tests {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 pub struct ProcessTree(i32);
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 impl ProcessTree {
     pub fn new(child: &std::process::Child) -> Result<Self, String> {
         let pid = i32::try_from(child.id()).map_err(|_| "Processo inválido.")?;
@@ -136,7 +143,7 @@ impl ProcessTree {
         Ok(Self(pid))
     }
 }
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 impl Drop for ProcessTree {
     fn drop(&mut self) {
         unsafe {

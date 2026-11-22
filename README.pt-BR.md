@@ -6,6 +6,8 @@ Também há uma **versão para Ubuntu 24.04 ou mais recente, Intel/AMD 64 bits**
 com Chromium e Noise Music integrado. Consulte [instalação e diferenças da versão Linux](linux/README.md)
 e baixe o `.deb` nas [releases Ubuntu](https://github.com/tavimxlseven/mare-browser/releases?q=ubuntu&expanded=true).
 
+O Noise Music para macOS é um aplicativo separado. O workflow gera ZIPs separados para Apple Silicon e Intel. Veja as [notas da versão para macOS](macos/RELEASE.md).
+
 [Download](https://github.com/tavimxlseven/mare-browser/releases/latest) · [Documentação](docs/README.md) · [Contribuir](CONTRIBUTING.md) · [English](README.md)
 
 O Compass Browser usa Rust, Tao e Wry no host e WebView2 para renderizar páginas. Inclui abas, favoritos, histórico, navegação privada, leitor, downloads e bloqueio de anúncios e rastreadores com o motor Rust do Brave.

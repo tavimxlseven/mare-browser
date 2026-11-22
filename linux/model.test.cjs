@@ -69,3 +69,22 @@ test("updates select the newest Ubuntu installer and reject unrelated assets", a
   assert.equal(await updates.check(respond, "0.6.10"), null);
   assert.equal(await updates.check(respond, "0.7.0"), null);
 });
+test("macOS updates require an archive for the running architecture", async () => {
+  const { check } = require("./updates.cjs");
+  const release = (version, arch) => {
+    const tag = "macos-v" + version;
+    const name = "Noise-Music-" + version + "-macos-" + arch + ".zip";
+    return {
+      tag_name: tag,
+      assets: [{
+        name,
+        browser_download_url: "https://github.com/tavimxlseven/mare-browser/releases/download/" + tag + "/" + name,
+      }],
+    };
+  };
+  const entries = [release("0.6.7", "x64"), release("0.6.6", "arm64")];
+  const respond = async () => ({ ok: true, json: async () => entries });
+  assert.equal((await check(respond, "0.6.5", "arm64")).version, "0.6.6");
+  assert.equal((await check(respond, "0.6.5", "x64")).version, "0.6.7");
+  assert.equal(await check(respond, "0.6.5"), null);
+});
